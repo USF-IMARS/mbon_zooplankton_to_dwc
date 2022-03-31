@@ -16,15 +16,17 @@ library("worrms")
 ```{r}
 func <- paste0(getwd(),"/../scripts/match_taxa_fix.R")
 file.name <- paste0(getwd(),"/../data/raw/TaxonMatch_RcodeTest.xlsx")
-# will need to change source location of match_taxa_fix.R
+
+# new function for taxa matching
 source(func)
 
-# will need to change location of test file TaxonMatch_RcodeTest.xlsx
+# example file with scientific names
 TaxonMatch_RcodeTest <- readxl::read_excel(file.name)
 
+# select vector of scientific names
 taxa.name <- TaxonMatch_RcodeTest$scientificName
 
-rm(dir, func)
+rm(func, file.name)
 ```
 
 
@@ -41,9 +43,18 @@ the names within the excel spreadsheet before trying again.
 ```{r}
 # updated use
 obis.new.taxa <- match_taxa_fix(taxa.name, fuzzy = TRUE, ask = T)
+obis.new.taxa
 
+```
+```{r}
+
+    
 obis.taxa
 obis.new.taxa
+
+# examine the differences
+cbind(taxa.name, obis.taxa[1], obis.new.taxa[1])
+
 ```
 
 
