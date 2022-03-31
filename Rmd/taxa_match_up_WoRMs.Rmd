@@ -34,7 +34,7 @@ library("magrittr")
 ```{r create-dir}
 # will create a set directory if does not exists
 # useful for new projects
-mainDir <- getwd()
+mainDir <- paste0(getwd(),"/..")
 subDir <-
     c("/data/raw",
       "/data/processed",
@@ -43,7 +43,7 @@ subDir <-
       "/Rmd",
       "/scripts")
 
-fs::dir_create(path = paste0(mainDir,"/",subDir))
+fs::dir_create(path = paste0(mainDir,subDir))
 rm(mainDir, subDir)
 ```
 
@@ -81,7 +81,8 @@ obistools::match_taxa(	"Crustacea", ask = T)
 obis.taxa %>%
     mutate(taxa.name, .before = 1)
 
-source("D:/obis_data_format/scripts/match_taxa_fix.R")
+func <- paste0(getwd(),"/../scripts/match_taxa_fix.R")
+source(func)
 match_taxa_fix(c("Fish","copepoda"), fuzzy = TRUE, ask = T)
 match_taxa_fix(	"Crustacea", fuzzy = TRUE, ask = T)
 

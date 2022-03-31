@@ -14,7 +14,6 @@ library("worrms")
 ```
 
 ```{r}
-dir <- getwd()
 func <- paste0(getwd(),"/../scripts/match_taxa_fix.R")
 file.name <- paste0(getwd(),"/../data/raw/TaxonMatch_RcodeTest.xlsx")
 # will need to change source location of match_taxa_fix.R

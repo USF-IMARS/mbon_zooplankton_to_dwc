@@ -20,12 +20,16 @@ library("magrittr")
 ```
 
 ```{r}
-# will need to change source location of match_taxa_fix.R
-source("D:/obis_data_format/scripts/match_taxa_fix.R")
+func <- paste0(getwd(),"/../scripts/match_taxa_fix.R")
+file.name <- paste0(getwd(),"/../data/raw/TaxonMatch_RcodeTest.xlsx")
 
-# will need to change location of test file TaxonMatch_RcodeTest.xlsx
-TaxonMatch_RcodeTest <- readxl::read_excel("D:/obis_data_format/data/raw/TaxonMatch_RcodeTest.xlsx")
+# source of new function
+source(func)
 
+# read example file
+TaxonMatch_RcodeTest <- readxl::read_excel(file.name)
+
+# select only column of scienctific names
 taxa <- TaxonMatch_RcodeTest %>%
     select(scientificName)
 ```
