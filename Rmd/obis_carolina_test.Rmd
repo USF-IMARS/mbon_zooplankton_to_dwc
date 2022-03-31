@@ -1,0 +1,51 @@
+---
+title: "OBIS Taxa Testing"
+author: "Sebastian DiGeronimo"
+date: "3/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tibble")
+library("tidyr")
+library("readr")
+library("purrr")
+library("dplyr")
+library("stringr")
+library("forcats")
+library("glue")
+library("fs")
+library("magrittr")
+```
+
+```{r}
+# will need to change source location of match_taxa_fix.R
+source("D:/obis_data_format/scripts/match_taxa_fix.R")
+
+# will need to change location of test file TaxonMatch_RcodeTest.xlsx
+TaxonMatch_RcodeTest <- readxl::read_excel("D:/obis_data_format/data/raw/TaxonMatch_RcodeTest.xlsx")
+
+taxa <- TaxonMatch_RcodeTest %>%
+    select(scientificName)
+```
+
+
+```{r}
+taxa.name <- taxa %$% 
+     as.vector(scientificName) 
+taxa.name 
+
+# orignal uses
+obis.taxa <- obistools::match_taxa(taxa.name , ask = T)
+obis.taxa
+
+```
+
+```{r}
+# updated use
+obis.new.taxa <- match_taxa_fix(taxa.name, fuzzy = TRUE, ask = T)
+
+obis.taxa
+obis.new.taxa
+```

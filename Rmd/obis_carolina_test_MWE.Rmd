@@ -1,0 +1,44 @@
+---
+title: "OBIS Taxa Testing"
+author: "Sebastian DiGeronimo"
+date: "3/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("readxl")
+library("obistools")
+library("worrms")
+```
+
+```{r}
+# will need to change source location of match_taxa_fix.R
+source("D:/obis_data_format/scripts/match_taxa_fix.R")
+
+# will need to change location of test file TaxonMatch_RcodeTest.xlsx
+TaxonMatch_RcodeTest <- readxl::read_excel("D:/obis_data_format/data/raw/TaxonMatch_RcodeTest.xlsx")
+
+taxa.name <- TaxonMatch_RcodeTest$scientificName
+```
+
+
+```{r}
+# orignal uses
+obis.taxa <- obistools::match_taxa(taxa.name , ask = T)
+obis.taxa
+```
+From the original use, the matches that did not have anything were left blank. 
+Using the new function allows the correction of these without having to change
+the names within the excel spreadsheet before trying again.
+
+
+```{r}
+# updated use
+obis.new.taxa <- match_taxa_fix(taxa.name, fuzzy = TRUE, ask = T)
+
+obis.taxa
+obis.new.taxa
+```
+
+

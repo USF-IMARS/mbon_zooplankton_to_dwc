@@ -1,0 +1,207 @@
+---
+title: "Taxonomix Matchup to WoRMs"
+author: "Sebastian DiGeronimo"
+date: "3/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("readxl")
+library("hablar") # might be useful when needing to fix names
+library("worrms")
+
+library("tidyverse")
+library("ggplot2")
+library("ggforce")
+library("tibble")
+library("tidyr")
+library("readr")
+library("purrr")
+library("dplyr")
+library("stringr")
+library("forcats")
+library("lubridate")
+library("glue")
+library("fs")
+library("geosphere")
+library("vroom")
+library("plotly")
+library("magrittr")
+
+```
+
+```{r create-dir}
+# will create a set directory if does not exists
+# useful for new projects
+mainDir <- getwd()
+subDir <-
+    c("/data/raw",
+      "/data/processed",
+      "/data/plots",
+      "/data/metadata",
+      "/Rmd",
+      "/scripts")
+
+fs::dir_create(path = paste0(mainDir,"/",subDir))
+rm(mainDir, subDir)
+```
+
+```{r load-taxa-data}
+file.dir <- paste0(getwd(),"/../data")
+
+
+file.taxa <- fs::dir_ls(path = file.dir,
+           regexp = "Analysis.*\\.xlsx$")[1]
+
+
+skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), col_names = FALSE )=="Taxa") - 1
+taxa <- readxl::read_xlsx(file.taxa,  skip = skips,)
+
+taxa %>% select(1:2)
+taxa.name <- taxa %>% select(1)
+
+rm(skips, file.dir, file.taxa)
+```
+
+
+
+
+```{r}
+taxa.name <- taxa %$% as.vector(Taxa) 
+taxa.name 
+
+test.tax <- list(`0` = c("acartia","copepod"), `1` = "fish")
+
+obis.taxa <- obistools::match_taxa(taxa.name, ask = T)
+obistools::match_taxa(taxa.name[1:3], ask = F)
+obistools::match_taxa(	"Crustacea", ask = T)
+
+# with this 20 have NA without ability to ask for input
+obis.taxa %>%
+    mutate(taxa.name, .before = 1)
+
+source("D:/obis_data_format/scripts/match_taxa_fix.R")
+match_taxa_fix(c("Fish","copepoda"), fuzzy = TRUE, ask = T)
+match_taxa_fix(	"Crustacea", fuzzy = TRUE, ask = T)
+
+yworrms::wm_records_common_("fish", fuzzy = TRUE)
+
+obistools:::cache_call("fish", expression(worrms::wm_records_common_("fish", fuzzy = TRUE)))
+
+```
+
+```{r}
+test <- lapply(pages, paged_worms_taxamatch_call)
+test1 <-  unlist(test, recursive = FALSE)
+
+test2 <-  unlist(lapply(test.tax, paged_worms_taxamatch_call), 
+                 recursive = FALSE)
+test2
+test6 <- (lapply(test.tax, paged_worms_taxamatch_call1, .taxa_type = "taxa", .fuzzy = TRUE,
+              .tryfix = FALSE))
+
+test4 <- (lapply(test.tax, paged_worms_taxamatch_call1, .taxa_type = "common", .fuzzy = TRUE,
+              .tryfix = FALSE))
+
+test5 <- unlist(lapply(test.tax, paged_worms_taxamatch_call1, .taxa_type = "common", .fuzzy = TRUE,
+              .tryfix = FALSE),
+              recursive = FALSE)
+test4 %>%
+    names()
+test2$`01` %>%
+    names()
+
+
+obistools:::cache_call(test.tax$`0`, expression(worrms::wm_records_taxamatch("copepoda", fuzzy = T)))
+
+obistools:::cache_call(test.tax, expression(worrms::wm_records_common(test.tax, fuzzy = T)))
+
+worrms::wm_records_taxamatch("copepod", fuzzy = T)
+worrms::wm_records_common("copepod", fuzzy = T)
+
+pages1 <- pages$`0`
+temp <-  list()
+for (i in 25:29) {
+    print(pages1[[i]])
+    temp[[i]] <- paged_worms_taxamatch_call1(pages1[i], .taxa_type = "common", .fuzzy = fuzzy,
+                                 .tryfix = tryfix)
+    
+}
+worrms::wm_records_common("Jellyfish", fuzz= TRUE)
+```
+ 
+```{r}
+
+results <- data.frame(scientificName = character(), scientificNameID = character(),
+                      match_type = character(), stringsAsFactors = FALSE)
+names = taxa.name[5:8]
+ f <- as.factor(names)
+    indices <- as.numeric(f)
+    unames <- levels(f)
+    
+    # creates vector of species below 50 (to decrease search problems)
+    pages <- split(unames, as.integer((seq_along(unames) - 1)/50))
+
+tryfix = F
+taxa_type = "taxa"
+fuzzy = T
+ask = F
+
+new.name = "copepod"
+new.match1 <- paged_worms_taxamatch_call1(new.name,
+                                                .fuzzy = fuzzy,
+                                                .tryfix = TRUE)
+
+new.match2 <- unlist(new.match, recursive = F )
+new.match1
+# Common
+# [1] "AphiaID"           "url"               "scientificname"    "authority"         "status"            "unacceptreason"   
+#  [7] "taxonRankID"       "rank"              "valid_AphiaID"     "valid_name"        "valid_authority"   "parentNameUsageID"
+# [13] "kingdom"           "phylum"            "class"             "order"             "family"            "genus"            
+# [19] "citation"          "lsid"              "isMarine"          "isBrackish"        "isFreshwater"      "isTerrestrial"    
+# [25] "isExtinct"         "match_type"        "modified"         
+
+# Taxa
+# [1] "AphiaID"           "url"               "scientificname"    "authority"         "status"            "unacceptreason"   
+#  [7] "taxonRankID"       "rank"              "valid_AphiaID"     "valid_name"        "valid_authority"   "parentNameUsageID"
+# [13] "kingdom"           "phylum"            "class"             "order"             "family"            "genus"            
+# [19] "citation"          "lsid"              "isMarine"          "isBrackish"        "isFreshwater"      "isTerrestrial"    
+# [25] "isExtinct"         "match_type"        "modified"         
+
+
+
+match = new.match
+unames[i]
+row
+
+
+
+match <- NULL
+ row <- list(
+            scientificName = NA,
+            scientificNameID = NA,
+            match_type = NA
+        )
+
+ # if (is.null(nrow(match))) {
+ #     row$scientificName = NA
+ #     row$scientificNameID = NA
+ #     row$match_type = NA
+ # }
+ 
+
+if (is.data.frame(match) & !is.null(match)  ) {
+     row$scientificName = NA
+     row$scientificNameID = NA
+     row$match_type = NA
+ } else {
+            row$scientificName = NA
+            row$scientificNameID = NA
+            row$match_type = NA
+        }
+ 
+results <- bind_rows(results, row)   
+results
+```
+
