@@ -10,16 +10,22 @@ knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
 library("obistools")
 library("worrms")
+
 ```
 
 ```{r}
+dir <- getwd()
+func <- paste0(getwd(),"/../scripts/match_taxa_fix.R")
+file.name <- paste0(getwd(),"/../data/raw/TaxonMatch_RcodeTest.xlsx")
 # will need to change source location of match_taxa_fix.R
-source("D:/obis_data_format/scripts/match_taxa_fix.R")
+source(func)
 
 # will need to change location of test file TaxonMatch_RcodeTest.xlsx
-TaxonMatch_RcodeTest <- readxl::read_excel("D:/obis_data_format/data/raw/TaxonMatch_RcodeTest.xlsx")
+TaxonMatch_RcodeTest <- readxl::read_excel(file.name)
 
 taxa.name <- TaxonMatch_RcodeTest$scientificName
+
+rm(dir, func)
 ```
 
 
