@@ -90,6 +90,7 @@ yworrms::wm_records_common_("fish", fuzzy = TRUE)
 
 obistools:::cache_call("fish", expression(worrms::wm_records_common_("fish", fuzzy = TRUE)))
 
+rm(func)
 ```
 
 ```{r}

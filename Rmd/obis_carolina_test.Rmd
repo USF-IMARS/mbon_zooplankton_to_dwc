@@ -32,6 +32,8 @@ TaxonMatch_RcodeTest <- readxl::read_excel(file.name)
 # select only column of scienctific names
 taxa <- TaxonMatch_RcodeTest %>%
     select(scientificName)
+
+rm(func, file.name)
 ```
 
 
