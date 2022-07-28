@@ -2,5 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-obis.Rproj
-data/raw/dwca-tpwd_harc_texasaransasbay_bagseine-v2.3
+data/**
+*/json_*
+*/old*
