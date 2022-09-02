@@ -1,0 +1,295 @@
+---
+title: "OBIS Event Creations"
+author: "Sebastian DiGeronimo"
+date: '2022-09-02'
+output: html_document
+---
+
+```{r setup}
+root <- rprojroot::find_rstudio_root_file()
+knitr::opts_chunk$set(echo = TRUE)
+library("readxl")
+library("hablar") # might be useful when needing to fix names
+library("worrms")
+
+library("ggplot2")
+library("tibble")
+library("tidyr")
+library("readr")
+library("purrr")
+library("dplyr")
+library("stringr")
+library("forcats")
+library("lubridate")
+library("glue")
+library("fs")
+library("magrittr")
+library("broom") # optional
+
+library("tidyverse")
+library("ggforce")
+library("geosphere")
+library("vroom")
+library("plotly")
+```
+
+Workflow:
+https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers
+Needed: 3 things
+    1. Event
+    2. Occurances
+    3. Measurement of Fact (MOF)
+
+
+
+1. Read and format metadata spreadsheets
+    - convert to DarwinCore format 
+
+
+MOF = measurement of fact
+
+Event                          - where/when took place
+
+Occurrence                     - species info, presence/absence
+Occurrence MOF                 - quantity, other info to measure them
+
+MOF                            - environmental quantities measured 
+
+# not finished yet
+occurance        = 
+        institution_code = "USF_IMaRS"
+        collection_code  = "compiled_zoo_taxonomy_nlf"
+        catalog_number   = "20yy_mm_dd"
+        occurrenceID     = (unique identifier)
+                        joining of 
+                            * urn:catalog, 
+                            * institution code
+                            * collection_code
+                            * catalog_number
+                            * row number 
+                            * join by :
+        eventDate        = date_time
+        decimalLongitude = lon_in
+        decimalLatitude  = lat_in
+        scientificName   = natalia spreadsheet
+        scientificNameID = "TODO: worms lookup", #taxonomy_df["classification"],
+
+occurence =
+        basisOfRecord    = "HumanObservation",
+        collectionCode   = collection_code,
+        catalogNumber    = catalog_number,
+        occurrenceStatus = "present",
+        institutionCode  = institution_code
+
+extra-stuff
+        mesh_size 
+        flowmeter in
+        flowmeter out
+        ship speed
+        inpeller constant
+        distnace
+        tow speed
+        formalin
+        vol filtered
+
+```{r load-data}
+meta_df <-
+    fs::dir_ls(path = paste0(root,
+                             "/data/metadata/"),
+               regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+    read_csv(show_col_types = FALSE)
+
+aphia_id <-
+    fs::dir_ls(path = paste0(root,
+                             "/data/"),
+               regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
+    read_csv(show_col_types = FALSE)
+
+```
+
+
+Occurrence Bare Minimum:
+```{r}
+data.table::data.table(
+      occurrenceID = c("my-dataset-0001c29"),
+   decimalLatitude = c(-87.7575),
+  decimalLongitude = c(24.4727),
+    scientificName = c("Sparisoma aurofrenatum"),
+  scientificNameID = c("urn:lsid:ipni.org:names:37829-1:1.3"),
+  occurrenceStatus = c("present"),
+     basisOfRecord = c("HumanObservation"),
+         datasetID = c("my-dataset-tylar-2020-01-08-123456"),
+         eventDate = c("2010-01-03T13:44Z")
+)
+
+
+meta_df %>%
+    select(split_size) %>%
+    mutate(
+        split_zie = eval(parse(split_size))
+    )
+map(meta_df$split_size, function(x) {
+    out <- tryCatch({
+        eval(parse(text = x))
+    }, error = function(e) {
+        message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+        NA_integer_
+    })
+    return(out)
+})
+  
+# record level
+rcd_lvl <- 
+    meta_df %>%
+        dplyr::transmute(
+            type                = "Event",
+            modified            = Sys.Date(),
+            language            = "en",
+            license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+            institutionCode     = "USF_IMaRS",
+            datsetID            = "FKNMS_MBON_", # which one?
+            datasetName         = "MBON Florida Keys National Marine Sanctuary", 
+            basisOfRecord       = "HumanObservation", 
+            informationWithheld = "collector & analyst identities withheld",
+            )
+
+# event 
+event <-
+meta_df %>%
+dplyr::transmute(
+    catalogNumber   = row_number(),
+    locationID      = case_when(
+        str_detect(station, "Mol") ~ "MR",
+        str_detect(station, "Loo") ~ "LK",
+        str_detect(station, "West") ~ "WS",
+        TRUE ~ station
+    ),
+    parentEventID      = "MBON_zooplankton", 
+    datasetID          = glue("{parentEventID}:cruiseID"), # will be {cruise_id}
+    eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+    # eventID - something like cruiseID:stationID:meshsize
+    # {{mbon} : cruise} : stn : mesh : date_time
+    eventID            = glue("{datasetID}:stn_{locationID}:{mesh_size_um}_um:{eventDateTime}")  %>%
+    str_remove("\\+0000"), # will be {cruise_id}
+    fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
+   
+    eventDate          = date(date_time),
+    eventTime          = format(date_time,"%H:%m:%S%z"),
+    year               = year(date_time),
+    month              = month(date_time),
+    day                = day(date_time),
+    # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
+    samplingProtocol   = glue("{mesh_size_um} mesh size (um) - bongo nets| http://drs.nio.org/drs/handle/2264/95"),
+    # TODO: habitat NERC vocab
+    habitat            = "near reef",
+    sampleSizeValue    = "something like distance traveled? in meters?", # volume filtered
+    sampleSizeUnit     = "would equal metre?" # volume
+)
+
+# location
+location <-
+    meta_df %>%
+    dplyr::transmute(
+        eventID           = event$eventID,
+        decimalLatitude   = lat_in,
+        decimalLongitude  = lon_in,
+        higherGeographyID = case_when(
+            str_detect(station, "Mol|Looe|West") ~ "http://vocab.getty.edu/tgn/7030258",
+            str_detect(station, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+            TRUE ~ "Not Found"
+        ),
+        higherGeography   = "North America | United States | Florida",
+        continent         = "North America",
+        country           = "United States",
+        countryCode       = "US",
+        stateProvince     = "Florida",
+        geodeticDatum     = "EPSG:4326",
+        georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith"
+    )
+
+
+# occurrence
+# occur <- 
+data %>%
+   dplyr::transmute(
+       eventID                  = event$eventID,
+       occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+       recordedBy               = "NAt?", # check these
+       recordedByID             = "may include orcid?", # check these
+       
+       # IDk which of these is accurate
+       individualCount          = `# Ind/Sample`,
+       organismQuantity         = `Ind/m^3`, # or `# Ind/Sample` and leave out individualCount?
+       organismQuantityType     = "Individuals per cubic metre", # or
+       measurementType          = "Number per cubic metre", # MOF? should also include ind/sample?
+       measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
+       
+       # --- 
+       lifeStage                = `lifeStage`, # need to infrom natalia this can be included
+       establishmentMeans       = "native | uncertain",
+       occurrenceStatus         = "present", # need to filter ind/sample > 0
+       preparations             = "formalin | ethanol",
+       scientificName           = taxa,
+       scientificNameID         = taxaID, # like urn:lsid:ipni.org:names:37829-1:1.3
+       basisOfRecord            = "HumanObservation", 
+       datasetID                = "x",
+       eventDate                = "date",
+       identificationReferences = "WoRMS",
+       verbatimIdentification   = taxa_orig
+       ) 
+
+# MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
+tibble::tribble(
+              ~Origin.Term,                                       ~`measurementTypeID`,       ~URI,
+                "Net_Type",                                             "plankton net",       "22",
+               "Mesh_Size",                                   "Sampling net mesh size", "Q0100015",
+               "NET_DEPTH",       "Depth (spatial coordinate) of sampling event start", "DXPHPRST",
+                 "COMMENT",            "N/A (mapped to measurementRemark field above)",      "N/A",
+       "Plankton_Net_Area",                    "Sampling device aperture surface area", "Q0100017",
+         "Volume_Filtered",                                                   "Volume",      "VOL",
+            "Sample_Split", "N/A (information added to measurementRemark field above)",      "N/A",
+       # "Sample_Dry_Weight",                                       "Dry weight biomass", "ODRYBM01",
+                # "DW_G_M_2",                                       "Dry weight biomass", "ODRYBM01",
+         "Dilution_Factor",                                                      "???",      "???",
+    "TOTAL_DILFACTOR_CFIN",                                                      "???",      "???"
+    )
+ 
+column_mappings <- 
+    tibble::tribble(
+                        ~types,                    ~uri,     ~unit,             ~unitID, ~accuracy,                        ~type,         ~measurementMethod,
+                    "Net_Type",       "L05/current/22/",        NA,                  NA,        NA,                   "net type",                         NA,
+                   "Mesh_Size", "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",        NA,                  "mesh size",                         NA,
+                   "NET_DEPTH", "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",        NA,                  "net depth",                         NA,
+           "Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",        NA,          "plankton net area",                         NA,
+             "Volume_Filtered",      "P25/current/VOL/",      "m3", "P06/current/UPAA/",        NA,            "volume filtered", "geometrically determined",
+             "Dilution_Factor",                      NA,      "ml", "P06/current/VVML/",        NA,            "dilution factor",                         NA,
+        "TOTAL_DILFACTOR_CFIN",                      NA,      "ml", "P06/current/VVML/",        NA, "Total Dilution factor CFIN",                         NA,
+                "Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
+        )
+
+clipr::write_clip(calc)
+tibble::tribble(
+    ~date_collected, ~sample_id, ~filtered_volume_m3, ~pipette_vol_m_l, ~dillution, ~dillution_factor, ~mesh, ~date_analyzed, ~split_amount,
+       "2015-11-16",  "MR 1115",                 97L,               5L,       250L,               50L,  500L,   "2021-07-23",            2L
+    )
+
+# http://vocab.nerc.ac.uk/collection/L05/current/22/
+# might need to pivot wider first, then pivot longer
+
+
+
+mof <- 
+    occur %>%
+    dplyr::transmute(
+        occurrenceID      = occur$occurrenceID,
+        eventID           = event$eventID,
+        measurementValue  = `data$ind/m^3`,
+        measurementType   = "Number per cubic metre", # MOF?
+        measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
+        measurementUnitID = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
+    )
+
+
+```
+
+
