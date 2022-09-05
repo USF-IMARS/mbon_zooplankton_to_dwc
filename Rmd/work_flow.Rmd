@@ -147,7 +147,7 @@ for (i in seq(files)) {
                     .after = 4
                 ) %>%
                 mutate(
-                    cruise_id = cruise_id$Cruise,
+                    cruise_id = as.character(cruise_id$Cruise),
                     .before = everything()
                 )
 
@@ -211,18 +211,18 @@ meta_full <- mget(meta_list) %>%
 
 # see where issue will lie when joining
 janitor::compare_df_cols(meta_full,
-                         return = "mismatch")
+                         return = "match")
 
 # test1 <- 
      # reduce(test[c(1:6,8:12)], full_join )
 
 meta_full$`fknms_logsheet_July 2016_Hepner` <- meta_full$`fknms_logsheet_July 2016_Hepner` %>%
-    mutate(date_time = NA) %>%
+    mutate(date_time = NA_POSIXct_, .after = local_time_est) %>%
     rename(time_gmt = local_time_est)
 
 
 meta_full <- meta_full %>%
-    map(.x, .f=~select(.x, 1:15))
+    map(.x, .f=~select(.x, 1:16))
 
 meta_df <-
     do.call(rbind.data.frame, meta_full)   %>%
