@@ -3,10 +3,12 @@ title: "OBIS Event Creations"
 author: "Sebastian DiGeronimo"
 date: '2022-09-02'
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup}
-root <- rprojroot::find_rstudio_root_file()
 knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
 library("hablar") # might be useful when needing to fix names
@@ -34,82 +36,79 @@ library("plotly")
 ```
 
 Workflow:
-https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers
-Needed: 3 things
-    1. Event
-    2. Occurances
-    3. Measurement of Fact (MOF)
+<https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers>
+Needed: 3 things 1. Event 2. Occurances 3. Measurement of Fact (MOF)
 
-
-
-1. Read and format metadata spreadsheets
-    - convert to DarwinCore format 
-
+1.  Read and format metadata spreadsheets
+    -   convert to DarwinCore format
 
 MOF = measurement of fact
 
-Event                          - where/when took place
+Event - where/when took place
 
-Occurrence                     - species info, presence/absence
-Occurrence MOF                 - quantity, other info to measure them
+Occurrence - species info, presence/absence Occurrence MOF - quantity,
+other info to measure them
 
-MOF                            - environmental quantities measured 
+MOF - environmental quantities measured
 
 # not finished yet
-occurance        = 
-        institution_code = "USF_IMaRS"
-        collection_code  = "compiled_zoo_taxonomy_nlf"
-        catalog_number   = "20yy_mm_dd"
-        occurrenceID     = (unique identifier)
-                        joining of 
-                            * urn:catalog, 
-                            * institution code
-                            * collection_code
-                            * catalog_number
-                            * row number 
-                            * join by :
-        eventDate        = date_time
-        decimalLongitude = lon_in
-        decimalLatitude  = lat_in
-        scientificName   = natalia spreadsheet
-        scientificNameID = "TODO: worms lookup", #taxonomy_df["classification"],
 
-occurence =
-        basisOfRecord    = "HumanObservation",
-        collectionCode   = collection_code,
-        catalogNumber    = catalog_number,
-        occurrenceStatus = "present",
-        institutionCode  = institution_code
+occurance = institution_code = "USF_IMaRS" collection_code =
+"compiled_zoo_taxonomy_nlf" catalog_number = "20yy_mm_dd" occurrenceID =
+(unique identifier) joining of \* <urn:catalog>, \* institution code \*
+collection_code \* catalog_number \* row number \* join by : eventDate =
+date_time decimalLongitude = lon_in decimalLatitude = lat_in
+scientificName = natalia spreadsheet scientificNameID = "TODO: worms
+lookup", #taxonomy_df["classification"],
 
-extra-stuff
-        mesh_size 
-        flowmeter in
-        flowmeter out
-        ship speed
-        inpeller constant
-        distnace
-        tow speed
-        formalin
-        vol filtered
+occurence = basisOfRecord = "HumanObservation", collectionCode =
+collection_code, catalogNumber = catalog_number, occurrenceStatus =
+"present", institutionCode = institution_code
 
+extra-stuff mesh_size flowmeter in flowmeter out ship speed inpeller
+constant distnace tow speed formalin vol filtered
+
+# Load data for OBIS conversion
 ```{r load-data}
+root <- rprojroot::find_rstudio_root_file()
+
+# ---- set variables for calculation ----
+inpeller <- 26873 / 999999
+net_area <- pi * 0.5^2
+
+# ---- load metadata, data, and aphiaid ----
 meta_df <-
     fs::dir_ls(path = paste0(root,
                              "/data/metadata/"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-    read_csv(show_col_types = FALSE)
+    (function(fpath) {
+        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+        return(fpath[which.max(ftime)]) # returns the most recent file path
+    }) %>%
+    read_csv(show_col_types = FALSE) %>%
+    mutate(
+        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller,
+        tow_speed_cm_sec    =  distance_m_2 * 100 / (tow_time_min * 60),
+        volume_filt_cubic_m = net_area * distance_m_2,
+        dist_dif            = distance_m_2 - distance_m,
+        dist_speed          = tow_speed_cm_sec - tow_speed
+        ) 
 
 aphia_id <-
     fs::dir_ls(path = paste0(root,
                              "/data/"),
                regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
+    (function(fpath) {
+        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+        return(fpath[which.max(ftime)]) # returns the most recent file path
+    }) %>%
     read_csv(show_col_types = FALSE)
 
 ```
 
+# Occurrence Bare Minimum:
 
-Occurrence Bare Minimum:
-```{r}
+```{r obis_file}
 data.table::data.table(
       occurrenceID = c("my-dataset-0001c29"),
    decimalLatitude = c(-87.7575),
@@ -122,7 +121,7 @@ data.table::data.table(
          eventDate = c("2010-01-03T13:44Z")
 )
 
-
+# split sizes?
 meta_df %>%
     select(split_size) %>%
     mutate(
@@ -137,23 +136,29 @@ map(meta_df$split_size, function(x) {
     })
     return(out)
 })
-  
-# record level
-rcd_lvl <- 
-    meta_df %>%
-        dplyr::transmute(
-            type                = "Event",
-            modified            = Sys.Date(),
-            language            = "en",
-            license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
-            institutionCode     = "USF_IMaRS",
-            datsetID            = "FKNMS_MBON_", # which one?
-            datasetName         = "MBON Florida Keys National Marine Sanctuary", 
-            basisOfRecord       = "HumanObservation", 
-            informationWithheld = "collector & analyst identities withheld",
-            )
+```
 
-# event 
+```{r obis-organize}
+# ---- record level ----
+rcd_lvl <-
+    meta_df %>%
+    dplyr::transmute(
+        type                = "Event",
+        modified            = Sys.Date(),
+        language            = "en",
+        license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+        institutionCode     = "USF_IMaRS",
+        datasetID           = "FKNMS_MBON",
+        # which one?
+        datasetName         = "MBON Florida Keys National Marine Sanctuary",
+        basisOfRecord       = "HumanObservation",
+        # TODO: will check on this
+        informationWithheld = "collector & analyst identities withheld",
+        # recordedBy               = "Natalia LF?", # check these
+        # recordedByID             = "may include orcid?", # check these
+    )
+
+# ---- event ---- 
 event <-
 meta_df %>%
 dplyr::transmute(
@@ -179,14 +184,14 @@ dplyr::transmute(
     month              = month(date_time),
     day                = day(date_time),
     # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
-    samplingProtocol   = glue("{mesh_size_um} mesh size (um) - bongo nets| http://drs.nio.org/drs/handle/2264/95"),
+    samplingProtocol   = glue("{mesh_size_um} mesh size (um) - bongo nets | http://drs.nio.org/drs/handle/2264/95"),
     # TODO: habitat NERC vocab
     habitat            = "near reef",
     sampleSizeValue    = "something like distance traveled? in meters?", # volume filtered
-    sampleSizeUnit     = "would equal metre?" # volume
+    sampleSizeUnit     = "would equal metre or volume?" # volume
 )
 
-# location
+# ---- location ----
 location <-
     meta_df %>%
     dplyr::transmute(
@@ -208,29 +213,30 @@ location <-
     )
 
 
-# occurrence
+# ---- occurrence ----
 # occur <- 
-data %>%
+# Doesnt exists yet!!!
+df %>%
    dplyr::transmute(
        eventID                  = event$eventID,
        occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-       recordedBy               = "NAt?", # check these
+       recordedBy               = "Natlia NF?", # check these
        recordedByID             = "may include orcid?", # check these
        
        # IDk which of these is accurate
-       individualCount          = `# Ind/Sample`,
-       organismQuantity         = `Ind/m^3`, # or `# Ind/Sample` and leave out individualCount?
+       individualCount          = "# Ind/Sample",
+       organismQuantity         = "Ind/m^3", # or `# Ind/Sample` and leave out individualCount?
        organismQuantityType     = "Individuals per cubic metre", # or
        measurementType          = "Number per cubic metre", # MOF? should also include ind/sample?
        measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
        
-       # --- 
-       lifeStage                = `lifeStage`, # need to infrom natalia this can be included
+       # ---- check this information ---- 
+       lifeStage                = lifeStage, # need to inform Natalia this can be included
        establishmentMeans       = "native | uncertain",
        occurrenceStatus         = "present", # need to filter ind/sample > 0
        preparations             = "formalin | ethanol",
-       scientificName           = taxa,
-       scientificNameID         = taxaID, # like urn:lsid:ipni.org:names:37829-1:1.3
+       scientificName           = scientificName,
+       scientificNameID         = scientificNameID, # like urn:lsid:ipni.org:names:37829-1:1.3
        basisOfRecord            = "HumanObservation", 
        datasetID                = "x",
        eventDate                = "date",
@@ -238,6 +244,7 @@ data %>%
        verbatimIdentification   = taxa_orig
        ) 
 
+# ---- Measurement or Fact ----
 # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 tibble::tribble(
               ~Origin.Term,                                       ~`measurementTypeID`,       ~URI,
@@ -253,7 +260,8 @@ tibble::tribble(
          "Dilution_Factor",                                                      "???",      "???",
     "TOTAL_DILFACTOR_CFIN",                                                      "???",      "???"
     )
- 
+
+# ---- example MoF ---- 
 column_mappings <- 
     tibble::tribble(
                         ~types,                    ~uri,     ~unit,             ~unitID, ~accuracy,                        ~type,         ~measurementMethod,
@@ -291,5 +299,3 @@ mof <-
 
 
 ```
-
-
