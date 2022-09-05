@@ -115,6 +115,10 @@ for (i in seq(files)) {
 
                            .names = "{.fn}"), silent = T),
                     .after = 4
+                ) %>%
+                mutate(
+                    cruise_id = cruise_id$Cruise,
+                    .before = everything()
                 )
 
             if (is.character(temp$lat_in) | is.character(temp$lon_in)) {
