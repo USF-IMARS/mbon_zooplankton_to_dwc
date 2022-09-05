@@ -48,11 +48,11 @@ Needed: 3 things
 ```{r}
 root <- rprojroot::find_rstudio_root_file()
 files <- fs::dir_ls(paste0(root,"/data/metadata/"), recurse = T,
-           regexp = "^[^~]*\\.(xlsx|csv)$") 
+           regexp = "^[^~]*\\.(xlsx)$") 
 files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
 
 for (i in seq(files)) {
-# for (i in 1) {
+# for (i in 2) {
     print(basename(files[i]))
     temp_sht <- readxl::excel_sheets(files[i])
     
@@ -69,6 +69,36 @@ for (i in seq(files)) {
     
     # ---- open file and read sheet ----
     for (j in seq(temp_sht)) {
+        
+         cruise_id <-
+            tryCatch({
+                id_skip <- which(
+                    readxl::read_xlsx(
+                        files[i],
+                        range = cell_cols("A"),
+                        col_names = FALSE,
+                        sheet = temp_sht[j]
+                    ) == "Cruise"
+                ) 
+                    
+                readxl::read_xlsx(
+                    path = files[i],
+                    skip = id_skip - 1,
+                    sheet = temp_sht[j],
+                    col_names = F,
+                    n_max = 1
+                ) %>%
+                    pivot_wider(names_from = `...1`, values_from = `...2`)
+                
+            }, warning = function(w) {
+                message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
+                
+            }, error = function(e) {
+                message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                tibble(Cruise = NA_character_)
+            })
+        
+        
         skips <-
             tryCatch({
                 which(
@@ -137,7 +167,8 @@ for (i in seq(files)) {
             temp <- tryCatch({
                 hablar::retype(temp,-time_gmt)
             }, error = function(e) {
-                message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                # message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                message("Doesn't a time_gmt column. Returning as is.")
                 temp
             })
 
@@ -149,8 +180,10 @@ for (i in seq(files)) {
             next
         } else {
             message(paste0(
-                "Might not be this one:\n",
-                tools::file_path_sans_ext(basename(files[i]))
+                "Might not be this sheet:\n",
+                tools::file_path_sans_ext(basename(files[i])),
+                ":  ",
+                temp_sht[j]
             ))
         }
         
@@ -158,10 +191,9 @@ for (i in seq(files)) {
 }
 
 
-rm(i, j, skips, temp_sht)
+rm(i, j, skips, temp_sht, cruise_id)
 rm(list = names(which(sapply(
     globalenv(), is.null)))) # or .GlobalEnv
-
 ```
 
 Files without info:
@@ -174,14 +206,12 @@ April 2019
 ```{r}
 meta_list <- ls()[str_detect(ls(),"fknms")]
 
-
-
 meta_full <- mget(meta_list) %>%
      discard(function(x) is.null(x)) 
 
 # see where issue will lie when joining
 janitor::compare_df_cols(meta_full,
-                         return = "match")
+                         return = "mismatch")
 
 # test1 <- 
      # reduce(test[c(1:6,8:12)], full_join )
@@ -221,5 +251,54 @@ write_csv(meta_df,
                   format(Sys.time(), '_%Y%m%d_%H%M%S'),
                   ".csv"
               ))
+```
+
+```{r}
+# dat2 <- tibble::tribble(
+#     ~cruiseIDs, ~start_date,
+#      "SV18067", "zoo",
+#     "SV18173", "zoo", 
+#     "WS17170", "zoo", 
+#     "WS17275", "zoo",
+#     "WS18008", "zoo",
+#     "WS18120", "zoo",
+#     "WS18285", "zoo",
+#     "WS18351", "zoo",
+#     "WS19028", "zoo",
+#     "WS19210", "zoo",
+#     "WS19266", "zoo",
+#     "WS19322", "zoo",
+#     "WS20006", "zoo",
+#     "WS20230", "zoo",
+#     "WS20342", "zoo",
+#     # "(blank)"
+#     )
+# 
+# dat <- tibble::tribble(
+#     ~Cruise.ID,  ~Start.Date,
+#      "WS17086",  "3/27/2017",
+#      "WS17170",  "6/19/2017",
+#      "WS17282",  "10/9/2017",
+#      "WS18008",   "1/8/2018",
+#      "WS18067",   "3/8/2018",
+#      "SAV1803",  "3/10/2018",
+#      "WS18120",  "4/30/2018",
+#     "SAV18173",  "6/22/2018",
+#      "WS18218",   "8/6/2018",
+#      "WS18285", "10/12/2018",
+#      "WS18351", "12/17/2018",
+#      "WS19028",  "1/28/2019",
+#      "WS19119",  "4/29/2019",
+#      "WS19210",  "7/29/2019",
+#      "WS19266",  "9/23/2019",
+#      "WS19322", "11/18/2019",
+#      "WS20006",   "1/6/2020",
+#      "WS20231",  "8/19/2020",
+#      "WS20279",  "10/5/2020",
+#      "WS20342",  "12/7/2020",
+#      "WS21032",   "2/1/2021"
+#     )
+# full_join(dat, dat2, by = c("Cruise.ID" = "cruiseIDs")) %>%
+#     write_csv(file = "../data/cruise_id_merged.csv")
 ```
 
