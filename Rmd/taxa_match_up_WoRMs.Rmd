@@ -49,61 +49,62 @@ rm(subDir)
 ```
 
 ```{r load-taxa-data}
-file.dir <- paste0(root,"/data")
+# ---- set root  ----
+root <- rprojroot::find_rstudio_root_file()
 
+# ---- load data set ----
+file.taxa <- fs::dir_ls(path =  paste0(root,"/data/raw"),
+           regexp = "^[^~].*\\.xlsx$")  %>%
+    (function(fpath) {
+        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+        return(fpath[which.max(ftime)]) # returns the most recent file path
+    })
+
+# remove later
 file.taxa <- fs::dir_ls(path =  paste0(root,"/data"),
-           regexp = "^[^~]*Analysis.*\\.xlsx$")
+           regexp = "^[^~]*Analysis.*\\.xlsx$")  %>%
+    (function(fpath) {
+        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+        return(fpath[which.max(ftime)]) # returns the most recent file path
+    })
 
+# find the number of skips to start of taxa information
+skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
+                                  col_names = FALSE ) == "Taxa") - 1
 
-skips <-  which(readxl::read_xlsx(file.taxa[2], range = cell_cols("A"), col_names = FALSE )=="Taxa") - 1
-
-calc <- readxl::read_xlsx(file.taxa[1], n_max = skips-1, col_names = F, .name_repair = janitor::make_clean_names) %>%
-    pivot_wider(id_col = x, names_from = x, values_from = x_2 ) %>% 
+# extract values for calculating individuals per cubic meter
+calc <-
+    readxl::read_xlsx(
+                      file.taxa[1], 
+                      n_max = skips - 1, 
+                      col_names = F
+                      ) %>%
+    pivot_wider(id_col      = `...1`,
+                names_from  = `...1`,
+                values_from = `...2`
+                ) %>%
     janitor::clean_names() %>%
     mutate(
-    date_collected = as.Date(as.numeric(date_collected),origin = "1899-12-30"),
-    date_analyzed = as.Date(as.numeric(date_analyzed),origin = "1899-12-30")
-    )
+        date_collected = as.Date(as.numeric(date_collected), origin = "1899-12-30"),
+        date_analyzed  = as.Date(as.numeric(date_analyzed), origin = "1899-12-30")
+    ) %>%
+    hablar::retype()
 
-taxa <- readxl::read_xlsx(file.taxa[2],  skip = skips, .name_repair = janitor::make_clean_names)
+# load the data set
+taxa <- readxl::read_xlsx(file.taxa,  
+                          skip = skips, 
+                          .name_repair = janitor::make_clean_names) %>%
+                          mutate(
+                              cruise_id = calc$sample_id,
+                              .before = everything()
+                          ) %>%
+                        full_join(x = calc, by = c("sample_id" = "cruise_id")) %>%
+                        select(cruise_id = sample_id, everything())
 
-
-taxa <- readxl::read_xlsx(file.taxa[2],  sheet = 2, .name_repair = janitor::make_clean_names) %>%
-    rename(taxa = copepods)
-
-# clean up columns
-taxa.name <-
-    taxa  %>% #%$% as.vector(Taxa)
-    # select(1,2) %>%
-    select(1) %>%
-    rename(taxa_orig = taxa) %>%
-    mutate(
-        taxa = str_remove(taxa_orig, regex(
-            "sp{0,2}\\.|\\(unknown\\)", ignore_case = T
-        )),
-        lifeStage = str_extract_all(
-            taxa,
-            regex(
-                "copepodite|nauplii|larvae|juvenile|eggs|egg|zoea|protozoea|cypris|megalopa",
-                ignore_case = T
-            ),
-            simplify = T
-        )  %>%
-            str_to_lower(),
-        taxa = str_remove(
-            taxa,
-            regex(
-                "copepodite|nauplii|larvae|juvenile|adult|eggs|zoea|protozoea|cypris|megalopa",
-                ignore_case = T
-            )
-        )
-    ) 
-
-# taxa.name$lifeStage
 rm(skips, file.taxa)
 ```
 
-1. read in new occurence file
+1. read in new occurrence file
 2. read the first 10 rows and transpose to longer
 3. determine if the identified species are in the master aphia taxa list, or 
     if need to rerun taxa_match_fix
@@ -116,30 +117,109 @@ source(paste0(root,"/scripts/match_taxa_fix.R"))
 # taxa_file <- fs::file_exists("../data/metadata/aphia_taxa.csv")
 
 taxa_file <-  fs::dir_ls(path =  paste0(root,"/data/metadata/"),
-           regexp = "aphia_taxa\\.csv$")
+           regexp = "aphia_taxa.*\\.csv$")  %>%
+    (function(fpath) {
+    ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+    return(fpath[which.max(ftime)]) # returns the most recent file path
+    }) 
 
-if (is_empty(taxa_file)){
-taxalist <- match_taxa_fix(taxa.name$taxa, fuzzy = TRUE, ask = T)
 
-taxa_matched <- bind_cols(taxa.name, taxalist)
-
-write_csv(taxa_matched, paste0(root,"/data/metadata/aphia_taxa",  format(Sys.time(), '_%Y%m%d_%H%M%S'),".csv"))
+# ---- initialize taxa file ----
+# if doesn't exists, will use first file as input
+# contains original name, scientific name, larval stage, aphia ID, urn #
+if (is_empty(taxa_file)) {
+    
+    # extract taxa names, separating names and life stages
+    taxa.name <-
+        taxa  %>% #%$% as.vector(Taxa)
+        # select(1,2) %>%
+        select(1) %>%
+        rename(taxa_orig = taxa) %>%
+        mutate(
+            taxa = str_remove(taxa_orig, regex(
+                "sp{0,2}\\.|\\(unknown\\)", ignore_case = T
+            )),
+            lifeStage = str_extract_all(
+                taxa,
+                regex(
+                    "copepodite|nauplii|larvae|juvenile|eggs|egg|zoea|protozoea|cypris|megalopa",
+                    ignore_case = T
+                ),
+                simplify = T
+            )  %>%
+                str_to_lower(),
+            taxa = str_remove(
+                taxa,
+                regex(
+                    "copepodite|nauplii|larvae|juvenile|adult|eggs|zoea|protozoea|cypris|megalopa",
+                    ignore_case = T
+                )
+            )
+        ) 
+    
+    # ---- run taxa matching with WoRMS database ----
+    taxalist <- match_taxa_fix(taxa.name$taxa, fuzzy = TRUE, ask = T)
+    
+    taxa_matched <- bind_cols(taxa.name, taxalist)
+    
+    # ---- save first WoRMS database search ----
+    write_csv(taxa_matched,
+              paste0(
+                  root,
+                  "/data/metadata/aphia_taxa",
+                  format(Sys.time(), '_%Y%m%d_%H%M%S'),
+                  ".csv"
+              ))
+} else {
+    # ---- read taxa file ----
+    taxa_matched <-  readr::read_csv(taxa_file, show_col_types = FALSE) 
 }
 
-taxa_matched <-  readr::read_csv(taxa_file)
 
+# ---- fix non-matched taxa names ----
 # if some taxa have NA names, can try again on this subset
 taxa_ntmtch <- taxa_matched %>%
     filter(is.na(scientificName)) %>%
     select(1:3)
 
 if (nrow(taxa_ntmtch) > 0) {
+     # ---- run taxa matching with WoRMS database ----
     taxa_new <- match_taxa_fix(taxa_ntmtch$taxa, fuzzy = TRUE, ask = T)
     
     taxa_mtchnew <- bind_cols(taxa_ntmtch, taxa_new)
     taxa_matched <-
         bind_rows(taxa_matched, taxa_mtchnew)
     
+    # ---- save first WoRMS database search ----
+    write_csv(taxa_matched,
+              paste0(
+                  root,
+                  "/data/metadata/aphia_taxa",
+                  format(Sys.time(), '_%Y%m%d_%H%M%S'),
+                  ".csv"
+              ))
+}
+```
+
+```{r match-data-taxa}
+# ---- fix new taxa names ----
+# TODO: read in all files, joing with scientific names, then add more if they 
+# don't exist
+taxa_matched_merg <- left_join(taxa, taxa_matched, by = c("taxa" = "taxa_orig")) 
+
+taxa_to_match_merg <- taxa_matched_merg %>%
+    filter(is.na(taxa.y)) %>%
+    select(taxa_orig = taxa, taxa = taxa.y, lifeStage)
+
+if (nrow(taxa_to_match_merg) > 0) {
+     # ---- run taxa matching with WoRMS database ----
+    taxa_new <- match_taxa_fix(taxa_to_match_merg$taxa, fuzzy = TRUE, ask = T)
+    
+    taxa_mtchnew <- bind_cols(taxa_to_match_merg, taxa_new)
+    taxa_matched <-
+        bind_rows(taxa_matched, taxa_mtchnew)
+    
+    # ---- save first WoRMS database search ----
     write_csv(taxa_matched,
               paste0(
                   root,
@@ -149,6 +229,7 @@ if (nrow(taxa_ntmtch) > 0) {
               ))
 }
 
+taxa_matched_merg <- left_join(taxa, taxa_matched, by = c("taxa" = "taxa_orig")) 
 ```
 
 # tried a different database without working
