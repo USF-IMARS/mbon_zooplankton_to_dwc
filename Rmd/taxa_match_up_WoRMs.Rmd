@@ -39,6 +39,7 @@ library("magrittr")
 subDir <-
     c("/data/raw",
       "/data/processed",
+      "/data/processed/ind_file_merg",
       "/data/plots",
       "/data/metadata",
       "/Rmd",
@@ -54,19 +55,19 @@ root <- rprojroot::find_rstudio_root_file()
 
 # ---- load data set ----
 file.taxa <- fs::dir_ls(path =  paste0(root,"/data/raw"),
-           regexp = "^[^~].*\\.xlsx$")  %>%
+           regexp = "^[^~]*\\.xlsx$")  %>%
     (function(fpath) {
         ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
         return(fpath[which.max(ftime)]) # returns the most recent file path
     })
 
-# remove later
-file.taxa <- fs::dir_ls(path =  paste0(root,"/data"),
-           regexp = "^[^~]*Analysis.*\\.xlsx$")  %>%
-    (function(fpath) {
-        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-        return(fpath[which.max(ftime)]) # returns the most recent file path
-    })
+# # remove later
+# file.taxa <- fs::dir_ls(path =  paste0(root,"/data"),
+#            regexp = "^[^~]*Analysis.*\\.xlsx$")  %>%
+#     (function(fpath) {
+#         ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
+#         return(fpath[which.max(ftime)]) # returns the most recent file path
+#     })
 
 # find the number of skips to start of taxa information
 skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
@@ -76,12 +77,13 @@ skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"),
 calc <-
     readxl::read_xlsx(
                       file.taxa[1], 
-                      n_max = skips - 1, 
-                      col_names = F
-                      ) %>%
-    pivot_wider(id_col      = `...1`,
-                names_from  = `...1`,
-                values_from = `...2`
+                      n_max = skips, 
+                      col_names = c("x1", "x2", "x3")
+                      ) %>% 
+    select(-x3) %>%
+    pivot_wider(#id_col      = x1,
+                names_from  = x1,
+                values_from = x2
                 ) %>%
     janitor::clean_names() %>%
     mutate(
@@ -230,36 +232,53 @@ if (nrow(taxa_to_match_merg) > 0) {
 }
 
 taxa_matched_merg <- left_join(taxa, taxa_matched, by = c("taxa" = "taxa_orig")) 
+
+file.name <-
+    glue(
+        "{root}/data/processed/
+        \b{taxa_matched_merg$cruise_id[1]}_
+        \b{taxa_matched_merg$site[1]}_
+        \b{taxa_matched_merg$mesh[1]}um_
+        \btaxa_merged
+        \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
+        \b.csv"
+    ) %>%
+    str_remove_all("(\\\n\\\b)")
+
+write_csv(
+    x = taxa_matched_merg,
+    file = file.name)
+
 ```
 
 # tried a different database without working
 ```{r}
-library("taxize")
-
-
-
-cbind(taxa.name, test)
-
-?get_tsn
-get_tsn(taxa.name[1:5])
-get_tsn(("Acartia"))
-get_wormsid(test)
-get_wormsid("fish", searchtype = 'common')
-
-rgbif::name_backbone("Acartia")
-
-obistools::match_taxa(c("Acartia","Candacia","copepod","Euterpina acuntifrons"), ask = T)
+# library("taxize")
+# 
+# 
+# 
+# cbind(taxa.name, test)
+# 
+# ?get_tsn
+# get_tsn(taxa.name[1:5])
+# get_tsn(("Acartia"))
+# get_wormsid(test)
+# get_wormsid("fish", searchtype = 'common')
+# 
+# rgbif::name_backbone("Acartia")
+# 
+# obistools::match_taxa(c("Acartia","Candacia","copepod","Euterpina acuntifrons"), ask = T)
 ```
 
 ```{r}
 
 
-obis.taxa <- obistools::match_taxa(taxa.name, ask = T)
-
-robis::taxon(11676)
-
-# with this 20 have NA without ability to ask for input
-obis.taxa %>%
-    mutate(taxa.name, .before = 1)
+# obis.taxa <- obistools::match_taxa(taxa.name, ask = T)
+# 
+# robis::taxon(11676)
+# 
+# # with this 20 have NA without ability to ask for input
+# obis.taxa %>%
+#     mutate(taxa.name, .before = 1)
 ```
-## This was used to edit  the `function match_taxa_fix`
+
