@@ -86,13 +86,20 @@ meta_df <-
         return(fpath[which.max(ftime)]) # returns the most recent file path
     }) %>%
     read_csv(show_col_types = FALSE) %>%
+    mutate(locationID      = case_when(
+        str_detect(station, "Mol") ~ "MR",
+        str_detect(station, "Loo") ~ "LK",
+        str_detect(station, "West") ~ "WS",
+        TRUE ~ station), 
+        .after = station) %>%
     mutate(
-        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller,
+        # Note: flowmeter is MF315
+        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
         tow_speed_cm_sec    =  distance_m_2 * 100 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area * distance_m_2,
-        dist_dif            = distance_m_2 - distance_m,
-        dist_speed          = tow_speed_cm_sec - tow_speed
+        volume_filt_cubic_m = net_area * distance_m_2
         ) 
+
+    
 
 aphia_id <-
     fs::dir_ls(path = paste0(root,
@@ -104,6 +111,25 @@ aphia_id <-
     }) %>%
     read_csv(show_col_types = FALSE)
 
+taxa_files <- fs::dir_ls(
+    path = paste0(root,"/data/processed/"),
+    regexp = "um_taxa_merged"
+) 
+
+
+taxa_matched_merg <-
+  taxa_files  %>%
+  read_csv(show_col_types = FALSE) %>%
+    filter(mean > 0) %>%
+    left_join(meta_df, by = c("cruise_id", "site" = "locationID", "mesh" = "mesh_size_um")) %>%
+    mutate(
+        # split_amount = 0.5, # doesnt matter I guess
+        number_ind_sample = dillution * mean * 2^(splits_analyzed),
+        ind_m3 = number_ind_sample / volume_filt_cubic_m,
+        aphiaID = if_else(!is.na(scientificNameID), 
+                          str_split(scientificNameID, ":", simplify = T)[, 5],
+                          NA_character_)
+        )
 ```
 
 # Occurrence Bare Minimum:
@@ -138,10 +164,10 @@ map(meta_df$split_size, function(x) {
 })
 ```
 
-```{r obis-organize}
-# ---- record level ----
+```{r record-level}
 rcd_lvl <-
-    meta_df %>%
+    # meta_df %>%
+    taxa_matched_merg  %>%
     dplyr::transmute(
         type                = "Event",
         modified            = Sys.Date(),
@@ -152,48 +178,66 @@ rcd_lvl <-
         # which one?
         datasetName         = "MBON Florida Keys National Marine Sanctuary",
         basisOfRecord       = "HumanObservation",
+        
         # TODO: will check on this
-        informationWithheld = "collector & analyst identities withheld",
-        # recordedBy               = "Natalia LF?", # check these
-        # recordedByID             = "may include orcid?", # check these
+        # informationWithheld = "collector & analyst identities withheld",
+        recordedBy          = "Natalia Lopez Figueroa", # check these
+        recordedByID        = "NEED to include ORCID", # check these
     )
-
-# ---- event ---- 
+```
+```{r event}
 event <-
-meta_df %>%
-dplyr::transmute(
-    catalogNumber   = row_number(),
-    locationID      = case_when(
-        str_detect(station, "Mol") ~ "MR",
-        str_detect(station, "Loo") ~ "LK",
-        str_detect(station, "West") ~ "WS",
-        TRUE ~ station
-    ),
-    parentEventID      = "MBON_zooplankton", 
-    datasetID          = glue("{parentEventID}:cruiseID"), # will be {cruise_id}
-    eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
-    # eventID - something like cruiseID:stationID:meshsize
-    # {{mbon} : cruise} : stn : mesh : date_time
-    eventID            = glue("{datasetID}:stn_{locationID}:{mesh_size_um}_um:{eventDateTime}")  %>%
-    str_remove("\\+0000"), # will be {cruise_id}
-    fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
-   
-    eventDate          = date(date_time),
-    eventTime          = format(date_time,"%H:%m:%S%z"),
-    year               = year(date_time),
-    month              = month(date_time),
-    day                = day(date_time),
-    # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
-    samplingProtocol   = glue("{mesh_size_um} mesh size (um) - bongo nets | http://drs.nio.org/drs/handle/2264/95"),
-    # TODO: habitat NERC vocab
-    habitat            = "near reef",
-    sampleSizeValue    = "something like distance traveled? in meters?", # volume filtered
-    sampleSizeUnit     = "would equal metre or volume?" # volume
-)
-
-# ---- location ----
+    # meta_df %>%
+    # TODO: should probably be just meta_df
+    taxa_matched_merg  %>%
+    dplyr::transmute(
+        # catalogNumber   = row_number(),
+        locationID      = case_when(
+            str_detect(station, "Mol") ~ "MR",
+            str_detect(station, "Loo") ~ "LK",
+            str_detect(station, "West") ~ "WS",
+            TRUE ~ station
+        ),
+        parentEventID      = "MBON_zooplankton",
+        datasetID          = glue("{parentEventID}:{cruise_id}"),
+        # will be {cruise_id}
+        eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+        # eventID - something like cruiseID:stationID:meshsize
+        # {{mbon} : cruise} : stn : mesh : date_time
+        eventID            = glue(
+            # "{datasetID}:stn_{locationID}:{mesh_size_um}_um:{eventDateTime}"
+                        "{datasetID}:stn_{locationID}:{mesh}_um:{eventDateTime}"
+        )  %>% str_remove("\\+0000"),
+        # will be {cruise_id}
+        # fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
+        fieldNumber        = glue("{cruise_id} {station} {mesh}"),
+        eventDate          = date(date_time),
+        eventTime          = format(date_time, "%H:%m:%S%z"),
+        year               = year(date_time),
+        month              = month(date_time),
+        day                = day(date_time),
+        # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
+        samplingProtocol   = glue(
+            "{mesh} mesh size (um) - bongo nets | http://drs.nio.org/drs/handle/2264/95"
+        ),
+        
+        # TODO: habitat NERC vocab
+        habitat            = "near reef",
+        sampleSizeValue    = "something like distance traveled or volume filtered?",
+        # volume filtered
+        sampleSizeUnit     = "would equal metre or volume?" # volume
+    ) %>%
+     distinct() %>%
+     mutate(
+         # TODO: save for the end when combining all same sizes together
+         catalogNumber   = row_number(),
+         .before = everything()
+     )
+```
+```{r location}
 location <-
-    meta_df %>%
+    # meta_df %>%
+    taxa_matched_merg %>%
     dplyr::transmute(
         eventID           = event$eventID,
         decimalLatitude   = lat_in,
@@ -210,18 +254,21 @@ location <-
         stateProvince     = "Florida",
         geodeticDatum     = "EPSG:4326",
         georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith"
-    )
+    ) %>%
+    distinct()
 
-
-# ---- occurrence ----
+```
+```{r occurence}
 # occur <- 
 # Doesnt exists yet!!!
-df %>%
+taxa_matched_merg %>%
    dplyr::transmute(
+       scientificName,
+       lifeStage = if_else(!is.na(lifeStage), lifeStage, "other"),
        eventID                  = event$eventID,
        occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-       recordedBy               = "Natlia NF?", # check these
-       recordedByID             = "may include orcid?", # check these
+       recordedBy               = "Natlia Lopez Figueroa", # check these
+       recordedByID             = "Natalia LP ORCID", # check these
        
        # IDk which of these is accurate
        individualCount          = "# Ind/Sample",
@@ -231,19 +278,19 @@ df %>%
        measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
        
        # ---- check this information ---- 
-       lifeStage                = lifeStage, # need to inform Natalia this can be included
+       lifeStage                = lifeStage,
        establishmentMeans       = "native | uncertain",
        occurrenceStatus         = "present", # need to filter ind/sample > 0
        preparations             = "formalin | ethanol",
-       scientificName           = scientificName,
        scientificNameID         = scientificNameID, # like urn:lsid:ipni.org:names:37829-1:1.3
        basisOfRecord            = "HumanObservation", 
-       datasetID                = "x",
-       eventDate                = "date",
+       datasetID                = event$datasetID,
+       eventDate                = date(date_time),
        identificationReferences = "WoRMS",
-       verbatimIdentification   = taxa_orig
+       verbatimIdentification   = taxa
        ) 
-
+```
+```{r MoF}
 # ---- Measurement or Fact ----
 # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 tibble::tribble(
