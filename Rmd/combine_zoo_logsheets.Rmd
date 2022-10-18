@@ -1,12 +1,11 @@
 ---
-title: "Zooplankton Data to OBIS Format"
+title: "Combine Zooplankton Logsheet"
 author: "Sebastian DiGeronimo"
 date: '2022-07-08'
 output: html_document
 ---
 
 ```{r setup}
-root <- rprojroot::find_rstudio_root_file()
 knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
 library("hablar") # might be useful when needing to fix names
@@ -46,8 +45,7 @@ Needed: 3 things
     - convert to DarwinCore format 
     
 ```{r}
-root <- rprojroot::find_rstudio_root_file()
-files <- fs::dir_ls(paste0(root,"/data/metadata/"), recurse = T,
+files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
            regexp = "^[^~]*\\.(xlsx)$") 
 files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
 
@@ -246,8 +244,7 @@ rm(list = meta_list)
 # ---- write metadata to file ----
 write_csv(meta_df,
               paste0(
-                  root,
-                  "/data/metadata/meta_combined",
+                  here::here("data", "metadata", "meta_combined"),
                   format(Sys.time(), '_%Y%m%d_%H%M%S'),
                   ".csv"
               ))
