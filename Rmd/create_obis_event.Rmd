@@ -33,6 +33,11 @@ library("ggforce")
 library("geosphere")
 library("vroom")
 library("plotly")
+
+
+# source(here::here("scripts","log_file_changes.R"))
+# startup("log_edits")
+# log_add()
 ```
 
 Workflow:
@@ -53,24 +58,37 @@ MOF - environmental quantities measured
 
 # not finished yet
 
-occurance = institution_code = "USF_IMaRS" collection_code =
-"compiled_zoo_taxonomy_nlf" catalog_number = "20yy_mm_dd" occurrenceID =
-(unique identifier) joining of \* <urn:catalog>, \* institution code \*
-collection_code \* catalog_number \* row number \* join by : eventDate =
-date_time decimalLongitude = lon_in decimalLatitude = lat_in
-scientificName = natalia spreadsheet scientificNameID = "TODO: worms
-lookup", #taxonomy_df["classification"],
+occurance = institution_code = "USF_IMaRS" 
+collection_code = "compiled_zoo_taxonomy_nlf" 
+catalog_number = "20yy_mm_dd" 
+occurrenceID = (unique identifier) 
+ joining of <urn:catalog> institution code
+collection_code catalog_number row number 
+join by : 
+eventDate = date_time 
+decimalLongitude = lon_in 
+decimalLatitude = lat_in
+scientificName = natalia spreadsheet 
+scientificNameID = "TODO: worms lookup", #taxonomy_df["classification"],
 
-occurence = basisOfRecord = "HumanObservation", collectionCode =
-collection_code, catalogNumber = catalog_number, occurrenceStatus =
-"present", institutionCode = institution_code
+occurence = basisOfRecord = "HumanObservation", 
+collectionCode = collection_code, 
+catalogNumber = catalog_number, 
+occurrenceStatus = "present", 
+institutionCode = institution_code
 
 extra-stuff mesh_size flowmeter in flowmeter out ship speed inpeller
 constant distnace tow speed formalin vol filtered
 
 # Load data for OBIS conversion
 ```{r load-data}
-root <- rprojroot::find_rstudio_root_file()
+# root <- rprojroot::find_rstudio_root_file()
+# returns most recent modified file path
+last_mod <-  function(fpath) {
+    ftime <-
+        file.mtime(fpath)           
+    return(fpath[which.max(ftime)]) 
+}
 
 # ---- set variables for calculation ----
 inpeller <- 26873 / 999999
@@ -78,14 +96,14 @@ net_area <- pi * 0.5^2
 
 # ---- load metadata, data, and aphiaid ----
 meta_df <-
-    fs::dir_ls(path = paste0(root,
-                             "/data/metadata/"),
+      fs::dir_ls(path = here::here("data", "metadata"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-    (function(fpath) {
-        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-        return(fpath[which.max(ftime)]) # returns the most recent file path
-    }) %>%
+    last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
+    
+    # this is where Natalia LF started
+    filter(date >= date("2017-06-18")) %>%
+    
     mutate(locationID      = case_when(
         str_detect(station, "Mol") ~ "MR",
         str_detect(station, "Loo") ~ "LK",
@@ -99,22 +117,15 @@ meta_df <-
         volume_filt_cubic_m = net_area * distance_m_2
         ) 
 
-    
-
 aphia_id <-
-    fs::dir_ls(path = paste0(root,
-                             "/data/"),
+    fs::dir_ls(path = here::here("data", "metadata"),
                regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
-    (function(fpath) {
-        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-        return(fpath[which.max(ftime)]) # returns the most recent file path
-    }) %>%
+    last_mod(.) %>%
     read_csv(show_col_types = FALSE)
 
-taxa_files <- fs::dir_ls(
-    path = paste0(root,"/data/processed/"),
-    regexp = "um_taxa_merged"
-) 
+taxa_files <- 
+    fs::dir_ls(path = here::here("data", "processed"),
+               regexp = "um_taxa_merged") 
 
 
 taxa_matched_merg <-
