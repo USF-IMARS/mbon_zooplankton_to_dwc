@@ -3,5 +3,4 @@
 .RData
 .Ruserdata
 data/**
-*/json_*
-*/old*
+
