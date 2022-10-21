@@ -1,3 +1,12 @@
+
+#  ------------------------------------------------------------------------
+#
+# Title : Functions to get taxa IDs
+#    By : Sebastian Di Geronimo
+#  Date : 2022-10-20
+#
+#  ------------------------------------------------------------------------
+
 # ---- functions ----
 # returns most recent modified file path
 last_mod <-  function(fpath) {
@@ -62,7 +71,7 @@ taxa_list_check <- function(taxa_list, regex_lifestage,
         
     } else {
         # ---- read taxa file ----
-        cat(sprintf("Reading file: '%s' \n", basename(taxa_file)))
+        cat(sprintf("Reading taxa list file: '%s' \n", basename(taxa_file)))
         
         taxa_matched <-  
             readr::read_csv(taxa_file, 
@@ -70,17 +79,25 @@ taxa_list_check <- function(taxa_list, regex_lifestage,
     }
     
     # ---- optional check NAs ----
-    if (isFALSE(check)) {
-        return(taxa_matched)
+    if (check) {
+        # ---- fix non-matched taxa names ----
+        cat("Checking file if any NAs are present in scientificName.\n")
+        taxa_matched <- taxa_unmatch(taxa_matched) 
     } else {
-        taxa_unmatch(taxa_matched) 
+        cat("Not checking for NAs in aphiaID list")
     }
+    
+    return(taxa_matched)
 }
 
+# ----------------------------------------------------------------------------
 taxa_unmatch <- function(taxa_matched, regex_lifestage,
-                         file_base, file_expr ) {
-    # ---- fix non-matched taxa names ----
-    cat("Checking file if any NAs are present in scientificName.\n")
+                         file_base, file_expr, 
+                         check = FALSE) {
+    
+    if (!check) {
+        return(taxa_matched)
+    }
     
     taxa_ntmtch <-
         taxa_matched  %>%
@@ -127,14 +144,19 @@ taxa_unmatch <- function(taxa_matched, regex_lifestage,
         cat(sprintf("Writing new file: '%s'", basename(filename)))
 
         write_csv(taxa_matched, filename, na = "")
+        
     } else {
-        print("No NAs found")
+        cat("No NAs found")
     }
     
     return(taxa_matched)
 }
 
+# ----------------------------------------------------------------------------
 merge_taxa <- function(dat, file_base = "aphia_taxa", check = FALSE) {
+    
+    if (!check) message("Will not be checking for NAs in taxa aphiaID list.",
+                    "\nSet check to `TRUE` if want to check.\n")
     
     file_expr <- expression(paste0(
         here::here("data", "metadata", "aphia_id", file_base),
@@ -165,8 +187,7 @@ merge_taxa <- function(dat, file_base = "aphia_taxa", check = FALSE) {
         distinct(taxa_orig, .keep_all = TRUE)
 
     taxa_unmatch(taxa_matched_merg, regex_lifestage = regex_lifestage,
-                 file_base = file_base, file_expr) %>%
-    # right_join(., dat, by = c("taxa_orig" = "taxa"))
+                 file_base = file_base, file_expr, check = check) %>%
     right_join(., dat, by = c("taxa_orig" = "taxa"))
 }
 
