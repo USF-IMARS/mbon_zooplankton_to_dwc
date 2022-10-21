@@ -34,7 +34,7 @@ library("geosphere")
 library("vroom")
 library("plotly")
 
-
+obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
 # startup("log_edits")
 # log_add()
@@ -82,7 +82,6 @@ constant distnace tow speed formalin vol filtered
 
 # Load data for OBIS conversion
 ```{r load-data}
-# root <- rprojroot::find_rstudio_root_file()
 # returns most recent modified file path
 last_mod <-  function(fpath) {
     ftime <-
