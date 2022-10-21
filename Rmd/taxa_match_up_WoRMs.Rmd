@@ -6,7 +6,6 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-root <- rprojroot::find_rstudio_root_file()
 knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
 library("hablar") # might be useful when needing to fix names
@@ -35,39 +34,23 @@ library("magrittr")
 ```{r create-dir}
 # will create a set directory if does not exists
 # useful for new projects
+source(here::here("scripts","create_dir.R"))
 
-subDir <-
-    c("/data/raw",
-      "/data/processed",
-      "/data/processed/ind_file_merg",
-      "/data/plots",
-      "/data/metadata",
-      "/Rmd",
-      "/scripts")
-
-fs::dir_create(path = paste0(root,"/",subDir))
-rm(subDir)
+source(here::here("scripts", "taxa_list_check.R"))
 ```
 
 ```{r load-taxa-data}
-# ---- set root  ----
-root <- rprojroot::find_rstudio_root_file()
-
 # ---- load data set ----
-file.taxa <- fs::dir_ls(path =  paste0(root,"/data/raw"),
-           regexp = "^[^~]*\\.xlsx$")  %>%
-    (function(fpath) {
-        ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-        return(fpath[which.max(ftime)]) # returns the most recent file path
-    })
+file.taxa <- 
+    fs::dir_ls(path =  here::here("data", "raw"),
+           regexp = "^[^~]*\\.xlsx$") 
+# %>%
+    # last_mod(.)
 
 # # remove later
-# file.taxa <- fs::dir_ls(path =  paste0(root,"/data"),
+# file.taxa <- fs::dir_ls(path =  here::here("data"),
 #            regexp = "^[^~]*Analysis.*\\.xlsx$")  %>%
-#     (function(fpath) {
-#         ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-#         return(fpath[which.max(ftime)]) # returns the most recent file path
-#     })
+#     last_mod(.)
 
 # find the number of skips to start of taxa information
 skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
@@ -101,9 +84,10 @@ taxa <- readxl::read_xlsx(file.taxa,
                               .before = everything()
                           ) %>%
                         full_join(x = calc, by = c("sample_id" = "cruise_id")) %>%
-                        select(cruise_id = sample_id, everything())
+                        select(cruise_id = sample_id, everything()) %>%
+                        filter(mean > 0)
 
-rm(skips, file.taxa)
+# rm(skips, file.taxa)
 ```
 
 1. read in new occurrence file
@@ -112,49 +96,52 @@ rm(skips, file.taxa)
     if need to rerun taxa_match_fix
 4. row bind occurrence data with taxa info
 
+```{r}
+merge_taxa(taxa) 
+    .Last.value %>%
+    relocate(cruise_id, date_collected, site, .before = 1)
+```
 
 ```{r}
-source(paste0(root,"/scripts/match_taxa_fix.R"))
+source(here::here("scripts", "match_taxa_fix.R"))
 
-# taxa_file <- fs::file_exists("../data/metadata/aphia_taxa.csv")
-
-taxa_file <-  fs::dir_ls(path =  paste0(root,"/data/metadata/"),
+taxa_file <-  
+    fs::dir_ls(path =  here::here("data", "metadata"),
            regexp = "aphia_taxa.*\\.csv$")  %>%
-    (function(fpath) {
-    ftime <- file.mtime(fpath)      # file.info(fpath)$ctime for file CREATED time
-    return(fpath[which.max(ftime)]) # returns the most recent file path
-    }) 
-
-
+    last_mod(.)
+regex_lifestage <- paste0("copepodite|nauplii|larvae|larva|juvenile|",
+                          "eggs|egg|zoea|protozoea|cypris|megalopa")
 # ---- initialize taxa file ----
 # if doesn't exists, will use first file as input
 # contains original name, scientific name, larval stage, aphia ID, urn #
 if (is_empty(taxa_file)) {
     
     # extract taxa names, separating names and life stages
-    taxa.name <-
+    # taxa.name <-
         taxa  %>% #%$% as.vector(Taxa)
-        # select(1,2) %>%
-        select(1) %>%
-        rename(taxa_orig = taxa) %>%
+         select(taxa_orig = taxa) %>%
         mutate(
-            taxa = str_remove(taxa_orig, regex(
-                "sp{0,2}\\.|\\(unknown\\)", ignore_case = T
-            )),
+            taxa = str_remove(
+                taxa_orig, 
+                regex(
+                    "sp{0,2}\\.|\\(unknown\\)|\\(.*\\)", 
+                    ignore_case = TRUE
+                    )
+            ),
             lifeStage = str_extract_all(
                 taxa,
                 regex(
-                    "copepodite|nauplii|larvae|juvenile|eggs|egg|zoea|protozoea|cypris|megalopa",
-                    ignore_case = T
+                    regex_lifestage,
+                    ignore_case = TRUE
                 ),
-                simplify = T
-            )  %>%
+                simplify = TRUE
+            ) %>%
                 str_to_lower(),
             taxa = str_remove(
                 taxa,
                 regex(
-                    "copepodite|nauplii|larvae|juvenile|adult|eggs|zoea|protozoea|cypris|megalopa",
-                    ignore_case = T
+                    regex_lifestage,
+                    ignore_case = TRUE
                 )
             )
         ) 
@@ -167,16 +154,17 @@ if (is_empty(taxa_file)) {
     # ---- save first WoRMS database search ----
     write_csv(taxa_matched,
               paste0(
-                  root,
-                  "/data/metadata/aphia_taxa",
+                  here::here("data", "metadata", "aphia_taxa"), 
                   format(Sys.time(), '_%Y%m%d_%H%M%S'),
-                  ".csv"
-              ))
+                  ".csv"),
+              na = ""
+              )
+    
+    
 } else {
     # ---- read taxa file ----
     taxa_matched <-  readr::read_csv(taxa_file, show_col_types = FALSE) 
 }
-
 
 # ---- fix non-matched taxa names ----
 # if some taxa have NA names, can try again on this subset
@@ -195,17 +183,17 @@ if (nrow(taxa_ntmtch) > 0) {
     # ---- save first WoRMS database search ----
     write_csv(taxa_matched,
               paste0(
-                  root,
-                  "/data/metadata/aphia_taxa",
+                  here::here("data", "metadata", "aphia_taxa"), 
                   format(Sys.time(), '_%Y%m%d_%H%M%S'),
-                  ".csv"
-              ))
+                  ".csv"),
+              na = ""
+              )
 }
 ```
 
 ```{r match-data-taxa}
 # ---- fix new taxa names ----
-# TODO: read in all files, joing with scientific names, then add more if they 
+# TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
 taxa_matched_merg <- left_join(taxa, taxa_matched, by = c("taxa" = "taxa_orig")) 
 
@@ -217,25 +205,23 @@ if (nrow(taxa_to_match_merg) > 0) {
      # ---- run taxa matching with WoRMS database ----
     taxa_new <- match_taxa_fix(taxa_to_match_merg$taxa, fuzzy = TRUE, ask = T)
     
-    taxa_mtchnew <- bind_cols(taxa_to_match_merg, taxa_new)
-    taxa_matched <-
-        bind_rows(taxa_matched, taxa_mtchnew)
+    taxa_matched <- bind_cols(taxa_to_match_merg, taxa_new) %>%
+        bind_rows(taxa_matched, .)
     
     # ---- save first WoRMS database search ----
     write_csv(taxa_matched,
               paste0(
-                  root,
-                  "/data/metadata/aphia_taxa",
+                  here::here("data", "metadata", "aphia_taxa"), 
                   format(Sys.time(), '_%Y%m%d_%H%M%S'),
-                  ".csv"
-              ))
+                  ".csv"),
+              na = "")
 }
 
 taxa_matched_merg <- left_join(taxa, taxa_matched, by = c("taxa" = "taxa_orig")) 
 
 file.name <-
     glue(
-        "{root}/data/processed/
+        "{here::here('data', 'processed')}/
         \b{taxa_matched_merg$cruise_id[1]}_
         \b{taxa_matched_merg$site[1]}_
         \b{taxa_matched_merg$mesh[1]}um_
@@ -247,7 +233,8 @@ file.name <-
 
 write_csv(
     x = taxa_matched_merg,
-    file = file.name)
+    file = file.name,
+    na = "")
 
 ```
 
