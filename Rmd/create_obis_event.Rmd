@@ -39,6 +39,20 @@ obistools::event_fields()
 # startup("log_edits")
 # log_add()
 ```
+```{r load-functions}
+# source scripts with functions in new environment
+my_funcs <- new.env()
+
+# create directory structure if does not exists and create tree map
+source(here::here("scripts","create_dir.R"), local = my_funcs)
+# copy files from box
+source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+# loading check for taxa 
+source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+
+
+attach(my_funcs)
+```
 
 Workflow:
 <https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers>
@@ -150,7 +164,6 @@ taxa_matched_merg <-
                           NA_character_)
         )
 ```
-
 
 # Occurrence Bare Minimum:
 
