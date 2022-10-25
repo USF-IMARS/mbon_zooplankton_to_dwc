@@ -82,20 +82,13 @@ constant distnace tow speed formalin vol filtered
 
 # Load data for OBIS conversion
 ```{r load-data}
-# returns most recent modified file path
-last_mod <-  function(fpath) {
-    ftime <-
-        file.mtime(fpath)           
-    return(fpath[which.max(ftime)]) 
-}
-
 # ---- set variables for calculation ----
 inpeller <- 26873 / 999999
 net_area <- pi * 0.5^2
 
 # ---- load metadata, data, and aphiaid ----
 meta_df <-
-      fs::dir_ls(path = here::here("data", "metadata"),
+    fs::dir_ls(path = here::here("data", "metadata"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
@@ -107,31 +100,47 @@ meta_df <-
         str_detect(station, "Mol") ~ "MR",
         str_detect(station, "Loo") ~ "LK",
         str_detect(station, "West") ~ "WS",
+        str_detect(station, "9B") ~ "9B",
         TRUE ~ station), 
         .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
-        tow_speed_cm_sec    =  distance_m_2 * 100 / (tow_time_min * 60),
+        tow_speed_cm_sec    = distance_m_2 * 100 / (tow_time_min * 60),
         volume_filt_cubic_m = net_area * distance_m_2
         ) 
 
 aphia_id <-
-    fs::dir_ls(path = here::here("data", "metadata"),
+    fs::dir_ls(path = here::here("data", "metadata", "aphia_id"),
                regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE)
 
-taxa_files <- 
+# taxa_files <- 
+#     fs::dir_ls(path = here::here("data", "processed"),
+#                regexp = "um_taxa_merged") 
+taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
-               regexp = "um_taxa_merged") 
+               regexp = "all_merged_processed") 
 
-
+# ---- fixing issues ----
 taxa_matched_merg <-
-  taxa_files  %>%
-  read_csv(show_col_types = FALSE) %>%
-    filter(mean > 0) %>%
-    left_join(meta_df, by = c("cruise_id", "site" = "locationID", "mesh" = "mesh_size_um")) %>%
+    taxa_files  %>%
+    map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
+     mutate(
+        cruise_id = case_when(
+            str_detect(cruise_id, "006") ~ "WS20006",
+            str_detect(cruise_id, "WS118218") ~ "WS18218",
+            str_detect(cruise_id, "WS18224") ~ "WS18218",
+            str_detect(cruise_id, "WS18284") ~ "WS18285",
+            # str_detect(cruise_id, "") ~ "",
+            TRUE ~ cruise_id
+        ),
+        site = str_replace(site, "MK", "MR")
+    )  %>%
+    left_join(meta_df, 
+              by = c("cruise_id", "site" = "locationID", 
+                     "mesh" = "mesh_size_um")) %>%
     mutate(
         # split_amount = 0.5, # doesnt matter I guess
         number_ind_sample = dillution * mean * 2^(splits_analyzed),
