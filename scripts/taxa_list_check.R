@@ -1,4 +1,3 @@
-
 #  ------------------------------------------------------------------------
 #
 # Title : Functions to get taxa IDs
@@ -7,15 +6,18 @@
 #
 #  ------------------------------------------------------------------------
 
+if (!exists("my_funcs")) my_funcs <- FALSE
+
 # ---- functions ----
 # returns most recent modified file path
 last_mod <-  function(fpath) {
-    ftime <-
-        file.mtime(fpath)           
+    ftime <- file.mtime(fpath)           
     return(fpath[which.max(ftime)]) 
 }
 
-source(here::here("scripts", "match_taxa_fix.R"))
+source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
+
+# ---- Load taxa list --------------------------------------------
 
 taxa_list_check <- function(taxa_list, regex_lifestage, 
                             file_base, file_expr,
@@ -90,9 +92,10 @@ taxa_list_check <- function(taxa_list, regex_lifestage,
     return(taxa_matched)
 }
 
-# ----------------------------------------------------------------------------
+# ---- Find unmatched taxa and fix --------------------------------------------
 taxa_unmatch <- function(taxa_matched, regex_lifestage,
-                         file_base, file_expr, 
+                         # file_base, 
+                         file_expr, 
                          check = FALSE) {
     
     if (!check) {
@@ -152,7 +155,7 @@ taxa_unmatch <- function(taxa_matched, regex_lifestage,
     return(taxa_matched)
 }
 
-# ----------------------------------------------------------------------------
+# ---- Merge taxa with taxa list ----------------------------------------------
 merge_taxa <- function(dat, file_base = "aphia_taxa", check = FALSE) {
     
     if (!check) message("Will not be checking for NAs in taxa aphiaID list.",
@@ -187,8 +190,74 @@ merge_taxa <- function(dat, file_base = "aphia_taxa", check = FALSE) {
         distinct(taxa_orig, .keep_all = TRUE)
 
     taxa_unmatch(taxa_matched_merg, regex_lifestage = regex_lifestage,
-                 file_base = file_base, file_expr, check = check) %>%
+                 file_expr, check = check) %>%
     right_join(., dat, by = c("taxa_orig" = "taxa"))
 }
 
+# ---- Load taxa list ---------------------------------------------------------
+load_taxa_list <- function(file_base = "aphia_taxa") {
+    # load file most recent taxa with aphiaID 
+    taxa_file <-  
+        fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
+                   regexp = glue("{file_base}.*\\.csv$"))  %>%
+        last_mod(.)
+    
+    assertthat::assert_that(assertthat::not_empty(taxa_file),
+                            msg = glue("Taxa list file with '{file_base}'",
+                                       "does not exist",.sep = " "))
+    
+    taxa_matched <-  
+        readr::read_csv(taxa_file, 
+                        show_col_types = FALSE)
+    
+    return(taxa_matched)
+}
 
+# ---- Load data --------------------------------------------------------------
+load_data <- function(file.taxa) {
+    
+    cli::cli_alert_info(basename(file.taxa))
+    # find the number of skips to start of taxa information
+    skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
+                                      col_names = FALSE ) == "Taxa") - 1
+    
+    # extract values for calculating individuals per cubic meter
+    calc <-
+        readxl::read_xlsx(
+            # file.taxa, 
+            filetest,
+            # n_max = skips,
+            range = glue("A1:B{skips}"),
+            col_names = c("x1", "x2")
+            # col_names = c("x1", "x2", "x3")
+        ) %>%
+    mutate(
+        x1 = str_replace(x1, ".*ate of.*", "date analyzed")
+    ) %>% 
+        # select(-x3) %>%
+        pivot_wider(,
+                    names_from  = x1,
+                    values_from = x2
+        ) %>%
+        janitor::clean_names() %>%
+        mutate(
+            date_collected = as.Date(as.numeric(date_collected), origin = "1899-12-30"),
+            date_analyzed  = as.Date(as.numeric(date_analyzed), origin = "1899-12-30")
+        ) %>%
+        hablar::retype()
+    
+    # load the data set
+    taxa <- 
+        readxl::read_xlsx(file.taxa,  
+                          skip = skips, 
+                          .name_repair = janitor::make_clean_names) %>%
+        mutate(
+            cruise_id = calc$sample_id,
+            .before = everything()
+        ) %>%
+        full_join(x = calc, by = c("sample_id" = "cruise_id")) %>%
+        select(cruise_id = sample_id, everything()) %>%
+        filter(mean > 0)
+    
+    return(taxa)
+}
