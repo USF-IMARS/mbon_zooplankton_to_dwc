@@ -348,6 +348,9 @@ mof <-
     dplyr::transmute(
         occurrenceID      = occur$occurrenceID,
         eventID           = event$eventID,
+        measurementType   = "Relative abundance",
+        measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
+        
         measurementValue  = `data$ind/m^3`,
         measurementType   = "Number per cubic metre", # MOF?
         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
