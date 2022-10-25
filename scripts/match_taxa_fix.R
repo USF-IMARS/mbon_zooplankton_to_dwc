@@ -121,10 +121,10 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
         proceed <- NA
         while (is.na(proceed)) {
             r <- readline(prompt = "Proceed to resolve names (y/n/info)? ")
-            if (r == "y") {
+            if (substr(r, 1, 1) == "y") {
                 proceed <- TRUE
             }
-            else if (r == "n") {
+            else if (substr(r, 1, 1) == "n") {
                 proceed <- TRUE
                 ask <- FALSE
             }
@@ -132,6 +132,7 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
                 if (!is.null(no.data)) cat("Taxa with no ID matches:\n", no.data, sep = "\n"); cat("\n")
                 
                 if (!is.null(multiple)) cat("Taxa with multiple ID matches:\n",multiple, sep = "\n")
+                Sys.sleep(4)
             }
         }
     }
@@ -158,8 +159,11 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
             } 
         } else {
             if (ask) {
-                    new.name <- readline(prompt = sprintf("%s failed, what do you want to try? This can be a common name. ", unames[i]))
-                    r <- readline(prompt = sprintf("Do you want to use common name? (y/n) "))
+                    new.name <- readline(prompt = sprintf(
+                        "%s failed, what do you want to try? This can be a common name. ", 
+                        unames[i]))
+                    r <- readline(prompt = sprintf(
+                        "Do you want to use common name? (y/n) "))
                     if (r == "y") {
                         taxa_type = "common" 
                     } else {
