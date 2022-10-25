@@ -1,14 +1,18 @@
-match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
+match_taxa_fix <- function(names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
 {
-    
+   
     # functions ------------------------------
     # selects worrms ID search by taxonomic or common name
     taxa.match <- function(.page, .fuzzy, .taxa_type) {
         if (.taxa_type == "taxa") {
+            
             obistools:::cache_call(.page, expression(worrms::wm_records_taxamatch(.page, fuzzy = .fuzzy)))
+            
         } else if (.taxa_type == "common") {
             message("using Common names")
+            
             obistools:::cache_call(.page, expression(worrms::wm_records_common(.page, fuzzy = .fuzzy)))
+            
         }
     }
     
@@ -29,16 +33,19 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
                 } 
             }),
             retry = function() {
-                new.name <-
-                    new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
+                    new.name <- svDialogs::dlg_input(
+                        sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))$res
+                    # new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
                 if (new.name == "") {
                     message(sprintf("Skipping %s ", new.name))
                 } else {
-                    r <- readline(prompt = sprintf("Do you want to use common name? (y/n) "))
+                    r <- svDialogs::dlg_input(sprintf("Do you want to use common name? (y/n) "))$res
+                    # r <- readline(prompt = sprintf("Do you want to use common name? (y/n) "))
                     if (r == "y") {
                         paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, .taxa_type = "common", .tryfix = T)
                     } else {
-                        paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, .taxa_type = "taxa", .tryfix =T)
+                        paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, .taxa_type = "taxa", .tryfix = TRUE)
+                        Sys.sleep(5)
                     }
                     
                     
@@ -56,8 +63,19 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
                                authority,
                                status,
                                match_type))
-        n <-
-            readline(prompt = "Multiple matches, pick a number or leave empty to skip: ")
+        
+        temps <- (match %>% dplyr::select(AphiaID,
+                                      scientificname,
+                                      authority,
+                                      status,
+                                      match_type))
+        svDialogs::dlg_list(temps)$res
+        stop()
+        Sys.sleep(5)
+        n <- svDialogs::dlg_input(
+            "Multiple matches, pick a number or leave empty to skip: ")$res
+        # n <-
+        #     readline(prompt = "Multiple matches, pick a number or leave empty to skip: ")
         s <- as.integer(n)
         if (!is.na(n) & n > 0 & n <= nrow(match)) {
             row$scientificName = match$scientificname[s]
@@ -120,7 +138,8 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
     if (ask) {
         proceed <- NA
         while (is.na(proceed)) {
-            r <- readline(prompt = "Proceed to resolve names (y/n/info)? ")
+            r <- svDialogs::dlg_input("Proceed to resolve names (y/n/info)?")$res
+            # r <- readline(prompt = "Proceed to resolve names (y/n/info)? ")
             if (substr(r, 1, 1) == "y") {
                 proceed <- TRUE
             }
@@ -159,11 +178,16 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
             } 
         } else {
             if (ask) {
-                    new.name <- readline(prompt = sprintf(
-                        "%s failed, what do you want to try? This can be a common name. ", 
-                        unames[i]))
-                    r <- readline(prompt = sprintf(
-                        "Do you want to use common name? (y/n) "))
+                new.name <- svDialogs::dlg_input(sprintf(
+                    "%s failed, what do you want to try? This can be a common name. ", 
+                    unames[i]))$res
+                    # new.name <- readline(prompt = sprintf(
+                    #     "%s failed, what do you want to try? This can be a common name. ", 
+                    #     unames[i]))
+                    r <- svDialogs::dlg_input(sprintf(
+                        "Do you want to use common name? (y/n) "))$res
+                    # r <- readline(prompt = sprintf(
+                    #     "Do you want to use common name? (y/n) "))
                     if (r == "y") {
                         taxa_type = "common" 
                     } else {
