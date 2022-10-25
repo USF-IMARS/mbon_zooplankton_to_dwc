@@ -52,47 +52,11 @@ file.taxa <-
            regexp = "^[^~]*\\.xlsx$",
            recurse = TRUE) 
 
-
-file.taxa[1:4] %>%
-    map(., ~ load_data(.x))
-
-# find the number of skips to start of taxa information
-skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
-                                  col_names = FALSE ) == "Taxa") - 1
-
-# extract values for calculating individuals per cubic meter
-calc <-
-    readxl::read_xlsx(
-                      file.taxa[1], 
-                      n_max = skips, 
-                      col_names = c("x1", "x2", "x3")
-                      ) %>% 
-    select(-x3) %>%
-    pivot_wider(,
-                names_from  = x1,
-                values_from = x2
-                ) %>%
-    janitor::clean_names() %>%
-    mutate(
-        date_collected = as.Date(as.numeric(date_collected), origin = "1899-12-30"),
-        date_analyzed  = as.Date(as.numeric(date_analyzed), origin = "1899-12-30")
-    ) %>%
-    hablar::retype()
-
-# load the data set
-taxa <- 
-    readxl::read_xlsx(file.taxa,  
-                      skip = skips, 
-                      .name_repair = janitor::make_clean_names) %>%
-                      mutate(
-                          cruise_id = calc$sample_id,
-                          .before = everything()
-                      ) %>%
-                    full_join(x = calc, by = c("sample_id" = "cruise_id")) %>%
-                    select(cruise_id = sample_id, everything()) %>%
-                    filter(mean > 0)
-
-rm(skips, file.taxa)
+taxa_data <-
+    file.taxa %>%
+    map_dfr(., ~ load_data(.x), .id = "Files") %>%
+    mutate(Files = basename(Files))
+taxa_data
 ```
 
 1. read in new occurrence file
@@ -104,28 +68,40 @@ rm(skips, file.taxa)
 ```{r}
 # TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
-
-taxa_matched_merg <- merge_taxa(taxa) %>%
-    relocate(cruise_id, date_collected, site, .before = 1)
+    taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
+    relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
+    arrange(date_collected, site, taxa)
 
 # ---- save processed taxa data ----
 file.name <-
     glue(
         "{here::here('data', 'processed')}/
-        \b{taxa_matched_merg$cruise_id[1]}_
-        \b{taxa_matched_merg$site[1]}_
-        \b{taxa_matched_merg$mesh[1]}um_
-        \btaxa_merged
+        \ball_merged_
+        \bprocessed
         \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
         \b.csv"
     ) %>%
-    str_remove_all("(\\\n\\\b)")
+    str_remove_all("(\\\n\\\b)") 
 
-write_csv(
-    x = taxa_matched_merg,
-    file = file.name,
-    na = "")
+write_csv(taxa_matched_merg, file.name, na = "")
 
+taxa_matched_merg <- taxa_matched_merg %>%
+    mutate(
+        Files =  glue(
+        "{here::here('data', 'processed', 'ind_file_merg')}/
+        \b{(taxa_matched_merg$Files)}_
+        \bprocessed
+        \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
+        \b.csv"
+    ) %>%
+    str_remove_all("(\\\n\\\b)|(\\.xlsx)") ,
+    .before = 1)
+
+taxa_matched_merg %>%
+    group_by(Files) %>%
+    group_walk(
+        ~ write_csv(.x, .y$Files, na = "")
+    )
 ```
 
 # tried a different database without working
