@@ -37,10 +37,11 @@ my_funcs <- new.env()
 
 # create directory structure if does not exists and create tree map
 source(here::here("scripts","create_dir.R"), local = my_funcs)
-# loading check for taxa 
-source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
 # copy files from box
 source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+# loading check for taxa 
+source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+
 
 attach(my_funcs)
 ```
@@ -50,7 +51,8 @@ attach(my_funcs)
 file.taxa <- 
     fs::dir_ls(path =  here::here("data", "raw"),
            regexp = "^[^~]*\\.xlsx$",
-           recurse = TRUE) 
+           recurse = TRUE) %>%
+           skip_file(.)
 
 taxa_data <-
     file.taxa %>%
@@ -68,40 +70,13 @@ taxa_data
 ```{r}
 # TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
-    taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
+taxa_matched_merg <- merge_taxa(taxa_data, check = FALSE) %>%
     relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
     arrange(date_collected, site, taxa)
 
-# ---- save processed taxa data ----
-file.name <-
-    glue(
-        "{here::here('data', 'processed')}/
-        \ball_merged_
-        \bprocessed
-        \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
-        \b.csv"
-    ) %>%
-    str_remove_all("(\\\n\\\b)") 
-
-write_csv(taxa_matched_merg, file.name, na = "")
-
-taxa_matched_merg <- taxa_matched_merg %>%
-    mutate(
-        Files =  glue(
-        "{here::here('data', 'processed', 'ind_file_merg')}/
-        \b{(taxa_matched_merg$Files)}_
-        \bprocessed
-        \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
-        \b.csv"
-    ) %>%
-    str_remove_all("(\\\n\\\b)|(\\.xlsx)") ,
-    .before = 1)
-
-taxa_matched_merg %>%
-    group_by(Files) %>%
-    group_walk(
-        ~ write_csv(.x, .y$Files, na = "")
-    )
+save_merged(taxa_matched_merg, 
+            file.taxa
+            )
 ```
 
 # tried a different database without working
