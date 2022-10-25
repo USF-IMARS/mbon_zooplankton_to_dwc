@@ -151,6 +151,14 @@ taxa_matched_merg <-
         )
 ```
 
+```{r}
+svDialogs::dlg_list(c("idad", "dfasdklfj"))
+svDialogs::dlg_input("heres and input")
+taxa_matched_merg %$% 
+    unique(taxa_orig) %>%
+match_taxa_fix()
+
+```
 
 # Occurrence Bare Minimum:
 
