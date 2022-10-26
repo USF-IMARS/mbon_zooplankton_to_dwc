@@ -100,6 +100,9 @@ constant distnace tow speed formalin vol filtered
 inpeller <- 26873 / 999999
 net_area <- pi * 0.5^2
 
+nlf = "Natlia Lopez Figueroa"
+orcid_nat = "Natalia LP ORCID" # TODO: add here
+
 # ---- load metadata, data, and aphiaid ----
 meta_df <-
     fs::dir_ls(path = here::here("data", "metadata"),
@@ -130,14 +133,11 @@ aphia_id <-
     last_mod(.) %>%
     read_csv(show_col_types = FALSE)
 
-# taxa_files <- 
-#     fs::dir_ls(path = here::here("data", "processed"),
-#                regexp = "um_taxa_merged") 
 taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
                regexp = "all_merged_processed") 
 
-# ---- fixing issues ----
+# ---- merge metadata and taxa data ----
 taxa_matched_merg <-
     taxa_files  %>%
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
@@ -150,15 +150,30 @@ taxa_matched_merg <-
             # str_detect(cruise_id, "") ~ "",
             TRUE ~ cruise_id
         ),
-        site = str_replace(site, "MK", "MR")
+        site = str_replace(site, "MK", "MR"),
+        lifeStage = case_when(
+            is.na(lifeStage) ~ "adult",
+            TRUE ~ lifeStage)
     )  %>%
     left_join(meta_df, 
               by = c("cruise_id", "site" = "locationID", 
                      "mesh" = "mesh_size_um")) %>%
     mutate(
-        # split_amount = 0.5, # doesnt matter I guess
+        # split_amount = 0.5, # splits from cruise
+        # TODO: check splits_analyzed with natalia ----------------------------
+        splits_analyzed = case_when(
+            splits_analyzed == 0 | is.na(splits_analyzed) ~ 1,
+            TRUE ~ splits_analyzed
+        ),
+        
+        # TODO: check this equation -------------------------------------------
         number_ind_sample = dillution * mean * 2^(splits_analyzed),
+        number_ind_sample = dillution * mean,
+        number_ind_sample = dillution * mean, # the way jamie did it
+        number_ind_sample = dillution * mean * splits_analyzed / pipette_vol_m_l, # the way jamie did it
+
         ind_m3 = number_ind_sample / volume_filt_cubic_m,
+        
         aphiaID = if_else(!is.na(scientificNameID), 
                           str_split(scientificNameID, ":", simplify = T)[, 5],
                           NA_character_)
@@ -199,7 +214,6 @@ map(meta_df$split_size, function(x) {
 
 ```{r record-level}
 rcd_lvl <-
-    # meta_df %>%
     taxa_matched_merg  %>%
     dplyr::transmute(
         type                = "Event",
@@ -207,15 +221,17 @@ rcd_lvl <-
         language            = "en",
         license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
         institutionCode     = "USF_IMaRS",
-        datasetID           = "FKNMS_MBON",
+        
         # which one?
+        datasetID           = "FKNMS_MBON",
         datasetName         = "MBON Florida Keys National Marine Sanctuary",
+        
         basisOfRecord       = "HumanObservation",
         
         # TODO: will check on this
-        # informationWithheld = "collector & analyst identities withheld",
-        recordedBy          = "Natalia Lopez Figueroa", # check these
-        recordedByID        = "NEED to include ORCID", # check these
+        informationWithheld = "collector identities withheld because changed frequently",
+        recordedBy          = nlf, # check these
+        recordedByID        = orcid_nat, # check these
     )
 ```
 ```{r event}
@@ -224,26 +240,26 @@ event <-
     # TODO: should probably be just meta_df
     taxa_matched_merg  %>%
     dplyr::transmute(
+        cruise_id, mesh,
         # catalogNumber   = row_number(),
-        locationID      = case_when(
-            str_detect(station, "Mol") ~ "MR",
-            str_detect(station, "Loo") ~ "LK",
-            str_detect(station, "West") ~ "WS",
-            TRUE ~ station
-        ),
-        parentEventID      = "MBON_zooplankton",
+        # locationID      = case_when(
+        #     str_detect(station, "Mol") ~ "MR",
+        #     str_detect(station, "Loo") ~ "LK",
+        #     str_detect(station, "West") ~ "WS",
+        #     TRUE ~ station
+        # ),
+        locationID = site,
+        parentEventID      = "IMaRS_MBON_zooplankton",
         datasetID          = glue("{parentEventID}:{cruise_id}"),
-        # will be {cruise_id}
         eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
-            # "{datasetID}:stn_{locationID}:{mesh_size_um}_um:{eventDateTime}"
                         "{datasetID}:stn_{locationID}:{mesh}_um:{eventDateTime}"
         )  %>% str_remove("\\+0000"),
         # will be {cruise_id}
         # fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
-        fieldNumber        = glue("{cruise_id} {station} {mesh}"),
+        fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
         eventDate          = date(date_time),
         eventTime          = format(date_time, "%H:%m:%S%z"),
         year               = year(date_time),
@@ -256,9 +272,9 @@ event <-
         
         # TODO: habitat NERC vocab
         habitat            = "near reef",
-        sampleSizeValue    = "something like distance traveled or volume filtered?",
-        # volume filtered
-        sampleSizeUnit     = "would equal metre or volume?" # volume
+        sampleSizeValue    = volume_filt_cubic_m,
+        sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
+        samplingEffor      = str_c(tow_time_min, "minutes", sep = " ")
     ) %>%
      distinct() %>%
      mutate(
@@ -271,13 +287,14 @@ event <-
 location <-
     # meta_df %>%
     taxa_matched_merg %>%
+    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
     dplyr::transmute(
-        eventID           = event$eventID,
+        eventID           = eventID,
         decimalLatitude   = lat_in,
         decimalLongitude  = lon_in,
         higherGeographyID = case_when(
-            str_detect(station, "Mol|Looe|West") ~ "http://vocab.getty.edu/tgn/7030258",
-            str_detect(station, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+            str_detect(site, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
+            str_detect(site, "5") ~ "http://vocab.getty.edu/tgn/1101513",
             TRUE ~ "Not Found"
         ),
         higherGeography   = "North America | United States | Florida",
@@ -292,36 +309,46 @@ location <-
 
 ```
 ```{r occurence}
-# occur <- 
-# Doesnt exists yet!!!
-taxa_matched_merg %>%
-   dplyr::transmute(
-       scientificName,
-       lifeStage = if_else(!is.na(lifeStage), lifeStage, "other"),
-       eventID                  = event$eventID,
-       occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-       recordedBy               = "Natlia Lopez Figueroa", # check these
-       recordedByID             = "Natalia LP ORCID", # check these
-       
-       # IDk which of these is accurate
-       individualCount          = "# Ind/Sample",
-       organismQuantity         = "Ind/m^3", # or `# Ind/Sample` and leave out individualCount?
-       organismQuantityType     = "Individuals per cubic metre", # or
-       measurementType          = "Number per cubic metre", # MOF? should also include ind/sample?
-       measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
-       
-       # ---- check this information ---- 
-       lifeStage                = lifeStage,
-       establishmentMeans       = "native | uncertain",
-       occurrenceStatus         = "present", # need to filter ind/sample > 0
-       preparations             = "formalin | ethanol",
-       scientificNameID         = scientificNameID, # like urn:lsid:ipni.org:names:37829-1:1.3
-       basisOfRecord            = "HumanObservation", 
-       datasetID                = event$datasetID,
-       eventDate                = date(date_time),
-       identificationReferences = "WoRMS",
-       verbatimIdentification   = taxa
-       ) 
+occur <-
+    taxa_matched_merg %>%
+    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
+    dplyr::transmute(
+        scientificName,
+        # lifeStage = if_else(!is.na(lifeStage), lifeStage, "other"),
+        lifeStage = lifeStage,
+        eventID                  = eventID,
+        occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        recordedBy               = nlf,
+        # check these
+        recordedByID             = orcid_nat,
+        # check these
+        
+        # IDk which of these is accurate
+        # individualCount          = "Number of Individuals per Sample",
+        individualCount          = number_ind_sample,
+        organismQuantity         = ind_m3,
+        # organismQuantity         = "Individuals per cubic metre", # or `# Ind/Sample` and leave out individualCount?
+        organismQuantityType     = "Individuals per cubic metre",
+        # or
+        measurementType          = "Number per cubic metre",
+        # MOF? should also include ind/sample?
+        measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+        # MOF?
+        
+        # ---- check this information ----
+        lifeStage                = lifeStage,
+        establishmentMeans       = "native | uncertain",
+        occurrenceStatus         = "present",
+        preparations             = "formalin | ethanol",
+        scientificNameID         = scientificNameID,
+        # like urn:lsid:ipni.org:names:37829-1:1.3
+        basisOfRecord            = "HumanObservation",
+        datasetID                = datasetID,
+        eventDate                = date(date_time),
+        identificationReferences = "WoRMS",
+        verbatimIdentification   = taxa_orig
+    )
+
 ```
 ```{r MoF}
 # ---- Measurement or Fact ----
