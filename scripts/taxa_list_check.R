@@ -11,8 +11,7 @@ if (!exists("my_funcs")) my_funcs <- FALSE
 file_expr <- expression(paste0(
     here::here("data", "metadata", "aphia_id", file_base),
     format(Sys.time(), '_%Y%m%d_%H%M%S'),
-    ".csv")
-)
+    ".csv"))
 
 # ---- larval stages ----
 lifestage <- 
