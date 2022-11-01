@@ -219,18 +219,6 @@ if (FALSE) {
              eventDate = c("2010-01-03T13:44Z")
     )
 }
-    # # split sizes?
-    # meta_df %>%
-    #     select(split_size) %>%
-    #     mutate(
-    #         # split_size2 = eval(parse(split_size))
-    #         split_size2 = map(split_size, function(x) {
-    #                         out <- tryCatch({
-    #                             eval(parse(text = x))}, 
-    #                             error = function(e) {NA_integer_})})  %>% 
-    #                             unlist(.)
-    #     )
-
 ```
 
 # Record Level Info
