@@ -97,11 +97,11 @@ MOF - environmental quantities measured
 
 # not finished yet
 
-occurence = institution_code = "USF_IMaRS" 
+occurrence = institution_code = "USF_IMaRS" 
 collection_code = "compiled_zoo_taxonomy_nlf" 
 catalog_number = "20yy_mm_dd" 
 occurrenceID = (unique identifier) 
- joining of <urn:catalog> institution code
+joining of <urn:catalog> institution code
 collection_code catalog_number row number 
 join by : 
 eventDate = date_time 
@@ -151,9 +151,13 @@ meta_df <-
         net_area            = pi * 0.5^2,
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
         tow_speed_cm_sec    = distance_m_2 * 100 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area * distance_m_2
+        volume_filt_cubic_m = net_area * distance_m_2,
+        split_size          = map(split_size, function(x) {
+                                    out <- tryCatch({
+                                    eval(parse(text = x))}, 
+                                    error = function(e) {NA_integer_})}) %>% 
+                              unlist(.)
         ) 
-
 
 # ---- load zooplankton data ----
 taxa_files <-
@@ -214,22 +218,19 @@ if (FALSE) {
              datasetID = c("my-dataset-tylar-2020-01-08-123456"),
              eventDate = c("2010-01-03T13:44Z")
     )
-    # split sizes?
-    meta_df %>%
-        select(split_size) %>%
-        mutate(
-            split_zie = eval(parse(split_size))
-        )
-    map(meta_df$split_size, function(x) {
-        out <- tryCatch({
-            eval(parse(text = x))
-        }, error = function(e) {
-            message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
-            NA_integer_
-        })
-        return(out)
-    })
 }
+    # # split sizes?
+    # meta_df %>%
+    #     select(split_size) %>%
+    #     mutate(
+    #         # split_size2 = eval(parse(split_size))
+    #         split_size2 = map(split_size, function(x) {
+    #                         out <- tryCatch({
+    #                             eval(parse(text = x))}, 
+    #                             error = function(e) {NA_integer_})})  %>% 
+    #                             unlist(.)
+    #     )
+
 ```
 
 # Record Level Info
