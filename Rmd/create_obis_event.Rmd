@@ -34,24 +34,32 @@ library("geosphere")
 library("vroom")
 library("plotly")
 
-obistools::event_fields()
+# obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
 # startup("log_edits")
 # log_add()
 ```
+
+
+# Load functions if not in .Rprofile
 ```{r load-functions}
-# source scripts with functions in new environment
-my_funcs <- new.env()
-
-# create directory structure if does not exists and create tree map
-source(here::here("scripts","create_dir.R"), local = my_funcs)
-# copy files from box
-source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
-# loading check for taxa 
-source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
-
-
-attach(my_funcs)
+# set to TRUE or T if you don't have .Rprofile setup in the project
+# -or- for auto when restarting R
+# copy paste: `usethis::edit_r_profile("project")`,
+# then copy paste everything within the if statement 
+if (FALSE) {
+    # source scripts with functions in new environment
+    my_funcs <- new.env()
+    
+    # create directory structure if does not exists and create tree map
+    source(here::here("scripts","create_dir.R"), local = my_funcs)
+    # copy files from box
+    source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+    # loading check for taxa
+    source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+    
+    attach(my_funcs)
+}
 ```
 
 Workflow:
@@ -97,11 +105,11 @@ constant distnace tow speed formalin vol filtered
 # Load data for OBIS conversion
 ```{r load-data}
 # ---- set variables for calculation ----
-inpeller <- 26873 / 999999
-net_area <- pi * 0.5^2
+inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
+# net_area <- pi * 0.5^2
 
 nlf = "Natlia Lopez Figueroa"
-orcid_nat = "Natalia LP ORCID" # TODO: add here
+orcid_nat = "0000-0002-7527-0481" # TODO: add here
 
 # ---- load metadata, data, and aphiaid ----
 meta_df <-
@@ -122,6 +130,8 @@ meta_df <-
         .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
+        net_size            = 0.5,
+        net_area            = pi * 0.5^2,
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
         tow_speed_cm_sec    = distance_m_2 * 100 / (tow_time_min * 60),
         volume_filt_cubic_m = net_area * distance_m_2
@@ -182,7 +192,7 @@ taxa_matched_merg <-
 
 # Occurrence Bare Minimum:
 
-```{r obis_file}
+```{r obis-file}
 data.table::data.table(
       occurrenceID = c("my-dataset-0001c29"),
    decimalLatitude = c(-87.7575),
@@ -232,7 +242,7 @@ rcd_lvl <-
         informationWithheld = "collector identities withheld because changed frequently",
         recordedBy          = nlf, # check these
         recordedByID        = orcid_nat, # check these
-    )
+    ) 
 ```
 ```{r event}
 event <-
@@ -392,12 +402,17 @@ tibble::tribble(
 # might need to pivot wider first, then pivot longer
 
 
-
-mof <- 
-    occur %>%
+# ---- MoF MBON ----
+# TODO: maybe create a list for each measurement type? 
+# use occurrence and event ID and the rest would be dependent on the actual
+# mesurements: 
+# i.e. net, mesh, area, volume filtered, etc..
+# mof <- 
+    taxa_matched_merg %>%
+    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
     dplyr::transmute(
-        occurrenceID      = occur$occurrenceID,
-        eventID           = event$eventID,
+        occurrenceID      = occurrenceID,
+        eventID           = eventID,
         measurementType   = "Relative abundance",
         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
         
