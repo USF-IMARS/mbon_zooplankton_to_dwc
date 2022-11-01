@@ -38,6 +38,23 @@ library("plotly")
 # source(here::here("scripts","log_file_changes.R"))
 # startup("log_edits")
 # log_add()
+
+# ---- recorded by info ----
+nlf       <- "Natlia Lopez Figueroa"
+orcid_nat <- "0000-0002-7527-0481"
+
+# ---- set variables for calculation ----
+inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
+# net_area <- pi * 0.5^2
+
+# TODO: check this equation ---------------------------------------------------
+which_one <- "nat"
+equation_zoo <- switch(
+    which_one,
+    "nat"    = expression(dillution * mean * 2 ^ (splits_analyzed)),
+    "jamie"  = expression(dillution * mean * splits_analyzed / pipette_vol_m_l),
+    "jamie2" = expression(dillution * mean)
+)
 ```
 
 
@@ -80,7 +97,7 @@ MOF - environmental quantities measured
 
 # not finished yet
 
-occurance = institution_code = "USF_IMaRS" 
+occurence = institution_code = "USF_IMaRS" 
 collection_code = "compiled_zoo_taxonomy_nlf" 
 catalog_number = "20yy_mm_dd" 
 occurrenceID = (unique identifier) 
@@ -104,30 +121,30 @@ constant distnace tow speed formalin vol filtered
 
 # Load data for OBIS conversion
 ```{r load-data}
-# ---- set variables for calculation ----
-inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
-# net_area <- pi * 0.5^2
+# ---- load aphiaid ----
+aphia_id <-
+    fs::dir_ls(path = here::here("data", "metadata", "aphia_id"),
+               regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
+    last_mod(.) %>%
+    read_csv(show_col_types = FALSE)
 
-nlf = "Natlia Lopez Figueroa"
-orcid_nat = "0000-0002-7527-0481" # TODO: add here
-
-# ---- load metadata, data, and aphiaid ----
+# ---- load metadata ----
 meta_df <-
     fs::dir_ls(path = here::here("data", "metadata"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
     
-    # this is where Natalia LF started
+    # this is when Natalia LF started analysis
     filter(date >= date("2017-06-18")) %>%
     
     mutate(locationID      = case_when(
-        str_detect(station, "Mol") ~ "MR",
-        str_detect(station, "Loo") ~ "LK",
-        str_detect(station, "West") ~ "WS",
-        str_detect(station, "9B") ~ "9B",
-        TRUE ~ station), 
-        .after = station) %>%
+                str_detect(station, "Mol") ~ "MR",
+                str_detect(station, "Loo") ~ "LK",
+                str_detect(station, "West") ~ "WS",
+                str_detect(station, "9B") ~ "9B",
+                TRUE ~ station), 
+           .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
         net_size            = 0.5,
@@ -137,95 +154,91 @@ meta_df <-
         volume_filt_cubic_m = net_area * distance_m_2
         ) 
 
-aphia_id <-
-    fs::dir_ls(path = here::here("data", "metadata", "aphia_id"),
-               regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
-    last_mod(.) %>%
-    read_csv(show_col_types = FALSE)
 
+# ---- load zooplankton data ----
 taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
-               regexp = "all_merged_processed") 
-
-# ---- merge metadata and taxa data ----
-taxa_matched_merg <-
-    taxa_files  %>%
-    map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
+               regexp = "all_merged_processed") %>%
+     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
      mutate(
+        # fix some cruise ID from data spreadsheets
         cruise_id = case_when(
             str_detect(cruise_id, "006") ~ "WS20006",
             str_detect(cruise_id, "WS118218") ~ "WS18218",
             str_detect(cruise_id, "WS18224") ~ "WS18218",
             str_detect(cruise_id, "WS18284") ~ "WS18285",
-            # str_detect(cruise_id, "") ~ "",
+            # str_detect(cruise_id, "") ~ "", # incase other become problematic
             TRUE ~ cruise_id
         ),
         site = str_replace(site, "MK", "MR"),
         lifeStage = case_when(
             is.na(lifeStage) ~ "adult",
             TRUE ~ lifeStage)
-    )  %>%
+    ) 
+
+# ---- merge metadata and taxa data ----
+taxa_matched_merg <-
+    taxa_files %>%
     left_join(meta_df, 
               by = c("cruise_id", "site" = "locationID", 
                      "mesh" = "mesh_size_um")) %>%
     mutate(
         # split_amount = 0.5, # splits from cruise
-        # TODO: check splits_analyzed with natalia ----------------------------
-        splits_analyzed = case_when(
+        # TODO: check splits_analyzed with Natalia ----------------------------
+        splits_analyzed   = case_when(
             splits_analyzed == 0 | is.na(splits_analyzed) ~ 1,
             TRUE ~ splits_analyzed
-        ),
+            ),
+        number_ind_sample = eval(equation_zoo),
+        ind_m3            = number_ind_sample / volume_filt_cubic_m,
         
-        # TODO: check this equation -------------------------------------------
-        number_ind_sample = dillution * mean * 2^(splits_analyzed),
-        number_ind_sample = dillution * mean,
-        number_ind_sample = dillution * mean, # the way jamie did it
-        number_ind_sample = dillution * mean * splits_analyzed / pipette_vol_m_l, # the way jamie did it
-
-        ind_m3 = number_ind_sample / volume_filt_cubic_m,
-        
+        # get aphia ID from end of scientificNameID
         aphiaID = if_else(!is.na(scientificNameID), 
                           str_split(scientificNameID, ":", simplify = T)[, 5],
                           NA_character_)
         )
 ```
 
-# Occurrence Bare Minimum:
-
+# Occurrence Bare Minimum example
+set to `TRUE` if want to run
 ```{r obis-file}
-data.table::data.table(
-      occurrenceID = c("my-dataset-0001c29"),
-   decimalLatitude = c(-87.7575),
-  decimalLongitude = c(24.4727),
-    scientificName = c("Sparisoma aurofrenatum"),
-  scientificNameID = c("urn:lsid:ipni.org:names:37829-1:1.3"),
-  occurrenceStatus = c("present"),
-     basisOfRecord = c("HumanObservation"),
-         datasetID = c("my-dataset-tylar-2020-01-08-123456"),
-         eventDate = c("2010-01-03T13:44Z")
-)
-
-# split sizes?
-meta_df %>%
-    select(split_size) %>%
-    mutate(
-        split_zie = eval(parse(split_size))
+if (FALSE) {
+   data.table::data.table(
+          occurrenceID = c("my-dataset-0001c29"),
+       decimalLatitude = c(-87.7575),
+      decimalLongitude = c(24.4727),
+        scientificName = c("Sparisoma aurofrenatum"),
+      scientificNameID = c("urn:lsid:ipni.org:names:37829-1:1.3"),
+      occurrenceStatus = c("present"),
+         basisOfRecord = c("HumanObservation"),
+             datasetID = c("my-dataset-tylar-2020-01-08-123456"),
+             eventDate = c("2010-01-03T13:44Z")
     )
-map(meta_df$split_size, function(x) {
-    out <- tryCatch({
-        eval(parse(text = x))
-    }, error = function(e) {
-        message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
-        NA_integer_
+    # split sizes?
+    meta_df %>%
+        select(split_size) %>%
+        mutate(
+            split_zie = eval(parse(split_size))
+        )
+    map(meta_df$split_size, function(x) {
+        out <- tryCatch({
+            eval(parse(text = x))
+        }, error = function(e) {
+            message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+            NA_integer_
+        })
+        return(out)
     })
-    return(out)
-})
+}
 ```
 
+# Record Level Info
 ```{r record-level}
-rcd_lvl <-
-    taxa_matched_merg  %>%
-    dplyr::transmute(
+taxa_original <- taxa_matched_merg
+taxa_matched_merg <-
+    taxa_original  %>%
+    # dplyr::transmute(
+    mutate(
         type                = "Event",
         modified            = Sys.Date(),
         language            = "en",
@@ -233,7 +246,8 @@ rcd_lvl <-
         institutionCode     = "USF_IMaRS",
         
         # which one?
-        datasetID           = "FKNMS_MBON",
+        parentEventID       = "IMaRS_MBON_zooplankton",
+        # datasetID           = "FKNMS_MBON",
         datasetName         = "MBON Florida Keys National Marine Sanctuary",
         
         basisOfRecord       = "HumanObservation",
@@ -243,14 +257,21 @@ rcd_lvl <-
         recordedBy          = nlf, # check these
         recordedByID        = orcid_nat, # check these
     ) 
+
+rcd_use <- rcd_lvl %>%
+    distinct()
 ```
+
+# Event Level Info
 ```{r event}
 event <-
     # meta_df %>%
     # TODO: should probably be just meta_df
     taxa_matched_merg  %>%
     dplyr::transmute(
-        cruise_id, mesh,
+        cruise_id, mesh, parentEventID, type, modified, license, 
+        institutionCode, datasetName, basisOfRecord, informationWithheld,
+        recordedBy, recordedByID, language,
         # catalogNumber   = row_number(),
         # locationID      = case_when(
         #     str_detect(station, "Mol") ~ "MR",
@@ -259,13 +280,13 @@ event <-
         #     TRUE ~ station
         # ),
         locationID = site,
-        parentEventID      = "IMaRS_MBON_zooplankton",
+        # parentEventID      = "IMaRS_MBON_zooplankton",
         datasetID          = glue("{parentEventID}:{cruise_id}"),
         eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
-                        "{datasetID}:stn_{locationID}:{mesh}_um:{eventDateTime}"
+                        "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
         )  %>% str_remove("\\+0000"),
         # will be {cruise_id}
         # fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
@@ -293,6 +314,8 @@ event <-
          .before = everything()
      )
 ```
+
+# Loctation Level Info:
 ```{r location}
 location <-
     # meta_df %>%
@@ -318,20 +341,17 @@ location <-
     distinct()
 
 ```
+
+Ocurrence Level Info:
 ```{r occurence}
 occur <-
     taxa_matched_merg %>%
     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
     dplyr::transmute(
-        scientificName,
-        # lifeStage = if_else(!is.na(lifeStage), lifeStage, "other"),
-        lifeStage = lifeStage,
-        eventID                  = eventID,
+        scientificName, lifeStage, eventID,
         occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
         recordedBy               = nlf,
-        # check these
         recordedByID             = orcid_nat,
-        # check these
         
         # IDk which of these is accurate
         # individualCount          = "Number of Individuals per Sample",
@@ -360,7 +380,8 @@ occur <-
     )
 
 ```
-```{r MoF}
+# Mearuement or Fact example
+```{r MoF-example}
 # ---- Measurement or Fact ----
 # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 tibble::tribble(
@@ -392,7 +413,7 @@ column_mappings <-
                 "Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
         )
 
-clipr::write_clip(calc)
+# clipr::write_clip(calc)
 tibble::tribble(
     ~date_collected, ~sample_id, ~filtered_volume_m3, ~pipette_vol_m_l, ~dillution, ~dillution_factor, ~mesh, ~date_analyzed, ~split_amount,
        "2015-11-16",  "MR 1115",                 97L,               5L,       250L,               50L,  500L,   "2021-07-23",            2L
@@ -401,6 +422,9 @@ tibble::tribble(
 # http://vocab.nerc.ac.uk/collection/L05/current/22/
 # might need to pivot wider first, then pivot longer
 
+```
+# Meaurement or Fact Level Info
+```{r MoF}
 
 # ---- MoF MBON ----
 # TODO: maybe create a list for each measurement type? 
