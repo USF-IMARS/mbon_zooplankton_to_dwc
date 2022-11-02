@@ -41,7 +41,7 @@ library("plotly")
 
 # ---- recorded by info ----
 nlf       <- "Natlia Lopez Figueroa"
-orcid_nat <- "0000-0002-7527-0481"
+orcid_nat <- "https://orcid.org/0000-0002-7527-0481"
 
 # ---- set variables for calculation ----
 inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
@@ -51,7 +51,7 @@ inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 which_one <- "nat"
 equation_zoo <- switch(
     which_one,
-    "nat"    = expression(dillution * mean * 2 ^ (splits_analyzed)),
+    "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
     "jamie"  = expression(dillution * mean * splits_analyzed / pipette_vol_m_l),
     "jamie2" = expression(dillution * mean)
 )
@@ -128,6 +128,8 @@ aphia_id <-
     last_mod(.) %>%
     read_csv(show_col_types = FALSE)
 
+
+
 # ---- load metadata ----
 meta_df <-
     fs::dir_ls(path = here::here("data", "metadata"),
@@ -163,8 +165,9 @@ meta_df <-
 taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
                regexp = "all_merged_processed") %>%
-     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
-     mutate(
+    last_mod(.) %>%
+    map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
+    mutate(
         # fix some cruise ID from data spreadsheets
         cruise_id = case_when(
             str_detect(cruise_id, "006") ~ "WS20006",
@@ -174,11 +177,11 @@ taxa_files <-
             # str_detect(cruise_id, "") ~ "", # incase other become problematic
             TRUE ~ cruise_id
         ),
-        site = str_replace(site, "MK", "MR"),
-        lifeStage = case_when(
-            is.na(lifeStage) ~ "adult",
-            TRUE ~ lifeStage)
-    ) 
+    site = str_replace(site, "MK", "MR"),
+    lifeStage = case_when(
+        is.na(lifeStage) ~ "adult",
+        TRUE ~ lifeStage)
+) 
 
 # ---- merge metadata and taxa data ----
 taxa_matched_merg <-
@@ -188,9 +191,8 @@ taxa_matched_merg <-
                      "mesh" = "mesh_size_um")) %>%
     mutate(
         # split_amount = 0.5, # splits from cruise
-        # TODO: check splits_analyzed with Natalia ----------------------------
         splits_analyzed   = case_when(
-            splits_analyzed == 0 | is.na(splits_analyzed) ~ 1,
+            is.na(splits_analyzed) ~ 0,
             TRUE ~ splits_analyzed
             ),
         number_ind_sample = eval(equation_zoo),
@@ -199,8 +201,11 @@ taxa_matched_merg <-
         # get aphia ID from end of scientificNameID
         aphiaID = if_else(!is.na(scientificNameID), 
                           str_split(scientificNameID, ":", simplify = T)[, 5],
-                          NA_character_)
-        )
+                          NA_character_) %>%
+                          as.numeric(.),
+        info = map(aphiaID, ~ worrms::wm_record(.x))
+        ) %>%
+    unnest(info)
 ```
 
 # Occurrence Bare Minimum example
@@ -226,28 +231,21 @@ if (FALSE) {
 taxa_original <- taxa_matched_merg
 taxa_matched_merg <-
     taxa_original  %>%
-    # dplyr::transmute(
     mutate(
         type                = "Event",
         modified            = Sys.Date(),
         language            = "en",
         license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
         institutionCode     = "USF_IMaRS",
-        
-        # which one?
         parentEventID       = "IMaRS_MBON_zooplankton",
-        # datasetID           = "FKNMS_MBON",
         datasetName         = "MBON Florida Keys National Marine Sanctuary",
-        
-        basisOfRecord       = "HumanObservation",
-        
-        # TODO: will check on this
+        basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         informationWithheld = "collector identities withheld because changed frequently",
-        recordedBy          = nlf, # check these
-        recordedByID        = orcid_nat, # check these
+        recordedBy          = nlf,
+        recordedByID        = orcid_nat,
     ) 
 
-rcd_use <- rcd_lvl %>%
+rcd_lvl <- taxa_matched_merg %>%
     distinct()
 ```
 
@@ -262,12 +260,6 @@ event <-
         institutionCode, datasetName, basisOfRecord, informationWithheld,
         recordedBy, recordedByID, language,
         # catalogNumber   = row_number(),
-        # locationID      = case_when(
-        #     str_detect(station, "Mol") ~ "MR",
-        #     str_detect(station, "Loo") ~ "LK",
-        #     str_detect(station, "West") ~ "WS",
-        #     TRUE ~ station
-        # ),
         locationID = site,
         # parentEventID      = "IMaRS_MBON_zooplankton",
         datasetID          = glue("{parentEventID}:{cruise_id}"),
@@ -277,8 +269,6 @@ event <-
         eventID            = glue(
                         "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
         )  %>% str_remove("\\+0000"),
-        # will be {cruise_id}
-        # fieldNumber        = glue("cruiseID {station} {mesh_size_um}"),
         fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
         eventDate          = date(date_time),
         eventTime          = format(date_time, "%H:%m:%S%z"),
@@ -294,7 +284,7 @@ event <-
         habitat            = "near reef",
         sampleSizeValue    = volume_filt_cubic_m,
         sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
-        samplingEffor      = str_c(tow_time_min, "minutes", sep = " ")
+        samplingEffort     = str_c(tow_time_min, "minutes", sep = " ")
     ) %>%
      distinct() %>%
      mutate(
@@ -307,11 +297,10 @@ event <-
 # Loctation Level Info:
 ```{r location}
 location <-
-    # meta_df %>%
     taxa_matched_merg %>%
     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
     dplyr::transmute(
-        eventID           = eventID,
+        eventID,
         decimalLatitude   = lat_in,
         decimalLongitude  = lon_in,
         higherGeographyID = case_when(
@@ -329,43 +318,50 @@ location <-
     ) %>%
     distinct()
 
+left_join(
+    event, location
+)
+
 ```
 
 Ocurrence Level Info:
 ```{r occurence}
 occur <-
     taxa_matched_merg %>%
-    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
+    left_join(event, 
+              by = c("cruise_id", "site" = "locationID", "mesh", "recordedBy", 
+                     "recordedByID", "basisOfRecord")
+              ) %>%
     dplyr::transmute(
-        scientificName, lifeStage, eventID,
+        scientificName, eventID,
         occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-        recordedBy               = nlf,
-        recordedByID             = orcid_nat,
-        
+        recordedBy,
+        recordedByID,
+        dateIdentified           = date_analyzed,
         # IDk which of these is accurate
-        # individualCount          = "Number of Individuals per Sample",
         individualCount          = number_ind_sample,
         organismQuantity         = ind_m3,
-        # organismQuantity         = "Individuals per cubic metre", # or `# Ind/Sample` and leave out individualCount?
         organismQuantityType     = "Individuals per cubic metre",
         # or
-        measurementType          = "Number per cubic metre",
+        # measurementType          = "Number per cubic metre",
         # MOF? should also include ind/sample?
         measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
         # MOF?
         
-        # ---- check this information ----
-        lifeStage                = lifeStage,
+        # TODO: check this information ----
+        lifeStage,
         establishmentMeans       = "native | uncertain",
         occurrenceStatus         = "present",
-        preparations             = "formalin | ethanol",
-        scientificNameID         = scientificNameID,
+        preparations             = "formalin before analysis | ethanol after analysis",
+        scientificNameID,
         # like urn:lsid:ipni.org:names:37829-1:1.3
-        basisOfRecord            = "HumanObservation",
-        datasetID                = datasetID,
+        basisOfRecord,
+        datasetID,
         eventDate                = date(date_time),
         identificationReferences = "WoRMS",
-        verbatimIdentification   = taxa_orig
+        verbatimIdentification   = taxa_orig,
+        georeferenceVerificationStatusProperty = "verified by contributor",
+        dispostion = "in collection"
     )
 
 ```
@@ -374,7 +370,7 @@ occur <-
 # ---- Measurement or Fact ----
 # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 tibble::tribble(
-              ~Origin.Term,                                       ~`measurementTypeID`,       ~URI,
+              ~Origin.Term,                                       ~measurementTypeID,       ~URI,
                 "Net_Type",                                             "plankton net",       "22",
                "Mesh_Size",                                   "Sampling net mesh size", "Q0100015",
                "NET_DEPTH",       "Depth (spatial coordinate) of sampling event start", "DXPHPRST",
@@ -389,18 +385,53 @@ tibble::tribble(
     )
 
 # ---- example MoF ---- 
-column_mappings <- 
+names(taxa_matched_merg)
+# need:
+# measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
+# column_mappings <- 
     tibble::tribble(
-                        ~types,                    ~uri,     ~unit,             ~unitID, ~accuracy,                        ~type,         ~measurementMethod,
-                    "Net_Type",       "L05/current/22/",        NA,                  NA,        NA,                   "net type",                         NA,
-                   "Mesh_Size", "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",        NA,                  "mesh size",                         NA,
-                   "NET_DEPTH", "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",        NA,                  "net depth",                         NA,
-           "Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",        NA,          "plankton net area",                         NA,
-             "Volume_Filtered",      "P25/current/VOL/",      "m3", "P06/current/UPAA/",        NA,            "volume filtered", "geometrically determined",
-             "Dilution_Factor",                      NA,      "ml", "P06/current/VVML/",        NA,            "dilution factor",                         NA,
-        "TOTAL_DILFACTOR_CFIN",                      NA,      "ml", "P06/current/VVML/",        NA, "Total Dilution factor CFIN",                         NA,
-                "Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
+~orig_term,                    ~uri,     ~unit,             ~unitID, ~accuracy,                        ~measurementTypeID,         ~measurementMethod,
+"Net_Type",       "L05/current/22/",        NA,                  NA,        NA,                   "net type",                         NA,
+"Bongo Nets", "L22/current/NETT0176/", NA, NA, NA, NA, NA, 
+"Mesh_Size", "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",        NA,                  "mesh size",                         NA,
+"NET_DEPTH", "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",        NA,                  "net depth",                         NA,
+"Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",        NA,          "plankton net area",                         NA,
+"Volume_Filtered",      "P25/current/VOL/",      "m3", "P06/current/UPAA/",        NA,            "volume filtered", "geometrically determined",
+"Dilution_Factor",                      NA,      "ml", "P06/current/VVML/",        NA,            "dilution factor",                         NA,
+"TOTAL_DILFACTOR_CFIN",                      NA,      "ml", "P06/current/VVML/",        NA, "Total Dilution factor CFIN",                         NA,
+"Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
         )
+
+
+tibble::tribble(
+~orig_term,    ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
+"Net_Type",        "bongo nets", "L22/current/NETT0176/", NA, NA, NA, NA,
+"distance_m", "Length of sampling track", "P01/current/LENTRACK/", NA, "metres", "/P06/current/ULAA/", NA,
+"net_size",        "", "", NA, "metres", "/P06/current/ULAA/", NA,
+"net_area",        "Sampling device aperture surface area", "Q01/current/Q0100017/", NA, "per square metre", "P06/current/PMSQ/", NA,
+"flowmeter_in",    "flow meters", "L05/current/388/", NA, NA, NA, NA,
+"flowmeter_out",   "flow meters", "L05/current/388/", NA, NA, NA, NA,
+"dillution",    "", "", NA, NA, NA, NA,
+"dillution_factor", "", "", NA, NA, NA, NA, 
+"split_amount",  "", "", NA, NA, NA, NA,
+"split_analyzed", "", "", NA, NA, NA, NA, 
+# "filtered_volume_m3",
+"volume_filt_cubic_m", "", "", NA, NA, NA, NA, 
+"pipette_vol_m_l", "", "", NA, NA, NA, NA, 
+"mean_ind_dil_factor", "", "", NA, NA, NA, NA, 
+"ind_m3", "Abundance", "S06/current/S0600002/", NA, "Number per cubic metre", "P06/current/UPMM/", NA, 
+
+# "ind_m3", "Abundance of mesozooplankton [Size: 200-500um] per unit volume of the water body by optical microscopy", "P01/current/ZU00M00C/", NA, "Number per cubic metre", "P06/current/UPMM/", NA, 
+"number_ind_sample", "", "", NA, NA, NA, NA, 
+"tow_speed", "", "", NA, NA, NA, NA, 
+"split_size", "", "", NA, NA, NA, NA, 
+"tow_speed_cm_sec", "", "", NA, NA, NA, NA, 
+"mesh", "Sampling net mesh size", "Q01/current/Q0100015/", NA, "Micrometres ", "P06/current/UMIC/", NA,
+"microscopy", "microscopy", "S04/current/S0419/", NA, NA, NA, NA
+)    
+    
+# after merge to measurementValue
+
 
 # clipr::write_clip(calc)
 tibble::tribble(
@@ -414,6 +445,7 @@ tibble::tribble(
 ```
 # Meaurement or Fact Level Info
 ```{r MoF}
+def_web <- "http://vocab.nerc.ac.uk/collection/"
 
 # ---- MoF MBON ----
 # TODO: maybe create a list for each measurement type? 
@@ -424,16 +456,37 @@ tibble::tribble(
     taxa_matched_merg %>%
     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
     dplyr::transmute(
-        occurrenceID      = occurrenceID,
-        eventID           = eventID,
+        occurrenceID,
+        eventID,
         measurementType   = "Relative abundance",
         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
         
-        measurementValue  = `data$ind/m^3`,
+        measurementValue  = ind_m3,
         measurementType   = "Number per cubic metre", # MOF?
         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
         measurementUnitID = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
     )
 
+taxa_matched_merg %>%
+    names() %>%
+    sort()
+```
+```{r}
+reduce(list(event, location, occur), left_join) %>%
+    obistools::check_depth(.)
+
+taxa_matched_merg %>%
+    select(scientificName, aphiaID) %>%
+    slice_head(n = 10) %>%
+    transmute(
+        scientificName,
+    info = map(aphiaID, ~ worrms::wm_record(.x))
+) %>%
+  unnest(info)
+reduce(list(event, location, occur), left_join) %>%
+    names() 
+
+obistools::report %>%
+    View()
 
 ```
