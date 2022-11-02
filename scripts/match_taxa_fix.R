@@ -57,13 +57,59 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
                                status,
                                match_type))
         n <-
-            readline(prompt = "Multiple matches, pick a number or leave empty to skip: ")
-        s <- as.integer(n)
-        if (!is.na(n) & n > 0 & n <= nrow(match)) {
+            readline(prompt = "Multiple matches, pick a number or leave empty to skip, -1 to rename: ")
+
+        if (!is.na(as.numeric(n))) {
+            s <- as.integer(n)
+        } else if (str_length(n) > 0) {
+            s <- -1
+        } else {
+            message(sprintf("Skipping %s", unames))
+            return(row)
+        }
+        print(n)
+        print(s)
+        
+        
+        if (!is.na(s) & s > 0 & s <= nrow(match)) {
             row$scientificName = match$scientificname[s]
             row$scientificNameID = match$lsid[s]
             row$match_type = match$match_type[s]
         }
+        if (!is.na(s) & s == -1) {
+            if (str_length(n) > 1) {
+                new.name <- n
+                cat(sprintf("Using name: %s", new.name))
+            } else {
+            new.name <- readline(prompt = sprintf(
+                "%s failed, what do you want to try? This can be a common name. ", 
+                unames[i]))
+            }
+            r <- readline(prompt = sprintf(
+                "Do you want to use common name? (y/n) "))
+            if (r == "y") {
+                taxa_type = "common" 
+            } else {
+                taxa_type = "taxa" 
+            }
+            
+            new.match <-
+                paged_worms_taxamatch_call(new.name,
+                                           .fuzzy = fuzzy,
+                                           .tryfix = TRUE,
+                                           .taxa_type = taxa_type)
+            
+            if (inherits(new.match, "list")) {
+                new.match <- cbind(new.match[[1]])
+            }
+            if (!is.null(new.match) && nrow(new.match) == 1) {
+                row$scientificName = new.match$scientificname
+                row$scientificNameID = new.match$lsid 
+                row$match_type = new.match$match_type
+            } else if (!is.null(new.match) && nrow(new.match) > 1) {
+                row <- multi_name(new.match, unames[i], row)
+            }  
+        } 
         return(row)
     }
     
@@ -86,7 +132,7 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
     
     # creates empty lists if all taxa don't return name
     if (is.null(matches)) {
-        matches <- vector(mode="list", length = length(indices))
+        matches <- vector(mode = "list", length = length(indices))
         # nm <- paste0(as.integer((seq_along(unames) - 1)/50))
         nm <- names(unlist(lapply(pages, function(page) seq_along(page)), recursive = F))
         names(matches) <- nm
