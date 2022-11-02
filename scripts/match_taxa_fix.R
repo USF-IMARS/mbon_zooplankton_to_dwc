@@ -30,7 +30,7 @@ match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
             }),
             retry = function() {
                 new.name <-
-                    new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
+                    readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
                 if (new.name == "") {
                     message(sprintf("Skipping %s ", new.name))
                 } else {
