@@ -1,52 +1,79 @@
-match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
+
+
+# TODO: remove
+test_names = c("Acartia spp.",			
+          "Candacia spp.",
+          "Candacia spp.",
+          "Calanopia spp.")
+
+test_names = c("Ac")
+
+paged_worms_taxamatch_call(test_names, TRUE, .tryfix = TRUE)
+
+# selects worrms ID search by taxonomic or common name
+taxa.match <- function(.page, .fuzzy, .taxa_type = "taxa") {
+    # select type of search
+    if (.taxa_type == "taxa") {
+        message("Searching scientific names\n")
+        obistools:::cache_call(
+            .page, 
+            expression(worrms::wm_records_taxamatch(.page, fuzzy = .fuzzy)))
+    } else if (.taxa_type == "common") {
+        message("Searching common names\n")
+        obistools:::cache_call(
+            .page, 
+            expression(worrms::wm_records_common(.page, fuzzy = .fuzzy)))
+    }
+}
+
+# used to match taxa with WoRMS ID
+paged_worms_taxamatch_call <- function(page, 
+                                       .fuzzy = FALSE, 
+                                       .taxa_type = "taxa", 
+                                       .tryfix = FALSE) {
+    withRestarts(
+        tryCatch({
+            taxa.match(page, .fuzzy, .taxa_type)
+        }, warning = function(w) {
+            message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
+            
+        }, error = function(e) {
+            if (.tryfix) {
+                # message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                message(sprintf("Couldn't find `%s`", page))
+                invokeRestart("retry")
+            } 
+        }),
+        retry = function() {
+            new.name <-
+                new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
+            if (new.name == "") {
+                message(sprintf("Skipping %s ", new.name))
+            } else {
+                r <- readline(prompt = 
+                              sprintf("Do you want to use common name? (y/n) "))
+                if (r == "y") {
+                    paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, 
+                                               .taxa_type = "common", .tryfix = T)
+                } else {
+                    paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, 
+                                               .taxa_type = "taxa", .tryfix = T)
+                }
+                
+                
+            }
+        }
+    )
+} 
+
+
+match_taxa_fix <- function(names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
 {
     
     # functions ------------------------------
-    # selects worrms ID search by taxonomic or common name
-    taxa.match <- function(.page, .fuzzy, .taxa_type) {
-        if (.taxa_type == "taxa") {
-            obistools:::cache_call(.page, expression(worrms::wm_records_taxamatch(.page, fuzzy = .fuzzy)))
-        } else if (.taxa_type == "common") {
-            message("using Common names")
-            obistools:::cache_call(.page, expression(worrms::wm_records_common(.page, fuzzy = .fuzzy)))
-        }
-    }
     
-    # used to match taxa with WoRMS ID
-    paged_worms_taxamatch_call <- function(page, .fuzzy, .taxa_type = "taxa", .tryfix = FALSE) {
-        
-        withRestarts(
-            
-            tryCatch({
-                taxa.match(page, .fuzzy, .taxa_type)
-            }, warning = function(w) {
-                message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
-                
-            }, error = function(e) {
-                if (.tryfix) {
-                    (message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]])))
-                    invokeRestart("retry")
-                } 
-            }),
-            retry = function() {
-                new.name <-
-                    new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
-                if (new.name == "") {
-                    message(sprintf("Skipping %s ", new.name))
-                } else {
-                    r <- readline(prompt = sprintf("Do you want to use common name? (y/n) "))
-                    if (r == "y") {
-                        paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, .taxa_type = "common", .tryfix = T)
-                    } else {
-                        paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, .taxa_type = "taxa", .tryfix =T)
-                    }
-                    
-                    
-                }
-            }
-        )
-        
-    } 
+    
+   
     
     # function if taxa name has multiple lsid's, to choose one, if not, NA
     multi_name <- function(match, unames, row) {
