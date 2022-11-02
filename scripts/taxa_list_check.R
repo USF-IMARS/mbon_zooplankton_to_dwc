@@ -331,7 +331,7 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
                 match_taxa_fix(taxa_ntmtch$taxa, fuzzy = TRUE, ask = T) %>%
                 bind_cols(taxa_ntmtch, .) %>%
                 bind_rows(taxa_matched, .) %>%
-                arrange(taxa_orig) %>%
+                arrange(taxa_orig, scientificName) %>%
                 distinct(taxa_orig, .keep_all = TRUE)
             
             # ---- save WoRMS database search ----
