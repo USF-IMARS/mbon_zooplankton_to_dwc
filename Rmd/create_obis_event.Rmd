@@ -402,6 +402,7 @@ names(taxa_matched_merg)
 "Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
         )
 
+def_web <- "http://vocab.nerc.ac.uk/collection/"
 
 tibble::tribble(
 ~orig_term,    ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
@@ -428,7 +429,19 @@ tibble::tribble(
 "tow_speed_cm_sec", "", "", NA, NA, NA, NA, 
 "mesh", "Sampling net mesh size", "Q01/current/Q0100015/", NA, "Micrometres ", "P06/current/UMIC/", NA,
 "microscopy", "microscopy", "S04/current/S0419/", NA, NA, NA, NA
-)    
+)  %>%
+mutate(
+    measurementTypeID = case_when(
+        !is.na(measurementType_uri) & str_length(measurementType_uri > 1) ~ 
+            str_c(def_web, measurementType_uri),
+        TRUE ~ ""
+    ),
+    measurementUnitID = case_when(
+        !is.na(measurementUnit_uri) & str_length(measurementUnit_uri > 0) ~ 
+            str_c(def_web, measurementUnit_uri),
+        TRUE ~ ""
+    )
+)  
     
 # after merge to measurementValue
 
