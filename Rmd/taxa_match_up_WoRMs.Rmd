@@ -32,18 +32,19 @@ library("magrittr")
 ```
 
 ```{r load-functions}
-# source scripts with functions in new environment
-my_funcs <- new.env()
-
-# create directory structure if does not exists and create tree map
-source(here::here("scripts","create_dir.R"), local = my_funcs)
-# copy files from box
-source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
-# loading check for taxa 
-source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
-
-
-attach(my_funcs)
+if (FALSE) { 
+    # source scripts with functions in new environment
+    my_funcs <- new.env()
+    
+    # create directory structure if does not exists and create tree map
+    source(here::here("scripts","create_dir.R"), local = my_funcs)
+    # copy files from box
+    source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+    # loading check for taxa 
+    source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+    
+    attach(my_funcs)
+}
 ```
 
 ```{r load-taxa-data}
@@ -59,6 +60,7 @@ taxa_data <-
     map_dfr(., ~ load_data(.x), .id = "Files") %>%
     mutate(Files = basename(Files))
 taxa_data
+
 ```
 
 1. read in new occurrence file
@@ -70,13 +72,21 @@ taxa_data
 ```{r}
 # TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
-taxa_matched_merg <- merge_taxa(taxa_data, check = FALSE) %>%
+taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
     relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
     arrange(date_collected, site, taxa)
 
 save_merged(taxa_matched_merg, 
             file.taxa
             )
+```
+```{r fix-taxa}
+
+taxa_list <- load_taxa_list(check = TRUE) 
+no_matches <- taxa_list %>%
+    filter(is.na(scientificName))
+
+
 ```
 
 # tried a different database without working
