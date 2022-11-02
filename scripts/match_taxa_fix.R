@@ -8,18 +8,18 @@ test_names = c("Acartia spp.",
 
 test_names = c("Ac")
 
-paged_worms_taxamatch_call(test_names, TRUE, .tryfix = TRUE)
+
 
 # selects worrms ID search by taxonomic or common name
 taxa.match <- function(.page, .fuzzy, .taxa_type = "taxa") {
     # select type of search
     if (.taxa_type == "taxa") {
-        message("Searching scientific names\n")
+        cli::cli_h2("Searching {.strong scientific} names\n")
         obistools:::cache_call(
             .page, 
             expression(worrms::wm_records_taxamatch(.page, fuzzy = .fuzzy)))
     } else if (.taxa_type == "common") {
-        message("Searching common names\n")
+        cli::cli_h2("Searching {.strong common} names\n")
         obistools:::cache_call(
             .page, 
             expression(worrms::wm_records_common(.page, fuzzy = .fuzzy)))
@@ -39,34 +39,51 @@ paged_worms_taxamatch_call <- function(page,
             
         }, error = function(e) {
             if (.tryfix) {
-                # message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
-                message(sprintf("Couldn't find `%s`", page))
+                # message(sprintf("Couldn't find `%s`\n", page))
+                cli::cli_alert_danger(c("Couldn't find ", 
+                                      "{.emph {cli::style_underline(page)}}\n"))
+                
                 invokeRestart("retry")
             } 
         }),
         retry = function() {
-            new.name <-
-                new.name <- readline(prompt = sprintf("%s might be mispelled \nWhat do you want to try? (if blank, will skip) ", page))
+            cli::cli_alert_warning(c("{.emph {cli::style_underline(page)}} ",
+                                     "might be mispelled!"))
+            new.name <- readline(
+                cli_text(c("What do you want to try? ", 
+                           "({cli::style_underline('if blank, will skip')})")))
+            
             if (new.name == "") {
-                message(sprintf("Skipping %s ", new.name))
+                cli_alert_warning("Skipping {cli::style_underline(page)}.")
+                
             } else {
-                r <- readline(prompt = 
-                              sprintf("Do you want to use common name? (y/n) "))
-                if (r == "y") {
-                    paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, 
-                                               .taxa_type = "common", .tryfix = T)
+                r <- readline(
+                    cli::cli_inform("Do you want to use common name? (y/n)"))
+                if (stringr::str_detect(r,"y|Y",)) {
+                    paged_worms_taxamatch_call(new.name, 
+                                               .fuzzy = TRUE, 
+                                               .taxa_type = "common", 
+                                               .tryfix = TRUE)
                 } else {
-                    paged_worms_taxamatch_call(new.name, .fuzzy = TRUE, 
-                                               .taxa_type = "taxa", .tryfix = T)
+                    paged_worms_taxamatch_call(new.name, 
+                                               .fuzzy = TRUE, 
+                                               .taxa_type = "taxa", 
+                                               .tryfix = TRUE)
                 }
-                
-                
             }
         }
     )
 } 
+{
+cli_alert_danger("Danger alert")
+cli_alert_warning("Warning alert")
+cli_alert_info("Info alert")
+cli_alert_success("Success alert")
+}
+page = test_names
+test <- paged_worms_taxamatch_call(test_names, TRUE, .tryfix = TRUE)
 
-
+stop()
 match_taxa_fix <- function(names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
 {
     
@@ -84,7 +101,8 @@ match_taxa_fix <- function(names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa")
                                status,
                                match_type))
         n <-
-            readline(prompt = "Multiple matches, pick a number or leave empty to skip, -1 to rename: ")
+            readline(prompt = 
+                         cli_text("Multiple matches, pick a number or leave empty to skip, -1 to rename: "))
 
         if (!is.na(as.numeric(n))) {
             s <- as.integer(n)
