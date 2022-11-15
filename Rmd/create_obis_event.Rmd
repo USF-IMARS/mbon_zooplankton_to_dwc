@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
 library("hablar") # might be useful when needing to fix names
 library("worrms")
-
+library("here")
 library("ggplot2")
 library("tibble")
 library("tidyr")
@@ -55,6 +55,7 @@ equation_zoo <- switch(
     "jamie"  = expression(dillution * mean * splits_analyzed / pipette_vol_m_l),
     "jamie2" = expression(dillution * mean)
 )
+rm(which_one)
 ```
 
 
@@ -126,9 +127,16 @@ aphia_id <-
     fs::dir_ls(path = here::here("data", "metadata", "aphia_id"),
                regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
     last_mod(.) %>%
-    read_csv(show_col_types = FALSE)
-
-
+    read_csv(show_col_types = FALSE) %>%
+    mutate(
+        aphiaID = if_else(!is.na(scientificNameID), 
+                          str_split(scientificNameID, ":", simplify = T)[, 5],
+                          NA_character_) %>%
+                          as.numeric(.),
+        info = map(aphiaID, ~ worrms::wm_record(.x))
+    ) %>%
+    unnest(info, names_repair = janitor::make_clean_names) %>%
+    select(!contains("_2"), -c(1:6)) 
 
 # ---- load metadata ----
 meta_df <-
@@ -203,9 +211,11 @@ taxa_matched_merg <-
                           str_split(scientificNameID, ":", simplify = T)[, 5],
                           NA_character_) %>%
                           as.numeric(.),
-        info = map(aphiaID, ~ worrms::wm_record(.x))
+        # info = map(aphiaID, ~ worrms::wm_record(.x))
         ) %>%
-    unnest(info)
+    left_join(., 
+              aphia_id,
+              by = c("aphiaID" = "aphia_id"))
 ```
 
 # Occurrence Bare Minimum example
@@ -247,6 +257,8 @@ taxa_matched_merg <-
 
 rcd_lvl <- taxa_matched_merg %>%
     distinct()
+
+rm(nlf, orcid_nat)
 ```
 
 # Event Level Info
@@ -333,8 +345,10 @@ occur <-
                      "recordedByID", "basisOfRecord")
               ) %>%
     dplyr::transmute(
-        scientificName, eventID,
+        eventID, 
         occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        scientificName,
+        across(kingdom:genus),
         recordedBy,
         recordedByID,
         dateIdentified           = date_analyzed,
@@ -384,64 +398,71 @@ tibble::tribble(
     "TOTAL_DILFACTOR_CFIN",                                                      "???",      "???"
     )
 
+
+
 # ---- example MoF ---- 
+
+# column_mappings <- 
+    tibble::tribble(
+~orig_term,                             ~uri,     ~unit,             ~unitID, ~accuracy,      ~measurementTypeID,         ~measurementMethod,
+"Net_Type",                "L05/current/22/",        NA,                  NA,   NA,                   "net type",                         NA,
+"Bongo Nets",        "L22/current/NETT0176/",        NA,                  NA,   NA,                           NA,                         NA, 
+"Mesh_Size",         "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",   NA,                  "mesh size",                         NA,
+"NET_DEPTH",         "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",   NA,                  "net depth",                         NA,
+"Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",   NA,          "plankton net area",                         NA,
+"Volume_Filtered",        "P25/current/VOL/",      "m3", "P06/current/UPAA/",   NA,            "volume filtered", "geometrically determined",
+"Dilution_Factor",                        NA,      "ml", "P06/current/VVML/",   NA,            "dilution factor",                         NA,
+"TOTAL_DILFACTOR_CFIN",                   NA,      "ml", "P06/current/VVML/",   NA, "Total Dilution factor CFIN",                         NA,
+"Sample_Split",                           NA, "decimal", "P06/current/UPCT/",   NA,               "sample split",          "Folsom Splitter"
+        )
+```
+
+```{r IMaRS-MoF}
 names(taxa_matched_merg)
 # need:
 # measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
-# column_mappings <- 
-    tibble::tribble(
-~orig_term,                    ~uri,     ~unit,             ~unitID, ~accuracy,                        ~measurementTypeID,         ~measurementMethod,
-"Net_Type",       "L05/current/22/",        NA,                  NA,        NA,                   "net type",                         NA,
-"Bongo Nets", "L22/current/NETT0176/", NA, NA, NA, NA, NA, 
-"Mesh_Size", "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",        NA,                  "mesh size",                         NA,
-"NET_DEPTH", "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",        NA,                  "net depth",                         NA,
-"Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",        NA,          "plankton net area",                         NA,
-"Volume_Filtered",      "P25/current/VOL/",      "m3", "P06/current/UPAA/",        NA,            "volume filtered", "geometrically determined",
-"Dilution_Factor",                      NA,      "ml", "P06/current/VVML/",        NA,            "dilution factor",                         NA,
-"TOTAL_DILFACTOR_CFIN",                      NA,      "ml", "P06/current/VVML/",        NA, "Total Dilution factor CFIN",                         NA,
-"Sample_Split",                      NA, "decimal", "P06/current/UPCT/",        NA,               "sample split",          "Folsom Splitter"
-        )
-
 def_web <- "http://vocab.nerc.ac.uk/collection/"
 
+MoF1 <-
 tibble::tribble(
-~orig_term,    ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
-"Net_Type",        "bongo nets", "L22/current/NETT0176/", NA, NA, NA, NA,
-"distance_m", "Length of sampling track", "P01/current/LENTRACK/", NA, "metres", "/P06/current/ULAA/", NA,
-"net_size",        "", "", NA, "metres", "/P06/current/ULAA/", NA,
-"net_area",        "Sampling device aperture surface area", "Q01/current/Q0100017/", NA, "per square metre", "P06/current/PMSQ/", NA,
-"flowmeter_in",    "flow meters", "L05/current/388/", NA, NA, NA, NA,
-"flowmeter_out",   "flow meters", "L05/current/388/", NA, NA, NA, NA,
-"dillution",    "", "", NA, NA, NA, NA,
-"dillution_factor", "", "", NA, NA, NA, NA, 
-"split_amount",  "", "", NA, NA, NA, NA,
-"split_analyzed", "", "", NA, NA, NA, NA, 
-# "filtered_volume_m3",
-"volume_filt_cubic_m", "", "", NA, NA, NA, NA, 
-"pipette_vol_m_l", "", "", NA, NA, NA, NA, 
-"mean_ind_dil_factor", "", "", NA, NA, NA, NA, 
-"ind_m3", "Abundance", "S06/current/S0600002/", NA, "Number per cubic metre", "P06/current/UPMM/", NA, 
+~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
+"Net_Type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
+"distance_m", "Length of sampling track", "P01/current/LENTRACK/",                NA,         "metres", "P06/current/ULAA/",                NA,
+"net_size",                           "",                      "",                NA,         "metres", "P06/current/ULAA/",                NA,
+"net_area", "Sampling device aperture surface area", "Q01/current/Q0100017/", NA,   "per square metre", "P06/current/PMSQ/",                NA,
+"flowmeter_in",            "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
+"flowmeter_out",           "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
+"dillution",                      "",                     "",                 NA,         "milliliter",                    NA,               NA,
+"dillution_factor",               "",                     "",                 NA,                   NA,                    NA,               NA, 
+"split_amount",                   "",                     "",                 NA,            "decimal",                    NA,               NA,
+"splits_analyzed",                "",                     "",                 NA,                   NA,                    NA,               NA, 
+# "filtered_volume_m3"
+"volume_filt_cubic_m",            "",                     "",                NA,     "per cubic metre",                    NA,               NA, 
+"pipette_vol_m_l",                "",                     "",                NA,          "milliliter",                    NA,               NA,               
+"mean_ind_dil_factor",            "",                     "",                NA,                    NA,                    NA,               NA, 
+"ind_m3",                "Abundance", "S06/current/S0600002/",               NA,"Number per cubic metre", "P06/current/UPMM/",               NA, 
 
 # "ind_m3", "Abundance of mesozooplankton [Size: 200-500um] per unit volume of the water body by optical microscopy", "P01/current/ZU00M00C/", NA, "Number per cubic metre", "P06/current/UPMM/", NA, 
-"number_ind_sample", "", "", NA, NA, NA, NA, 
-"tow_speed", "", "", NA, NA, NA, NA, 
-"split_size", "", "", NA, NA, NA, NA, 
-"tow_speed_cm_sec", "", "", NA, NA, NA, NA, 
-"mesh", "Sampling net mesh size", "Q01/current/Q0100015/", NA, "Micrometres ", "P06/current/UMIC/", NA,
-"microscopy", "microscopy", "S04/current/S0419/", NA, NA, NA, NA
+"number_ind_sample",              "",                     "",                NA,                    NA,                     NA,              NA, 
+"tow_speed",                      "",                     "",                NA,                    NA,                     NA,              NA, 
+"split_size",                     "",                     "",                NA,                    NA,                     NA,              NA, 
+"tow_speed_cm_sec",               "",                     "",                NA,                    NA,                     NA,              NA, 
+"mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",               NA,         "Micrometres",    "P06/current/UMIC/",              NA,
+"microscopy",           "microscopy",    "S04/current/S0419/",               NA,                    NA,                     NA,              NA
 )  %>%
 mutate(
     measurementTypeID = case_when(
-        !is.na(measurementType_uri) & str_length(measurementType_uri > 1) ~ 
+        !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~ 
             str_c(def_web, measurementType_uri),
         TRUE ~ ""
     ),
     measurementUnitID = case_when(
-        !is.na(measurementUnit_uri) & str_length(measurementUnit_uri > 0) ~ 
+        !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~ 
             str_c(def_web, measurementUnit_uri),
         TRUE ~ ""
     )
-)  
+)  %>%
+   select(-measurementValue & !ends_with("_uri"))
     
 # after merge to measurementValue
 
@@ -458,7 +479,39 @@ tibble::tribble(
 ```
 # Meaurement or Fact Level Info
 ```{r MoF}
-def_web <- "http://vocab.nerc.ac.uk/collection/"
+# def_web <- "http://vocab.nerc.ac.uk/collection/"
+MoF1 %>%
+    select(orig_term)
+
+
+names(taxa_matched_merg)[names(taxa_matched_merg) %in% MoF1$orig_term]
+
+MoF1$orig_term[!MoF1$orig_term %in% names(taxa_matched_merg)]
+
+
+MoF  <-
+    taxa_matched_merg %>%
+     left_join(event, 
+              by = c("cruise_id", "site" = "locationID", "mesh", "recordedBy", 
+                     "recordedByID", "basisOfRecord")
+              ) %>%
+    distinct(eventID, .keep_all = TRUE) %>%
+    select(-c(aphiaID:recordedByID)) %>%
+        mutate(
+        Net_type = "bongo nets",
+        microscopy = "microscopy"
+    ) %>%
+    
+    pivot_longer(
+                 cols = MoF1$orig_term[-1],
+        # cols = c("split_amount", "mesh", "ind_m3"),
+                 names_to = "orig_term",
+                 values_to = "measurementValue",
+        values_transform = list(measurementValue = as.character)
+    ) %>%
+    select(datasetID, eventID, orig_term, measurementValue) %>%
+    left_join(MoF1, by = c("orig_term"))
+
 
 # ---- MoF MBON ----
 # TODO: maybe create a list for each measurement type? 
@@ -466,26 +519,45 @@ def_web <- "http://vocab.nerc.ac.uk/collection/"
 # mesurements: 
 # i.e. net, mesh, area, volume filtered, etc..
 # mof <- 
-    taxa_matched_merg %>%
-    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
-    dplyr::transmute(
-        occurrenceID,
-        eventID,
-        measurementType   = "Relative abundance",
-        measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
-        
-        measurementValue  = ind_m3,
-        measurementType   = "Number per cubic metre", # MOF?
-        measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
-        measurementUnitID = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
-    )
-
-taxa_matched_merg %>%
-    names() %>%
-    sort()
+#     taxa_matched_merg %>%
+#     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
+#     dplyr::transmute(
+#         occurrenceID,
+#         eventID,
+#         measurementType   = "Relative abundance",
+#         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
+#         
+#         measurementValue  = ind_m3,
+#         measurementType   = "Number per cubic metre", # MOF?
+#         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
+#         measurementUnitID = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
+#     )
+# 
+# taxa_matched_merg %>%
+#     names() %>%
+#     sort()
 ```
+
+```{r save}
+path <-
+    here("data", "processed", "obis")
+
+dir_create(path)
+
+left_join(event, location) %>%
+    write_csv(file = glue("{path}/event.csv"), na = "")
+
+occur %>%
+    write_csv(file = glue("{path}/occur.csv"), na = "")
+
+MoF %>%
+    write_csv(file = glue("{path}/mof.csv"), na = "")
+
+
+```
+
 ```{r}
-reduce(list(event, location, occur), left_join) %>%
+reduce(list(event, location, occur, MoF), left_join) %>%
     obistools::check_depth(.)
 
 taxa_matched_merg %>%
