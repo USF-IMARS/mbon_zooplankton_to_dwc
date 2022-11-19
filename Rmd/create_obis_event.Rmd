@@ -7,7 +7,7 @@ editor_options:
   markdown: 
     wrap: 72
 ---
-
+TODO: check how to save UTF-8 encoding on csv files 
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 library("readxl")
@@ -40,7 +40,7 @@ library("plotly")
 # log_add()
 
 # ---- recorded by info ----
-nlf       <- "Natlia Lopez Figueroa"
+nlf       <- "Natalia Lopez Figueroa"
 orcid_nat <- "https://orcid.org/0000-0002-7527-0481"
 
 # ---- set variables for calculation ----
@@ -160,14 +160,15 @@ meta_df <-
         net_size            = 0.5,
         net_area            = pi * 0.5^2,
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
-        tow_speed_cm_sec    = distance_m_2 * 100 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area * distance_m_2,
+        tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
+        # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
+        volume_filt_cubic_m = net_area/4 * distance_m_2,
         split_size          = map(split_size, function(x) {
                                     out <- tryCatch({
                                     eval(parse(text = x))}, 
                                     error = function(e) {NA_integer_})}) %>% 
                               unlist(.)
-        ) 
+       ) 
 
 # ---- load zooplankton data ----
 taxa_files <-
@@ -189,7 +190,8 @@ taxa_files <-
     lifeStage = case_when(
         is.na(lifeStage) ~ "adult",
         TRUE ~ lifeStage)
-) 
+) %>%
+  select(-mean_ind_dil_factor)
 
 # ---- merge metadata and taxa data ----
 taxa_matched_merg <-
@@ -349,6 +351,8 @@ occur <-
         occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
         scientificName,
         across(kingdom:genus),
+        taxonRank = rank,
+        taxonID = taxon_rank_id,
         recordedBy,
         recordedByID,
         dateIdentified           = date_analyzed,
@@ -381,8 +385,10 @@ occur <-
 ```
 # Mearuement or Fact example
 ```{r MoF-example}
-# ---- Measurement or Fact ----
 # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
+if (FALSE) {
+# ---- Measurement or Fact ----
+
 tibble::tribble(
               ~Origin.Term,                                       ~measurementTypeID,       ~URI,
                 "Net_Type",                                             "plankton net",       "22",
@@ -415,10 +421,11 @@ tibble::tribble(
 "TOTAL_DILFACTOR_CFIN",                   NA,      "ml", "P06/current/VVML/",   NA, "Total Dilution factor CFIN",                         NA,
 "Sample_Split",                           NA, "decimal", "P06/current/UPCT/",   NA,               "sample split",          "Folsom Splitter"
         )
+}
 ```
 
 ```{r IMaRS-MoF}
-names(taxa_matched_merg)
+# names(taxa_matched_merg)
 # need:
 # measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
 def_web <- "http://vocab.nerc.ac.uk/collection/"
@@ -428,27 +435,30 @@ tibble::tribble(
 ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
 "Net_Type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
 "distance_m", "Length of sampling track", "P01/current/LENTRACK/",                NA,         "metres", "P06/current/ULAA/",                NA,
-"net_size",                           "",                      "",                NA,         "metres", "P06/current/ULAA/",                NA,
+"net_size", "Sampling device aperture diameter", "Q01/current/Q0100012/",         NA,         "metres", "P06/current/ULAA/",                NA,
 "net_area", "Sampling device aperture surface area", "Q01/current/Q0100017/", NA,   "per square metre", "P06/current/PMSQ/",                NA,
 "flowmeter_in",            "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
 "flowmeter_out",           "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
+
+# 
 "dillution",                      "",                     "",                 NA,         "milliliter",                    NA,               NA,
 "dillution_factor",               "",                     "",                 NA,                   NA,                    NA,               NA, 
-"split_amount",                   "",                     "",                 NA,            "decimal",                    NA,               NA,
+"split_amount", "Sub-sampling coefficient", "P01/current/SSAMPC01/",          NA,            "decimal",                    NA,               NA,
 "splits_analyzed",                "",                     "",                 NA,                   NA,                    NA,               NA, 
 # "filtered_volume_m3"
-"volume_filt_cubic_m",            "",                     "",                NA,     "per cubic metre",                    NA,               NA, 
-"pipette_vol_m_l",                "",                     "",                NA,          "milliliter",                    NA,               NA,               
-"mean_ind_dil_factor",            "",                     "",                NA,                    NA,                    NA,               NA, 
-"ind_m3",                "Abundance", "S06/current/S0600002/",               NA,"Number per cubic metre", "P06/current/UPMM/",               NA, 
+"volume_filt_cubic_m", "Sample volume (filtration) by measuring cylinder", "P01/current/VOLFMCXX/",  NA,     "per cubic metre",   "P06/current/PCUM/",               NA, 
+"pipette_vol_m_l",                "",                     "",                 NA,          "milliliter",                    NA,               NA,               
+# not used "mean_ind_dil_factor",            "",                     "",                 NA,                    NA,                    NA,               NA, 
+"ind_m3",                "Abundance", "S06/current/S0600002/",                NA,"Number per cubic metre", "P06/current/UPMM/",               NA, 
 
 # "ind_m3", "Abundance of mesozooplankton [Size: 200-500um] per unit volume of the water body by optical microscopy", "P01/current/ZU00M00C/", NA, "Number per cubic metre", "P06/current/UPMM/", NA, 
-"number_ind_sample",              "",                     "",                NA,                    NA,                     NA,              NA, 
-"tow_speed",                      "",                     "",                NA,                    NA,                     NA,              NA, 
-"split_size",                     "",                     "",                NA,                    NA,                     NA,              NA, 
-"tow_speed_cm_sec",               "",                     "",                NA,                    NA,                     NA,              NA, 
-"mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",               NA,         "Micrometres",    "P06/current/UMIC/",              NA,
-"microscopy",           "microscopy",    "S04/current/S0419/",               NA,                    NA,                     NA,              NA
+"number_ind_sample", "Count (in assayed sample) of biological entity specified elsewhere", "P01/current/OCOUNT01/", NA, "Count of Biological Entity", "P09/current/OCNT/",              NA, 
+"tow_time_min",    "Sample Duration", "P01/current/AZDRZZ01/",                NA,             "Minutes",    "P06/current/UMIN/",              NA,
+"ship_speed_knots","Speed of towing platform", "P01/current/TOWSPEED/",       NA, "Knots (nautical miles per hour)", "P06/current/UKNT/",     NA, 
+"split_size",                     "",                     "",                 NA,                    NA,                     NA,              NA, 
+"tow_speed_m_sec",           "Speed", "S06/current/S0600152/",                NA,   "Metres per second",    "P06/current/UVAA/",              NA, 
+"mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",                NA,         "Micrometres",    "P06/current/UMIC/",              NA,
+"microscopy",           "microscopy",    "S04/current/S0419/",                NA,                    NA,                     NA,              NA
 )  %>%
 mutate(
     measurementTypeID = case_when(
@@ -465,13 +475,13 @@ mutate(
    select(-measurementValue & !ends_with("_uri"))
     
 # after merge to measurementValue
-
+# "Individuals per cubic metre", "P06/current/UPMM/"
 
 # clipr::write_clip(calc)
-tibble::tribble(
-    ~date_collected, ~sample_id, ~filtered_volume_m3, ~pipette_vol_m_l, ~dillution, ~dillution_factor, ~mesh, ~date_analyzed, ~split_amount,
-       "2015-11-16",  "MR 1115",                 97L,               5L,       250L,               50L,  500L,   "2021-07-23",            2L
-    )
+# tibble::tribble(
+#     ~date_collected, ~sample_id, ~filtered_volume_m3, ~pipette_vol_m_l, ~dillution, ~dillution_factor, ~mesh, ~date_analyzed, ~split_amount,
+#        "2015-11-16",  "MR 1115",                 97L,               5L,       250L,               50L,  500L,   "2021-07-23",            2L
+#     )
 
 # http://vocab.nerc.ac.uk/collection/L05/current/22/
 # might need to pivot wider first, then pivot longer
@@ -480,13 +490,6 @@ tibble::tribble(
 # Meaurement or Fact Level Info
 ```{r MoF}
 # def_web <- "http://vocab.nerc.ac.uk/collection/"
-MoF1 %>%
-    select(orig_term)
-
-
-names(taxa_matched_merg)[names(taxa_matched_merg) %in% MoF1$orig_term]
-
-MoF1$orig_term[!MoF1$orig_term %in% names(taxa_matched_merg)]
 
 
 MoF  <-
@@ -538,6 +541,20 @@ MoF  <-
 #     sort()
 ```
 
+
+```{r bd-check, result = 'hide}
+compiled  <-
+    reduce(list(event, location, occur, MoF), left_join) %>%
+    group_by(eventID) %>%
+    slice(1)
+checks  <-
+    compiled %>%
+    bdchecks::perform_dc(.)
+
+cat(summary_dc(checks), sep = "\n")
+
+```
+
 ```{r save}
 path <-
     here("data", "processed", "obis")
@@ -545,14 +562,19 @@ path <-
 dir_create(path)
 
 left_join(event, location) %>%
-    write_csv(file = glue("{path}/event.csv"), na = "")
+    group_by(eventID)%>%
+    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = glue("{path}/event_example.csv"), na = "")
 
 occur %>%
-    write_csv(file = glue("{path}/occur.csv"), na = "")
+    group_by(eventID) %>%
+    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = glue("{path}/occur_example.csv"), na = "")
 
 MoF %>%
-    write_csv(file = glue("{path}/mof.csv"), na = "")
-
+    group_by(eventID) %>%
+    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = glue("{path}/mof_example.csv"), na = "")
 
 ```
 
