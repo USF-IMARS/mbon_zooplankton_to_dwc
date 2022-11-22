@@ -21,3 +21,9 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
       - merged `abudance data`
       - master `taxa lists` to get phylogentic tree
     - Creates 3 csv files of `event`, `occurence`, and `Measurement or Fact`
+
+================================================================================
+# match_taxa_fix.R
+Particularly useful for starting conversion process. This takes in a vector of scientific names and will work similar to `robis::match_taxa`, but this allows the option
+for fixing names that have no matches by typing in your own. 
+
