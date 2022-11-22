@@ -2,21 +2,22 @@
 # useful for new projects
 
 showTree <- function(showtree = TRUE) {
-    treees <- data.frame(
-        stringsAsFactors = FALSE,
-        package = c(
-            here::here(),"data","raw","processed","plots",
-            "metadata", "Rmd", "scripts", "ind_file_merg", "aphia_id"
-        ),
-        dependences = I(
-            list(
-                c("data", "Rmd", "scripts"),
-                c("metadata", "plots", "processed", "raw"),
-                character(0), c("ind_file_merg"), character(0), c("aphia_id"),
-                character(0), character(0), character(0), character(0))))
+    # treees <- data.frame(
+    #     stringsAsFactors = FALSE,
+    #     package = c(
+    #         here::here(),"data","raw","processed","plots",
+    #         "metadata", "Rmd", "scripts", "ind_file_merg", "aphia_id"
+    #     ),
+    #     dependences = I(
+    #         list(
+    #             c("data", "Rmd", "scripts"),
+    #             c("metadata", "plots", "processed", "raw"),
+    #             character(0), c("ind_file_merg"), character(0), c("aphia_id"),
+    #             character(0), character(0), character(0), character(0))))
     if (showtree) {
         cli::cli_text("Here is the {.strong project} structure:")
-        print(cli::tree(treees))
+        fs::dir_tree(type = "directory")
+        # print(cli::tree(treees))
     }
 }
 
