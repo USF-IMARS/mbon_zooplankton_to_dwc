@@ -31,18 +31,6 @@ library("geosphere")
 library("vroom")
 library("plotly")
 ```
-
-Workflow:
-https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers
-Needed: 3 things
-    1. Event
-    2. Occurances
-    3. Measurement of Fact (MOF)
-
-
-
-1. Read and format metadata spreadsheets
-    - convert to DarwinCore format 
     
 ```{r}
 files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
@@ -194,12 +182,6 @@ rm(list = names(which(sapply(
     globalenv(), is.null)))) # or .GlobalEnv
 ```
 
-Files without info:
-October 2017
-March 2018
-April 2018
-April 2021
-April 2019
 
 ```{r}
 meta_list <- ls()[str_detect(ls(),"fknms")]
@@ -249,53 +231,3 @@ write_csv(meta_df,
                   ".csv"
               ))
 ```
-
-```{r}
-# dat2 <- tibble::tribble(
-#     ~cruiseIDs, ~start_date,
-#      "SV18067", "zoo",
-#     "SV18173", "zoo", 
-#     "WS17170", "zoo", 
-#     "WS17275", "zoo",
-#     "WS18008", "zoo",
-#     "WS18120", "zoo",
-#     "WS18285", "zoo",
-#     "WS18351", "zoo",
-#     "WS19028", "zoo",
-#     "WS19210", "zoo",
-#     "WS19266", "zoo",
-#     "WS19322", "zoo",
-#     "WS20006", "zoo",
-#     "WS20230", "zoo",
-#     "WS20342", "zoo",
-#     # "(blank)"
-#     )
-# 
-# dat <- tibble::tribble(
-#     ~Cruise.ID,  ~Start.Date,
-#      "WS17086",  "3/27/2017",
-#      "WS17170",  "6/19/2017",
-#      "WS17282",  "10/9/2017",
-#      "WS18008",   "1/8/2018",
-#      "WS18067",   "3/8/2018",
-#      "SAV1803",  "3/10/2018",
-#      "WS18120",  "4/30/2018",
-#     "SAV18173",  "6/22/2018",
-#      "WS18218",   "8/6/2018",
-#      "WS18285", "10/12/2018",
-#      "WS18351", "12/17/2018",
-#      "WS19028",  "1/28/2019",
-#      "WS19119",  "4/29/2019",
-#      "WS19210",  "7/29/2019",
-#      "WS19266",  "9/23/2019",
-#      "WS19322", "11/18/2019",
-#      "WS20006",   "1/6/2020",
-#      "WS20231",  "8/19/2020",
-#      "WS20279",  "10/5/2020",
-#      "WS20342",  "12/7/2020",
-#      "WS21032",   "2/1/2021"
-#     )
-# full_join(dat, dat2, by = c("Cruise.ID" = "cruiseIDs")) %>%
-#     write_csv(file = "../data/cruise_id_merged.csv")
-```
-
