@@ -8,7 +8,7 @@
 
 if (!exists("my_funcs")) my_funcs <- FALSE
 
-file_expr <- expression(paste0(
+file_expr <- expression(glue(
     here::here("data", "metadata", "aphia_id", file_base),
     format(Sys.time(), '_%Y%m%d_%H%M%S'),
     ".csv"))
@@ -27,12 +27,14 @@ last_mod <-  function(fpath) {
 
 source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
 
-# ---- 1. Load data --------------------------------------------------------------
+# ---- 1. Load data -----------------------------------------------------------
 load_data <- function(file.taxa) {
-    
+
     cli::cli_alert_info(basename(file.taxa))
+    
     # find the number of skips to start of taxa information
-    skips <-  which(readxl::read_xlsx(file.taxa, range = cell_cols("A"), 
+    skips <-  which(readxl::read_xlsx(file.taxa, 
+                                      range = cellranger::cell_cols("A"), 
                                       col_names = FALSE ) == "Taxa") - 1
     
     # extract values for calculating individuals per cubic meter
@@ -45,18 +47,17 @@ load_data <- function(file.taxa) {
         mutate(
             x1 = str_replace(x1, ".*ate of.*", "date analyzed")
         ) %>% 
-        # select(-x3) %>%
         pivot_wider(,
                     names_from  = x1,
                     values_from = x2
         ) %>%
         janitor::clean_names() %>%
         mutate(
-            date_collected = as.Date(as.numeric(date_collected), origin = "1899-12-30"),
-            date_analyzed  = as.Date(as.numeric(date_analyzed), origin = "1899-12-30"),
+            date_collected = janitor::convert_to_date(date_collected),
+            date_analyzed  = janitor::convert_to_date(date_analyzed)
         ) %>%
         hablar::retype()
-    
+
     # load the data set
     taxa <- 
         readxl::read_xlsx(file.taxa,  
@@ -83,7 +84,7 @@ merge_taxa <- function(dat, file_base = "aphia_taxa",
                        .file_expr = file_expr, 
                        regex_lifestage = lifestage, check = FALSE) {
     if (!check) cli::cli_alert_warning(
-        c("Will {col_red('not')} be checking for {.emph NAs} in ",
+        c("Will {col_red('NOT')} be checking for {.emph NAs} in ",
           "{.strong taxa aphiaID} list.",
           "\nSet check to {.code TRUE} if want to check.\n"))
     
@@ -168,11 +169,11 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         assertthat::assert_that(
             assertthat::not_empty(taxa_list),
             msg = cli_abort(
-                "{.code taxa_list} needs to be supplied if it's the first time."))
+                "A {.code taxa_list} needs to be supplied if it's the first time."))
 
         assertthat::assert_that(
             "taxa" %in% names(taxa_list),
-            msg = cli_abort("{.code taxa_list} must contain {.code taxa}."))
+            msg = cli_abort("{.code taxa_list} must contain a column named {.code taxa}."))
         
         # extract taxa names, separating names and life stages
         taxa.name <-
@@ -190,7 +191,7 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
                 lifeStage = str_extract_all(
                     taxa,
                     regex(regex_lifestage,
-                        ignore_case = TRUE),
+                          ignore_case = TRUE),
                     simplify = TRUE
                 ) %>% str_to_lower(),
                 
@@ -360,7 +361,7 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
 
 # ---- 6. Save merged data ----------------------------------------------------
 save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
-    # browser()
+
     # ---- save processed taxa data ----
     file.name <-
         glue(
