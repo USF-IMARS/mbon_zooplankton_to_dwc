@@ -23,6 +23,11 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
     - Creates 3 csv files of `event`, `occurence`, and `Measurement or Fact`
 
 ================================================================================
+Steps:
+1. If it's the first time, go to (setup_projec.RMD)[https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/setup_project.Rmd]
+
+================================================================================
+# Functions
 # match_taxa_fix.R
 Particularly useful for starting conversion process. This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
 for fixing names that have no matches by typing in your own. 
