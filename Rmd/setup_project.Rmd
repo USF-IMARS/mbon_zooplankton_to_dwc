@@ -55,28 +55,3 @@ rm(my_funcs)
 copy_files_box(ask = TRUE)
 
 ```
-
-```{r}
-test <- box_dir  %>%
-        fs::dir_ls(., type = "directory")
-i = 1
-!fs::file_exists(paste0(new_dir, "/",
-                   basename(test[i]), "/",
-                   basename(fs::dir_ls(test[i]))
-            ))
-paste("fd")
-!fs::file_exists(here(new_dir, basename(test[i]), basename(fs::dir_ls(test[i]))))
-
-
-
-here(new_dir, basename(test[i]))
- paste0(new_dir, "/", basename(box[i]), "/")
-```
-
-```{r}
-test_file  <-
-    fs::dir_ls(path =  here::here("data", "raw"),
-           regexp = "^[^~]*\\.xlsx$",
-           recurse = TRUE)[1]
-```
-
