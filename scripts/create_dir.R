@@ -34,6 +34,7 @@ cust_dir <- c(
     "data/processed/ind_file_merg",
     "data/metadata/aphia_id"
 )
+
 subDir <- here::here(c(subDir_deflt, cust_dir))
 subDir <- subDir[which(!fs::dir_exists(subDir))]
 
