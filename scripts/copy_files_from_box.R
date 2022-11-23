@@ -1,5 +1,5 @@
 copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
-                           .choose = FALSE, ask = FALSE) {
+                           .choose = FALSE, ask = FALSE, auto = FALSE) {
     
     # ---- load libraries ----
     library("fs")
@@ -44,28 +44,32 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
     cli::cli_alert_info("Box directory: {.file {(.box_dir)}}")
     cli::cli_alert_info("Local directory: {.file {new_dir}}")
     cli_inform("")
+    
     # ---- create directories from box ----
     fs::dir_create(
-        paste0(new_dir, "/", basename(box)
-        )
+        here(new_dir, basename(box))
     )
     
     # ---- copy files from box to local if needed ----
     for (i in seq(box)) {
         # check if files exists
-        new_files <- !file_exists(
-            paste0(new_dir, "/",
-                   basename(box[i]), "/",
-                   basename(fs::dir_ls(box[i], regexp = ignore_files, 
-                                       invert = TRUE))
-            )
-        )
+        new_files <- 
+            !fs::file_exists(
+                here(new_dir, 
+                     basename(box[i]), 
+                     basename(fs::dir_ls(box[i], 
+                                         regexp = ignore_files, 
+                                         invert = TRUE)))
+                )
+
         
         # ---- display files that are to be copied ----
-        new_files <- dir_ls(box[i], regexp = ignore_files, 
+        new_files <- dir_ls(box[i], 
+                            regexp = ignore_files, 
                             invert = TRUE)[new_files]
+        
         info_txt  <- str_extract(basename(box[i]), '[:number:]*')
-        mesh_txt  <- "{.strong {glue_col('{red {info_txt} \u03BCm}')}} mesh."
+        mesh_txt  <- "{.strong {glue_col('{red {info_txt} \u03BCm}')}} mesh"
         
         if (!rlang::is_empty(new_files)) {
             cli_alert_info(
@@ -85,17 +89,32 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
         cli_inform("")
         
         # ---- copy files  ----
-        if (!rlang::is_empty(new_files) & ask) {
+        if (!rlang::is_empty(new_files) & auto) {
+            
+            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            
+        } else if (!rlang::is_empty(new_files) & ask) {
+            
         cli_text("Do you want to copy these files? (Yes/No)")
-        copy <- readline("")
+        copy <- utils::menu(c("Yes", "No", "Some"))
         
-        if (str_detect(copy, "(?i)y")) {
-        new_files %>%
-            fs::file_copy(.,
-                          paste0(new_dir, "/",
-                                 basename(box[i]), "/"))
+        if (copy == 3) {
+            cli_text("Select which files to copy")
+            nums      <- utils::select.list(basename(new_files), 
+                                     multiple = TRUE)
+            nums      <- glue("{dirname(new_files)[1]}/{nums}")
+            new_files <- new_files[new_files %in% nums]
+            copy      <-  1
+            }
+        
+        if (copy == 1) {
+            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            
         } else {
-            cli_alert_warning("Skipping files that need downloading!")
+            cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
+                                "files that need ",
+                                "{.strong {col_yellow('copying')}} ",
+                               "from ", mesh_txt))
         }
         cli_inform("")
         } else if (!rlang::is_empty(new_files)) {
@@ -105,4 +124,13 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
             cli_inform("")
         }
     }
+}
+
+copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
+    cli_alert_info(
+        c("{.strong {col_yellow('Copying')}}: ",
+          "({.file {new_dir}} for ", mesh_txt, ")"))
+    cli_ul(basename(new_files))
+
+    # fs::file_copy(new_files, here(new_dir, basename(box[i])))
 }
