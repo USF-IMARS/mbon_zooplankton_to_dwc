@@ -47,14 +47,16 @@ if (FALSE) {
 }
 ```
 
+# Load Data Sets
 ```{r load-taxa-data}
-# ---- load data set ----
+# ---- find all file names and filter ----
 file.taxa <- 
     fs::dir_ls(path =  here::here("data", "raw"),
-           regexp = "^[^~]*\\.xlsx$",
-           recurse = TRUE) %>%
-           skip_file(.)
+               regexp = "^[^~]*\\.xlsx$",
+               recurse = TRUE) %>%
+    skip_file(.)
 
+# ---- load all files into one tibble ----
 taxa_data <-
     file.taxa %>%
     map_dfr(., ~ load_data(.x), .id = "Files") %>%
@@ -80,6 +82,7 @@ save_merged(taxa_matched_merg,
             file.taxa
             )
 ```
+
 ```{r fix-taxa}
 
 taxa_list <- load_taxa_list(check = TRUE) 
