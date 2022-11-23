@@ -23,8 +23,21 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
     - Creates 3 csv files of `event`, `occurence`, and `Measurement or Fact`
 
 ================================================================================
+
 Steps:
-1. If it's the first time, go to (setup_projec.RMD)[https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/setup_project.Rmd]
+1. [setup_project.RMD](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/setup_project.Rmd)
+    - If it's the first time. This will setup file struture and allow to set directory to cloud storage files
+    
+2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/taxa_match_up_WoRMs.Rmd)
+    - Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
+    - Take new files and match taxa, reformat for later use
+    - Ability to fix non-matched taxa
+    - Save all reformatted files as individuals and one fully merged
+    - Save a log of files ran to skip next time
+    - 
+3. [combine_zoo_logsheets.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/combine_zoo_logsheets.Rmd)
+
+4. [create_obis_event.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/create_obis_event.Rmd)
 
 ================================================================================
 # Functions
