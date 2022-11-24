@@ -29,19 +29,22 @@ Steps:
     - If it's the first time. This will setup file struture and allow to set directory to cloud storage files
     
 2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/taxa_match_up_WoRMs.Rmd)
-    - Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
-    - Take new files and match taxa, reformat for later use
-    - Ability to fix non-matched taxa
-    - Save all reformatted files as individuals and one fully merged
-    - Save a log of files ran to skip next time
-    - 
+- Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
+- Take new files and match taxa, reformat for later use
+- Ability to fix non-matched taxa
+- Save all reformatted files as individuals and one fully merged
+- Save a log of files ran to skip next time
+ 
 3. [combine_zoo_logsheets.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/combine_zoo_logsheets.Rmd)
+- Rough way of taking cruise metadata and merge all cruises together
+- TODO: clean up code, maybe create a function out of it
 
 4. [create_obis_event.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/create_obis_event.Rmd)
 
 ================================================================================
-# Functions
-# match_taxa_fix.R
-Particularly useful for starting conversion process. This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
+# Custom Functions
+[match_taxa_fix.R](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/match_taxa_fix.R)
+- Useful for creating a master taxa sheet with `verbatim names`, and `scientific name`. 
+- This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
 for fixing names that have no matches by typing in your own. 
 
