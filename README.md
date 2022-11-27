@@ -22,7 +22,7 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
       - master `taxa lists` to get phylogentic tree
     - Creates 3 csv files of `event`, `occurence`, and `Measurement or Fact`
 
-================================================================================
+============================================================================
 
 Steps:
 1. [setup_project.RMD](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/setup_project.Rmd)
@@ -41,7 +41,7 @@ Steps:
 
 4. [create_obis_event.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/create_obis_event.Rmd)
 
-================================================================================
+============================================================================
 # Custom Functions
 [match_taxa_fix.R](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/match_taxa_fix.R)
 - Useful for creating a master taxa sheet with `verbatim names`, and `scientific name`. 
