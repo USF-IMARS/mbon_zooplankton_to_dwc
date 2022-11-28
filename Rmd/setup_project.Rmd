@@ -37,21 +37,90 @@ library("here")
 - if a master sheet doesn't exists locally, it will start a new one and put it in:
     - `data/metadata/aphia_id`
 
+```{r}
+# box_dir = "C:/Users/spd19/Box/IMaRS Zooplankton data/"
+
+# # source scripts with functions in new environment
+# my_funcs <- new.env()
+# 
+# # create directory structure if does not exists and create tree map
+# source(here::here("scripts","create_dir.R"), local = my_funcs)
+# # copy files from box
+# source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+# # loading check for taxa
+# source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+# 
+# 
+# attach(my_funcs)
+# rm(my_funcs)
+# 
+# copy_files_box(ask = TRUE)
+
+prof <- here(".Rprofile")
+pkgs <- paste(
+    "librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom # optional,
+    
+    quiet = TRUE
+) # end")
+
+
+if (!file_exists(prof)) {
+    usethis::edit_r_profile("project")
+    # cat(character(0), file = prof, append = FALSE)
+    
+    cat(c(pkgs, "\n"), file = prof, append = TRUE)
+}
+
+# check packages 
+if (file.exists(prof)) {
+    line1 <- readLines(prof)
+    strt <- grep("librarian::shelf\\(", line1)
+    ends <- grep("\\) # end", line1)
+    
+    if (identical(strt, integer(0))) {
+        cat(c(pkgs, "\n"), file = prof, append = TRUE)
+        strt <- grep("librarian::shelf\\(", line1)
+        ends <- grep("\\) # end", line1)
+        }
+
+    rng <- NULL
+    for (i in seq_along(strt)) {
+        rng <- c(rng, strt[i]:ends[i])
+    }
+    packs <- line1[rng]
+}
+
+```
+
 ```{r funcs}
-# source scripts with functions in new environment
+funcs <- paste(
+'\n# source scripts with functions in new environment
 my_funcs <- new.env()
 
 # create directory structure if does not exists and create tree map
-source(here::here("scripts","create_dir.R"), local = my_funcs)
+source(here("scripts","create_dir.R"), local = my_funcs)
 # copy files from box
-source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+source(here("scripts", "copy_files_from_box.R"), local = my_funcs)
 # loading check for taxa
-source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
+source(here("scripts", "taxa_list_check.R"), local = my_funcs)
 
 
 attach(my_funcs)
 rm(my_funcs)
 
-copy_files_box(ask = TRUE)
+copy_files_box(ask = TRUE)')
+
+if (file.exists(prof)) {
+    strt <- grep("# source scripts with functions in new environment", line1)
+    ends <- grep("copy_files_box", line1)
+    
+    if (identical(strt, integer(0))) {
+        cat(c(funcs, "\n"), file = prof, append = TRUE)
+    }
+    
+}
 
 ```
