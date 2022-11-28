@@ -31,7 +31,7 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     # defaults
     pkgs <- paste(
     "# packages used in .Rmd and scripts",
-    ".First.sys()\n # loads base R", 
+    ".First.sys() # loads base R \n", 
     "librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
