@@ -10,23 +10,29 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
     
     # ---- ignore files that contain ----
     ignore_files = paste("blank", sep = "|")
-    
+
     # ---- check if box_dir var exist in .Rprofile ----
     if (!exists("box_dir")) {
         cli_alert_info(c(
             "You need to setup {.file .Rprofile} ",
-            "with the location of box directory in your computer.\n",
+            "with the location of cloud directory in your computer.\n",
             "Use the format: ",
-            "{.code {col_yellow('box_dir = \" \"')}}",
+            "{.code {col_yellow('box_dir = \" \"')}}.",
             "\n(i.e. {.code {col_yellow('box_dir = \"C:/<my-directory>\"')}})",
-            "\n\nThen save and restart R\n"
+            "\n\nThen save and restart R.\n"
         ))
         
-        usethis::edit_r_profile(scope = "project")
+        old <- readLines(here(".Rprofile"))
         
         if (.choose) {
             new_dir <- rstudioapi::selectDirectory()
-            cli::cli_text("new_dir = \"{new_dir}\"")
+            new_dir <- glue("box_dir = \"{new_dir}\"")
+            cli::cli_text(new_dir)
+            cat(c(new_dir, "", old), sep = "\n", file = here(".Rprofile"))
+            
+        } else {
+            usethis::edit_r_profile(scope = "project")
+            cat(c("box_dir = \"EDIT HERE\"\n", old), sep = "\n", file = here(".Rprofile"))
         }
         
         invokeRestart("abort")
