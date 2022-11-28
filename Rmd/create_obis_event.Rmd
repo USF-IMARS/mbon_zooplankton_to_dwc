@@ -174,7 +174,9 @@ meta_df <-
 taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
                regexp = "all_merged_processed") %>%
-    last_mod(.) %>%
+    
+    # use all files or only most recent
+    last_mod(., check = TRUE) %>%
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
     mutate(
         # fix some cruise ID from data spreadsheets

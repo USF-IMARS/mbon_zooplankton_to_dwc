@@ -20,7 +20,10 @@ lifestage <-
 
 # ---- functions ----
 # returns most recent modified file path
-last_mod <-  function(fpath) {
+last_mod <-  function(fpath, check = TRUE) {
+    
+    if (!check) return(fpath)
+    
     ftime <- file.mtime(fpath)           
     return(fpath[which.max(ftime)]) 
 }
@@ -365,11 +368,11 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
     # ---- save processed taxa data ----
     file.name <-
         glue(
-            "{here::here('data', 'processed')}/
-        \ball_merged_
-        \bprocessed
-        \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
-        \b.csv"
+            "{here::here('data', 'processed')}/",
+            "all_merged_", 
+            "processed",
+            "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
+            ".csv"
         ) %>%
         str_remove_all("(\\\n\\\b)") 
     dir <- here::here('data', 'processed', 'ind_file_merg')
@@ -381,11 +384,11 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
     taxa_matched_merg <- taxa_matched_merg %>%
         mutate(
             Files =  glue(
-                "{dir}/
-                \b{(taxa_matched_merg$Files)}_
-                \bprocessed
-                \b{format(Sys.time(), '_%Y%m%d_%H%M%S')}
-                \b.csv"
+                "{dir}/",
+                "{(taxa_matched_merg$Files)}_",
+                "processed",
+                "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
+                ".csv"
             ) %>%
             str_remove_all("(\\\n\\\b)|(\\.xlsx)"),
         .before = 1)
