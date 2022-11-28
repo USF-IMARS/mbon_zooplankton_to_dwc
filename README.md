@@ -9,7 +9,7 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
   
 2. Ingest zooplankton counts
     - Pull new files from Box where raw count data is stored
-    - Add species information from WoRMS using a customized taxa_search (base from `robis`)
+    - Add species information from WoRMS using a custom `match_taxa()` function (based from `obistools::match_taxa()`)
     - Check for new species names and add to a master list of species names
       - This list contains the "verbatim name", "species name" to search, "larval stage" if exists, and matching Aphia IDs from WoRMS
     - Save all new raw files into one file with a timestamp
@@ -23,12 +23,11 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
     - Creates 3 csv files of `event`, `occurence`, and `Measurement or Fact`
 
 ===========================================================================
-
-Steps:
+## Steps:
 1. [setup_project.RMD](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/setup_project.Rmd)
 - If it's the first time, this will set up the .Rprofile (used at start up of Rstudio)
 - info for .Rprofile:
-    1. creates file struture used for this project
+    1. creates file structure used for this project
     2. set directory of cloud storage location
     3. load custom functions into the `search path`
     4. ask to download new files from cloud storage if in .Rprofile: 
@@ -91,7 +90,7 @@ copy_files_box(ask = TRUE)
     4. measurement or fact
 
 ===========================================================================
-# Custom Functions
+## Custom Functions
 [match_taxa_fix.R](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/match_taxa_fix.R)
 - Useful for creating a master taxa sheet with `verbatim names`, and `scientific name`. 
 - This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
