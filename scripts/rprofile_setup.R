@@ -75,19 +75,19 @@ rprofile_setup <- function(prof, .choose = FALSE) {
         line1 <- readLines(prof) 
 
         # check if packages exists
-        strt <- grep("# packages used in .Rmd and scripts", line1)
+        strt  <- grep("# packages used in .Rmd and scripts", line1)
         if (identical(strt, integer(0))) {
             cat(c(pkgs, "\n"), file = prof, append = TRUE)
         }
         
         # check if function loading exists
-        strt <- grep("# source scripts with functions in new environment", line1)
+        strt  <- grep("# source scripts with functions in new environment", line1)
         if (identical(strt, integer(0))) {
             cat(c(funcs, "\n"), file = prof, append = TRUE)
         }
         
         # check if cloud directory exists
-        strt <- grep("box_dir", line1)
+        strt  <- grep("box_dir", line1)
         if (identical(strt, integer(0))) {
             copy_files_box(ask = TRUE, .choose = TRUE)
         }
