@@ -5,27 +5,19 @@ date: "2022-11-22"
 output: html_document
 ---
 
-# Step 1: Load/install most used packages 
+# Step 1: Load/install necessary packages for setting up .Rprofile file
 ```{r setup, include=FALSE}
 library("here")
 library("cli")
 ```
 
-# Step 2: Source scripts with functions needed and attach to search path
+# Step 2: Run `rprofile_setup()`
+Creates .Rprofile file that contains:
+1. Designation of cloud storage path 
+2. Loading of libraries needed for use in most processes
+3. Attaches functions and scripts to search_path
 
-1. Creates directory for consistent file structures
-
-2. Copy files from designated location
-    - The first time using, this will open a `.Rprofile` file. This will be used to create a variable called `box_dir`. This is where the raw abundance directory is. If you want to select through popup set `copy_files_box(.choose = TRUE)` and will paste to console. You can then copy and paste it into the .Rprofile. You will then need to re-source the chunk.
-    - If you want to auto-look for new files, copy and paste the chunck `funcs` into the `.Rprofile` and each `Restart` in R will look for new files and ask if you want to download. 
-        - You can either:
-            1. `ask` = `TRUE` for asking if you want to copy and which ones
-            2. `auto` = `TRUE` to copy any file that is new
-
-3. Load functions for searching the raw for taxa names and connecting it to a master sheet
-- if a master sheet doesn't exists locally, it will start a new one and put it in:
-    - `data/metadata/aphia_id`
-
+NOTE: to take effect, will need to restart R afterwards
 ```{r}
 source(here("scripts", "rprofile_setup.R"))
 prof <- here(".Rprofile")
@@ -38,3 +30,25 @@ rprofile_setup(prof = prof,
 
 rm(list = ls())
 ```
+
+# Step 3: Use .Rprofile to setup directories, source scripts with functions needed and attach to search path
+
+1. Creates directory for consistent file structure
+
+2. Copy files from designated location
+    - The first time using, this will open a `.Rprofile` file and add `box_dir` if not already added. This is where the raw data would be stored. If you want to select through a popup set `copy_files_box(.choose = TRUE)` and will paste to .Rprofile. You can manually paste into .Rprofile if `.choose = FALSE`. You will then need to restart R.
+    - If you want to auto-look for new files, edit `copy_files_box(ask = TRUE)` to `copy_files_box(ask = TRUE, auto = TRUE)`.
+    Each `Restart` in R will look for new files and ask if you want to download. 
+
+3. Load functions for searching the raw for taxa names and connecting it to a master sheet
+- if a master sheet doesn't exists locally, it will start a new one and put it in:
+    - `data/metadata/aphia_id`
+
+# Run Rmd file in order
+1. `taxa_match_up_WoRMS.Rmd`
+    - match raw data to taxa
+2. `combine_zoo_logsheets.Rmd`
+    - get metadata and merge all files together
+3. `create_obis_event.Rmd`
+    - combine raw data and metadata to create obis formatted data
+
