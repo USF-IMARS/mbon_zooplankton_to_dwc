@@ -139,5 +139,5 @@ copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
           "({.file {new_dir}} for ", mesh_txt, ")"))
     cli_ul(basename(new_files))
 
-    # fs::file_copy(new_files, here(new_dir, basename(box[i])))
+    fs::file_copy(new_files, here(new_dir, basename(box[i])))
 }
