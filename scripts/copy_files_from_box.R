@@ -35,7 +35,8 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
             cat(c("box_dir = \"EDIT HERE\"\n", old), sep = "\n", file = here(".Rprofile"))
         }
         
-        invokeRestart("abort")
+        return()
+        
         }
     
     # ---- list all sub-directories in main box directory ----
