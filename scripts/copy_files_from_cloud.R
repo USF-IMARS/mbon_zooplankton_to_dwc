@@ -1,4 +1,4 @@
-copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
+copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
                            .choose = FALSE, ask = FALSE, auto = FALSE) {
     
     # ---- load libraries ----
@@ -11,14 +11,14 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
     # ---- ignore files that contain ----
     ignore_files = paste("blank", sep = "|")
 
-    # ---- check if box_dir var exist in .Rprofile ----
-    if (!exists("box_dir")) {
+    # ---- check if cloud_dir var exist in .Rprofile ----
+    if (!exists("cloud_dir")) {
         cli_alert_info(c(
             "You need to setup {.file .Rprofile} ",
             "with the location of cloud directory in your computer.\n",
             "Use the format: ",
-            "{.code {col_yellow('box_dir = \" \"')}}.",
-            "\n(i.e. {.code {col_yellow('box_dir = \"C:/<my-directory>\"')}})",
+            "{.code {col_yellow('cloud_dir = \" \"')}}.",
+            "\n(i.e. {.code {col_yellow('cloud_dir = \"C:/<my-directory>\"')}})",
             "\n\nThen save and restart R.\n"
         ))
         
@@ -26,21 +26,21 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
         
         if (.choose) {
             new_dir <- rstudioapi::selectDirectory()
-            new_dir <- glue("box_dir = \"{new_dir}\"")
+            new_dir <- glue("cloud_dir = \"{new_dir}\"")
             cli::cli_text(new_dir)
             cat(c(new_dir, "", old), sep = "\n", file = here(".Rprofile"))
             
         } else {
             usethis::edit_r_profile(scope = "project")
-            cat(c("box_dir = \"EDIT HERE\"\n", old), sep = "\n", file = here(".Rprofile"))
+            cat(c("cloud_dir = \"EDIT HERE\"\n", old), sep = "\n", file = here(".Rprofile"))
         }
         
         return()
         
         }
     
-    # ---- list all sub-directories in main box directory ----
-    box         <- .box_dir  %>%
+    # ---- list all sub-directories in main cloud directory ----
+    cloud         <- .cloud_dir  %>%
         fs::dir_ls(., type = "directory")
     
     # ---- location for local directory ----
@@ -48,7 +48,7 @@ copy_files_box <- function(.box_dir = box_dir, new_dir = NULL,
         new_dir <- here::here("data","raw")
     }
 
-    cli::cli_alert_info("Box directory: {.file {(.box_dir)}}")
+    cli::cli_alert_info("Box directory: {.file {(cloud_dir)}}")
     cli::cli_alert_info("Local directory: {.file {new_dir}}")
     cli_inform("")
     
