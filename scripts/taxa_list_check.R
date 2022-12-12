@@ -1,13 +1,14 @@
-#  ------------------------------------------------------------------------
+# ============================================================================ #
 #
 # Title : Functions to get taxa IDs
 #    By : Sebastian Di Geronimo
 #  Date : 2022-10-20
 #
-#  ------------------------------------------------------------------------
+# ============================================================================ #
 
 if (!exists("my_funcs")) my_funcs <- FALSE
 
+# ---- expression for file name of aphia_id ----
 file_expr <- expression(glue(
     here::here("data", "metadata", "aphia_id", file_base),
     format(Sys.time(), '_%Y%m%d_%H%M%S'),
@@ -28,9 +29,11 @@ last_mod <-  function(fpath, check = TRUE) {
     return(fpath[which.max(ftime)]) 
 }
 
+# load function to get taxa names from WoRMS
 source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
 
 # ---- 1. Load data -----------------------------------------------------------
+# works only for raw abudance data for this project
 load_data <- function(file.taxa) {
 
     cli::cli_alert_info(basename(file.taxa))
@@ -86,6 +89,7 @@ load_data <- function(file.taxa) {
 merge_taxa <- function(dat, file_base = "aphia_taxa", 
                        .file_expr = file_expr, 
                        regex_lifestage = lifestage, check = FALSE) {
+    
     if (!check) cli::cli_alert_warning(
         c("Will {col_red('NOT')} be checking for {.emph NAs} in ",
           "{.strong taxa aphiaID} list.",

@@ -38,8 +38,8 @@ if (FALSE) {
     
     # create directory structure if does not exists and create tree map
     source(here::here("scripts","create_dir.R"), local = my_funcs)
-    # copy files from box
-    source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+    # copy files from a cloud service
+    source(here::here("scripts", "copy_files_from_cloud.R"), local = my_funcs)
     # loading check for taxa 
     source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
     
@@ -81,6 +81,8 @@ taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
 save_merged(taxa_matched_merg, 
             file.taxa
             )
+
+
 ```
 
 ```{r fix-taxa}

@@ -8,7 +8,7 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
     - Attempt to document changes made to raw data
   
 2. Ingest zooplankton counts
-    - Pull new files from Box where raw count data is stored
+    - Pull new files from cloud service (i.e. Box) where raw count data is stored
     - Add species information from WoRMS using a custom `match_taxa()` function (based from `obistools::match_taxa()`)
     - Check for new species names and add to a master list of species names
       - This list contains the "verbatim name", "species name" to search, "larval stage" if exists, and matching Aphia IDs from WoRMS
@@ -31,13 +31,13 @@ This repository is used to setup a pipeline to convert zooplankton data collecte
     2. set directory of cloud storage location
     3. load custom functions into the `search path`
     4. ask to download new files from cloud storage if in .Rprofile: 
-    - `copy_files_box(ask = TRUE)` to ask which files to download, all, some or none
-    - `copy_files_box(ask = TRUE, auto = TRUE)` to auto download all new files without asking
-    - `copy_files_box(ask = FALSE, auto = FALSE)` to not download new file at all
+    - `copy_files_cloud(ask = TRUE)` to ask which files to download, all, some or none
+    - `copy_files_cloud(ask = TRUE, auto = TRUE)` to auto download all new files without asking
+    - `copy_files_cloud(ask = FALSE, auto = FALSE)` to not download new file at all
 
 example `.Rprofile`
 ```
-box_dir = "<drive>:/<main-directory>/<sub-directory>/<location-of-folder-with-data>"
+cloud_dir = "<drive>:/<main-directory>/<sub-directory>/<location-of-folder-with-data>"
 
 # packages used in .Rmd and scripts
 .First.sys() # loads base R 
@@ -56,15 +56,15 @@ my_funcs <- new.env()
 
 # create directory structure if does not exists and create tree map
 source(here("scripts","create_dir.R"), local = my_funcs)
-# copy files from box
-source(here("scripts", "copy_files_from_box.R"), local = my_funcs)
+# copy files from cloud service
+source(here("scripts", "copy_files_from_cloud.R"), local = my_funcs)
 # loading check for taxa
 source(here("scripts", "taxa_list_check.R"), local = my_funcs)
 
 attach(my_funcs)
 rm(my_funcs)
 
-copy_files_box(ask = TRUE)
+copy_files_cloud(ask = TRUE)
 ```
     
 2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/taxa_match_up_WoRMs.Rmd)

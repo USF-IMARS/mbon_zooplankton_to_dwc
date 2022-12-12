@@ -48,34 +48,34 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
         new_dir <- here::here("data","raw")
     }
 
-    cli::cli_alert_info("Box directory: {.file {(cloud_dir)}}")
+    cli::cli_alert_info("Cloud directory: {.file {(cloud_dir)}}")
     cli::cli_alert_info("Local directory: {.file {new_dir}}")
     cli_inform("")
     
-    # ---- create directories from box ----
+    # ---- create same directories from cloud repo ----
     fs::dir_create(
-        here(new_dir, basename(box))
+        here(new_dir, basename(cloud))
     )
     
-    # ---- copy files from box to local if needed ----
-    for (i in seq(box)) {
+    # ---- copy files from cloud to local if needed ----
+    for (i in seq(cloud)) {
         # check if files exists
         new_files <- 
             !fs::file_exists(
                 here(new_dir, 
-                     basename(box[i]), 
-                     basename(fs::dir_ls(box[i], 
+                     basename(cloud[i]), 
+                     basename(fs::dir_ls(cloud[i], 
                                          regexp = ignore_files, 
                                          invert = TRUE)))
                 )
 
         
         # ---- display files that are to be copied ----
-        new_files <- dir_ls(box[i], 
+        new_files <- dir_ls(cloud[i], 
                             regexp = ignore_files, 
                             invert = TRUE)[new_files]
         
-        info_txt  <- str_extract(basename(box[i]), '[:number:]*')
+        info_txt  <- str_extract(basename(cloud[i]), '[:number:]*')
         mesh_txt  <- "{.strong {glue_col('{red {info_txt} \u03BCm}')}} mesh"
         
         if (!rlang::is_empty(new_files)) {
@@ -126,7 +126,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
         cli_inform("")
         } else if (!rlang::is_empty(new_files)) {
             cli_alert_warning(c("Not copying files. In ",
-                                "{.fn {col_yellow('copy_files_box')}} set ",
+                                "{.fn {col_yellow('copy_files_cloud')}} set ",
                                 "ask = {.code {col_red(TRUE)}}."))
             cli_inform("")
         }
@@ -139,5 +139,5 @@ copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
           "({.file {new_dir}} for ", mesh_txt, ")"))
     cli_ul(basename(new_files))
 
-    fs::file_copy(new_files, here(new_dir, basename(box[i])))
+    fs::file_copy(new_files, here(new_dir, basename(cloud[i])))
 }

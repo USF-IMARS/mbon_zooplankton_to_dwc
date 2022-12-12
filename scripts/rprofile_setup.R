@@ -16,7 +16,7 @@ rprofile_setup <- function(prof, .choose = FALSE) {
 #           
 #           TRUE:  opens file explorer to choose directory
 #           
-#           FALSE: opens .Rprofile with `box_dir = "EDIT HERE"` to edit file 
+#           FALSE: opens .Rprofile with `cloud_dir = "EDIT HERE"` to edit file 
 #                  directory manually in line 1
 #
 # ---- OUTPUTS: ----------
@@ -46,13 +46,13 @@ rprofile_setup <- function(prof, .choose = FALSE) {
         'my_funcs <- new.env()\n',
         '# create directory structure if does not exists and create tree map',
         'source(here("scripts","create_dir.R"), local = my_funcs)',
-        '# copy files from box',
-        'source(here("scripts", "copy_files_from_box.R"), local = my_funcs)',
+        '# copy files from cloud service',
+        'source(here("scripts", "copy_files_from_cloud.R"), local = my_funcs)',
         '# loading check for taxa',
         'source(here("scripts", "taxa_list_check.R"), local = my_funcs)\n',
         'attach(my_funcs)',
         'rm(my_funcs)\n',
-        'copy_files_box(ask = TRUE)\n',
+        'copy_files_cloud(ask = TRUE)\n',
         sep = "\n"
     )
     
@@ -65,10 +65,10 @@ rprofile_setup <- function(prof, .choose = FALSE) {
         cat(paste(pkgs, funcs, sep = "\n\n"), file = prof, 
             append = TRUE)
         
-        # source copy_file_from_box to ask for box_dir variable
-        source(here("scripts", "copy_files_from_box.R"))
+        # source copy_file_from_cloud to ask for cloud_dir variable
+        source(here("scripts", "copy_files_from_cloud.R"))
         
-        copy_files_box(ask = TRUE, .choose = .choose)
+        copy_files_cloud(ask = TRUE, .choose = .choose)
         
     } else {
         
@@ -87,9 +87,9 @@ rprofile_setup <- function(prof, .choose = FALSE) {
         }
         
         # check if cloud directory exists
-        strt  <- grep("box_dir", line1)
+        strt  <- grep("cloud_dir", line1)
         if (identical(strt, integer(0))) {
-            copy_files_box(ask = TRUE, .choose = TRUE)
+            copy_files_cloud(ask = TRUE, .choose = TRUE)
         }
     }
     cli::cli_inform("\n")

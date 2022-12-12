@@ -36,8 +36,8 @@ rm(list = ls())
 1. Creates directory for consistent file structure
 
 2. Copy files from designated location
-    - The first time using, this will open a `.Rprofile` file and add `box_dir` if not already added. This is where the raw data would be stored. If you want to select through a popup set `copy_files_box(.choose = TRUE)` and will paste to .Rprofile. You can manually paste into .Rprofile if `.choose = FALSE`. You will then need to restart R.
-    - If you want to auto-look for new files, edit `copy_files_box(ask = TRUE)` to `copy_files_box(ask = TRUE, auto = TRUE)`.
+    - The first time using, this will open a `.Rprofile` file and add `cloud_dir` if not already added. This is where the raw data would be stored. If you want to select through a popup set `copy_files_cloud(.choose = TRUE)` and will paste to .Rprofile. You can manually paste into .Rprofile if `.choose = FALSE`. You will then need to restart R.
+    - If you want to auto-look for new files, edit `copy_files_cloud(ask = TRUE)` to `copy_files_cloud(ask = TRUE, auto = TRUE)`.
     Each `Restart` in R will look for new files and ask if you want to download. 
 
 3. Load functions for searching the raw for taxa names and connecting it to a master sheet
