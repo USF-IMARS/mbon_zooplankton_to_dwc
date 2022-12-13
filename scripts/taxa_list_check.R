@@ -6,7 +6,7 @@
 #
 # ============================================================================ #
 
-if (!exists("my_funcs")) my_funcs <- FALSE
+# if (!exists("my_funcs")) my_funcs <- FALSE
 
 # ---- expression for file name of aphia_id ----
 file_expr <- expression(glue(
@@ -33,7 +33,7 @@ last_mod <-  function(fpath, check = TRUE) {
 source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
 
 # ---- 1. Load data -----------------------------------------------------------
-# works only for raw abudance data for this project
+# works only for raw abundance data for this project
 load_data <- function(file.taxa) {
 
     cli::cli_alert_info(basename(file.taxa))
@@ -158,7 +158,7 @@ load_taxa_list <- function(.file_expr = file_expr,
 }
 
 
-# ---- 4. Load taxa list ---------------------------------------------------------
+# ---- 4. Check taxa list ---------------------------------------------------------
 taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL, 
                             file_base = NULL, .file_expr = NULL,
                             check = FALSE) {
@@ -168,7 +168,22 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
                    regexp = glue("{file_base}.*\\.csv$"))  %>%
         last_mod(.)
-
+    
+    # ---- search cloud directory for master aphia ID list ----
+    # if no file exists, will look in root of cloud directory
+    # copy it to data/metadata/aphia_id directory
+    if (is_empty(taxa_file) & exists("cloud_dir")) {
+        try(
+            master_taxa_cloud(.cloud_dir = cloud_dir, 
+                              where_to = "local"), 
+            silent = TRUE)
+        
+        taxa_file <-  
+            fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
+                       regexp = glue("{file_base}.*\\.csv$"))  %>%
+            last_mod(.)
+    }
+    
     # ---- initialize taxa file ----
     if (is_empty(taxa_file)) {
         cli::cli_alert_info("This is the creation of a taxanomic list!")
@@ -435,8 +450,7 @@ skip_file <- function(file.taxa, check = TRUE) {
         return(file.taxa)
     }
     
-    file.name <- paste0(here::here("data", "metadata", "processed_files"), 
-                                   ".csv")
+    file.name <- here::here("data", "metadata", "processed_files.csv")
     
     # ---- initialize file list ----
     if (is_empty(files_lists)) {
@@ -461,3 +475,50 @@ skip_file <- function(file.taxa, check = TRUE) {
             )
     }
 }
+
+# ---- 8. Push/Pull Master List to Cloud/Local---------------------------------
+master_taxa_cloud <- function(taxa_list = NULL, 
+                              .cloud_dir,
+                              file_base = "aphia_taxa",
+                              where_to = NULL, 
+                              .file_expr = file_expr) {
+    
+    assertthat::assert_that(
+        !rlang::is_null(where_to),
+        msg = glue("Need to set `where_to` to ",
+                  "\n`cloud` if want to save Master Taxa Sheet to cloud ",
+                  "\nor \n`local` to pull Master Taxa Sheet from cloud")
+        )
+    
+    file_location <- here(.cloud_dir, glue("{file_base}.csv"))
+    
+    if (str_detect(where_to, "cloud") & !is.null(taxa_list)) {
+        file_location %>%
+            write_csv(taxa_list, ., na = "")
+        
+        cli::cli_alert_success(c("Pushing ",
+                         "{.strong {col_green('Master Taxa Sheet')}} ",
+                         "to {.path {cloud_dir}}"))
+        
+        return(invisible(NULL))
+    }
+    
+    if (str_detect(where_to, "local")) {
+        
+        assertthat::assert_that(fs::file_exists(file_location),
+                                msg = glue("`{file_base}.csv` does not exists ",
+                                "in {.cloud_dir}"))
+        
+        file_location %>%
+            fs::file_copy(., eval(.file_expr))
+        
+        cli::cli_alert_success(c("Copying ",
+                                 "{.strong {col_green('Master Taxa Sheet')}} ",
+                                 "to {.path {here('data', 'aphia_id')}}"))
+        
+        return(invisible(NULL))
+    }
+    
+}
+
+
