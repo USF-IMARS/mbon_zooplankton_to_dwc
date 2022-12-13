@@ -44,7 +44,7 @@ if (!rlang::is_attached('my_funcs')) {
 
 # Load Data Sets
 1. Parse all file paths in `data/raw/`. 
-- Will ignore files with `~$` in front becasue these are usually temporary files that are opened
+- Will ignore files with `~$` in front because these are usually temporary files that are opened
 2. `skip_file` will check a processed file to ignore files that were previously loaded and formatted
 3. Take leftover files and merge data into long format
 - files contain some metadata for each sample processed and taxonomic data
