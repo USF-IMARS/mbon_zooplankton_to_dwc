@@ -7,8 +7,24 @@ output: html_document
 
 # Step 1: Load/install necessary packages for setting up .Rprofile file
 ```{r setup, include=FALSE}
-library("here")
-library("cli")
+if (!require("librarian")) {
+    install.packages("librarian")
+}
+
+librarian::shelf(bdchecks, broom, data.table, dplyr, forcats, fs, geosphere, 
+                 ggforce, ggplot2, glue, hablar, here, hms, httr, janitor, 
+                 jsonlite, knitr, lubridate, magrittr, obistools, 
+                 plotly, purrr, readr, readxl, renv, rmarkdown, stringr, tibble, 
+                 tidyr, tidyverse, tools, vroom, worrms)
+
+# library("here")
+# library("cli")
+# 
+# renv::dependencies()  %$% unique(Package) %>%
+#     as_tibble() %>%
+#     arrange(value) %>%
+#     pull(value) %>%
+#     cat(sep = ", ")
 ```
 
 # Step 2: Run `rprofile_setup()`
