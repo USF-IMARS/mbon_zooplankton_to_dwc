@@ -5,6 +5,8 @@ date: '2022-07-08'
 output: html_document
 ---
 
+# Load Packages
+This loads any packages that are not contained in the .Rprofile.
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
@@ -17,7 +19,12 @@ librarian::shelf(
     quiet = TRUE
     )
 ```
-    
+
+# Load cruise metadata files from `data/metadata/` 
+1. Parse all file paths
+- Will ignore files with `~$` in front because these are usually temporary files that are opened
+2. Remove files that would not contain zooplankton metadata
+3. Loop through each file and look for sheet with `zooplankton` in the name 
 ```{r}
 files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
            regexp = "^[^~]*\\.(xlsx)$") 
@@ -210,10 +217,15 @@ rm(list = meta_list)
 
 ```{r save}
 # ---- write metadata to file ----
-write_csv(meta_df,
-              paste0(
-                  here::here("data", "metadata", "meta_combined"),
-                  format(Sys.time(), '_%Y%m%d_%H%M%S'),
-                  ".csv"
-              ))
+if (FALSE) {
+    write_csv(meta_df,
+                  here::here("data", "metadata", 
+                                 glue("meta_combined", 
+                                      format(Sys.time(), '_%Y%m%d_%H%M%S'),
+                                      ".csv")
+                             )
+              )
+}
 ```
+
+
