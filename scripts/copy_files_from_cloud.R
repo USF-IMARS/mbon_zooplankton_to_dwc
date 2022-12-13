@@ -1,3 +1,34 @@
+# ============================================================================ #
+#                                                                              # 
+#                        Copy file from Cloud Directory                        #
+#                                                                              #    
+# ============================================================================ #
+# ---- DESCRIPTION: ------
+# The first time this function is run, it will ask were is the cloud directory
+# located on your computuer.
+# 
+# The second time this function is run, it will ask which files you would like
+# to download, all, some or none.
+#
+# ---- INPUTS: -----------
+# .cloud_dir = location of cloud directory 
+# new_dir    = location of local directory 
+# .choose    = TRUE/FALSE to select cloud directory location on first attempt
+# ask        = TRUE/FAlSE to ask if want to download new files
+#              - Yes  = download all
+#              - No   = skip download
+#              - Some = select which files to download  
+# auto       = automatically download all new files
+#
+# ---- OUTPUTS: ----------
+# NA
+#
+# ---- NOTES: ------------
+#
+# ---- REFERENCES(s): ----
+#
+# ---- AUTHOR(s): --------
+# Sebastian Di Geronimo (2022-12-12 18:58:34)
 copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
                            .choose = FALSE, ask = FALSE, auto = FALSE) {
     
