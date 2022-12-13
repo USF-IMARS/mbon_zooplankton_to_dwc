@@ -4,35 +4,52 @@ author: "Sebastian DiGeronimo"
 date: "3/2/2022"
 output: html_document
 ---
-
+# Load Packages
+This loads any packages that are not contained in the .Rprofile.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library("readxl")
-library("hablar") # might be useful when needing to fix names
-library("worrms")
+librarian::shelf(
+    # librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    # forcats, lubridate, glue, fs, magrittr, here,
+    # broom, # optional
+    
+    readxl, hablar, worrms, ggforce, geosphere, vroom, plotly,
+    
+    quiet = TRUE
+    )
 
-library("tidyverse")
-library("ggplot2")
-library("ggforce")
-library("tibble")
-library("tidyr")
-library("readr")
-library("purrr")
-library("dplyr")
-library("stringr")
-library("forcats")
-library("lubridate")
-library("glue")
-library("fs")
-library("geosphere")
-library("vroom")
-library("plotly")
-library("magrittr")
+
+# library("readxl")
+# library("hablar") # might be useful when needing to fix names
+# library("worrms")
+# library("tidyverse")
+# library("ggplot2")
+# library("ggforce")
+# library("tibble")
+# library("tidyr")
+# library("readr")
+# library("purrr")
+# library("dplyr")
+# library("stringr")
+# library("forcats")
+# library("lubridate")
+# library("glue")
+# library("fs")
+# library("geosphere")
+# library("vroom")
+# library("plotly")
+# library("magrittr")
 
 ```
 
+# Load functions if not already
+This will load the functions needed if not already contain in the search path.
 ```{r load-functions}
-if (FALSE) { 
+if (!rlang::is_attached('my_funcs')) { 
+    cli_alert_info(
+        c("Attaching project functions to the {.code searchpath} as ",
+          "{.code my_funcs}."))
+    
     # source scripts with functions in new environment
     my_funcs <- new.env()
     
@@ -44,10 +61,16 @@ if (FALSE) {
     source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
     
     attach(my_funcs)
+    rm(my_funcs)
 }
 ```
 
 # Load Data Sets
+1. Parse all file paths in `data/raw/`. 
+- Will ignore files with `~$` in front becasue these are usually temporary files that are opened
+2. `skip_file` will check a processed file to ignore files that were previously loaded and formatted
+3. Take leftover files and merge data into long format
+- files contain some metadata for each sample processed and taxonomic data
 ```{r load-taxa-data}
 # ---- find all file names and filter ----
 file.taxa <- 
@@ -64,13 +87,22 @@ taxa_data <-
 taxa_data
 
 ```
+# Merge taxanomic list and save new data
+1. Loads previous master taxonomic data sheet
+- This will check if it is contained in the cloud service at the root level, or create one if it doesn't exists
+- If it doesn't exist, it will check the long format data for a column called taxa
+- Then, it will `clean` the taxa list by removing sp., spp. and life stage information
+- Next, it will use the custom function for searching scientific names in `WoRMS`
+    - The base for this is `obistools::match_taxa`, but it adds the ability to type non-matched names or to use common names
+- Once completed, it will save the taxa list in `data/metadata/aphia_id/` 
+- It will check if there are any `NAs` if set `check = TRUE`
+    - Only the `NA` rows will be rechecked again. Then it will merge with previous sheet with a new filename 
 
-1. read in new occurrence file
-2. read the first 10 rows and transpose to longer
-3. determine if the identified species are in the master aphia taxa list, or 
-    if need to rerun taxa_match_fix
-4. row bind occurrence data with taxa info
+2. Merge taxa lists with long format abundance data.
+- Taxa list contains `taxa_orig`, `taxa`, `lifeStage`, `scientificName`, `scientificNameID`, `match_type`
 
+3. Save merged data in merged long format and separate samples files in `data/processed/` and `data/processed/ind_file_merg/` 
+- If supplied `file.taxa`, it will append `processed_files.csv` (the list of files) to skip in future runs in `data/metadata/`
 ```{r}
 # TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
@@ -78,20 +110,25 @@ taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
     relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
     arrange(date_collected, site, taxa)
 
-save_merged(taxa_matched_merg, 
-            file.taxa
+save_merged(taxa_matched_merg = taxa_matched_merg, 
+            .taxa_file = file.taxa
             )
-
 
 ```
 
-```{r fix-taxa}
-
+# Push current master taxonomic sheet to cloud
+1. Load most recent taxa sheet
+2. Check if there any unmatched taxa
+3. Push to cloud location
+```{r push-to-cloud}
 taxa_list <- load_taxa_list(check = TRUE) 
 no_matches <- taxa_list %>%
     filter(is.na(scientificName))
 
 
+master_taxa_cloud(taxa_list  = taxa_list, 
+                  .cloud_dir = cloud_dir, 
+                  where_to   = "cloud")
 ```
 
 # tried a different database without working
