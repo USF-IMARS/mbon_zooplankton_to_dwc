@@ -17,29 +17,6 @@ librarian::shelf(
     
     quiet = TRUE
     )
-
-
-# library("readxl")
-# library("hablar") # might be useful when needing to fix names
-# library("worrms")
-# library("tidyverse")
-# library("ggplot2")
-# library("ggforce")
-# library("tibble")
-# library("tidyr")
-# library("readr")
-# library("purrr")
-# library("dplyr")
-# library("stringr")
-# library("forcats")
-# library("lubridate")
-# library("glue")
-# library("fs")
-# library("geosphere")
-# library("vroom")
-# library("plotly")
-# library("magrittr")
-
 ```
 
 # Load functions if not already

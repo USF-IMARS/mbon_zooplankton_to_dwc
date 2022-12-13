@@ -7,29 +7,15 @@ output: html_document
 
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
-library("readxl")
-library("hablar") # might be useful when needing to fix names
-library("worrms")
-
-library("ggplot2")
-library("tibble")
-library("tidyr")
-library("readr")
-library("purrr")
-library("dplyr")
-library("stringr")
-library("forcats")
-library("lubridate")
-library("glue")
-library("fs")
-library("magrittr")
-library("broom") # optional
-
-library("tidyverse")
-library("ggforce")
-library("geosphere")
-library("vroom")
-library("plotly")
+librarian::shelf(
+    # librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    # forcats, lubridate, glue, fs, magrittr, here,
+    # broom, # optional
+    
+    readxl, hablar, worrms, ggforce, geosphere, vroom, plotly,
+    
+    quiet = TRUE
+    )
 ```
     
 ```{r}
