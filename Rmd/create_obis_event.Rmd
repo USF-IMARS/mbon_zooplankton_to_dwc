@@ -29,14 +29,14 @@ library("magrittr")
 library("broom") # optional
 
 library("tidyverse")
-library("ggforce")
-library("geosphere")
-library("vroom")
-library("plotly")
+# library("ggforce")
+# library("geosphere")
+# library("vroom")
+# library("plotly")
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
-# startup("log_edits")
+# startup("log_edits2")
 # log_add()
 
 # ---- recorded by info ----
@@ -59,20 +59,20 @@ rm(which_one)
 ```
 
 
-# Load functions if not in .Rprofile
+# Load functions if not in .Rprofile and already attached to the searchpath
 ```{r load-functions}
-# set to TRUE or T if you don't have .Rprofile setup in the project
-# -or- for auto when restarting R
-# copy paste: `usethis::edit_r_profile("project")`,
-# then copy paste everything within the if statement 
-if (FALSE) {
+if (!rlang::is_attached('my_funcs')) { 
+    cli_alert_info(
+        c("Attaching project functions to the {.code searchpath} as ",
+          "{.code my_funcs}."))
+    
     # source scripts with functions in new environment
     my_funcs <- new.env()
     
     # create directory structure if does not exists and create tree map
     source(here::here("scripts","create_dir.R"), local = my_funcs)
-    # copy files from box
-    source(here::here("scripts", "copy_files_from_box.R"), local = my_funcs)
+    # copy files from a cloud service
+    source(here::here("scripts", "copy_files_from_cloud.R"), local = my_funcs)
     # loading check for taxa
     source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
     
