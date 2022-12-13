@@ -26,10 +26,114 @@ librarian::shelf(
 2. Remove files that would not contain zooplankton metadata
 3. Loop through each file and look for sheet with `zooplankton` in the name 
 ```{r}
-files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
-           regexp = "^[^~]*\\.(xlsx)$") 
-files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
+# files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
+#            regexp = "^[^~]*\\.(xlsx)$") 
+# files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
 
+# select all cruise files
+files <- 
+    fs::dir_ls(here::here("data", "metadata"), recurse = T,
+               regexp = "^[^~]*\\.(xlsx)$")  %>%
+    tibble(file = .) %>%
+    
+    # filter for only fknms files
+    filter(!str_detect(file, 
+                       c("All_cruise|BB3|Digna|Schedule|Kelble"))
+           ) %>%
+    
+    # column for only filename
+    mutate(
+        base = basename(file)
+    )
+
+# read all files for sheet names
+temp <- files %>%
+    mutate(  sheets = map(.x = file, ~ readxl::excel_sheets(.x))
+    ) %>%
+    unnest(sheets) %>%
+    group_by(base) %>%
+    
+    # fitler for sheets with zooplankton
+    filter(str_detect(sheets, "zooplankton")) %>%
+    ungroup() %>%
+    select(-file)
+
+# join filenames with sheet names, any NAs will be figured out later
+files <- left_join(files, temp, by = "base") %>% 
+    filter(!is.na(sheets)) %>%
+    mutate(
+        cruise_id = map2(.x = file, .y = sheets, function(.x, .y) {
+             cruise_id <-
+            tryCatch({
+                id_skip <- which(
+                    readxl::read_xlsx(
+                        .x,
+                        range = cell_cols("A"),
+                        col_names = FALSE,
+                        sheet = .y
+                    ) == "Cruise"
+                ) 
+                    
+                readxl::read_xlsx(
+                    path = .x,
+                    skip = id_skip - 1,
+                    sheet = .y,
+                    col_names = F,
+                    n_max = 1
+                ) %>%
+                    pivot_wider(names_from = `...1`, values_from = `...2`)
+                
+            }, warning = function(w) {
+                message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
+                
+            }, error = function(e) {
+                message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                tibble(Cruise = NA_character_)
+            })
+      cruise_id <- select(cruise_id, cruise_id = Cruise)
+      return(cruise_id)
+        }),
+    skips = map2(.x = file, .y = sheets, function(.x, .y) {
+        skips <-
+            tryCatch({
+                which(
+                    readxl::read_xlsx(
+                       .x,
+                        range = cell_cols("A"),
+                        col_names = FALSE,
+                        sheet = .y
+                    ) == "ZOOPLANKTON SAMPLING"
+                )
+            }, warning = function(w) {
+                message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
+                
+            }, error = function(e) {
+                message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
+                integer()
+            }, finally = {
+                
+            })
+    })
+        
+    ) %>%
+ unnest(cruise_id, skips)
+
+
+```
+```{r}
+temp %>%
+    add_column(
+with(.,
+    parzer::parse_lon_lat(lon_in, lat_in))) %>%
+    select(-lon_in, -lat_in)
+
+```
+
+```{r}
+test <- tibble(Cruise = "", skips = NA_integer_)
+files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
+           regexp = "^[^~]*\\.(xlsx)$")
+files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
 for (i in seq(files)) {
 # for (i in 2) {
     print(basename(files[i]))
@@ -49,7 +153,9 @@ for (i in seq(files)) {
     # ---- open file and read sheet ----
     for (j in seq(temp_sht)) {
         
-         cruise_id <-
+        # try catch to find which row starts with `Cruise` then skip these many
+        # to find the cruise_id name
+        cruise_id <-
             tryCatch({
                 id_skip <- which(
                     readxl::read_xlsx(
@@ -67,7 +173,8 @@ for (i in seq(files)) {
                     col_names = F,
                     n_max = 1
                 ) %>%
-                    pivot_wider(names_from = `...1`, values_from = `...2`)
+                select(`...1`, `...2`) %>%
+                pivot_wider(names_from = `...1`, values_from = `...2`)
                 
             }, warning = function(w) {
                 message(sprintf("Warning in %s: %s", deparse(w[["call"]]), w[["message"]]))
@@ -77,7 +184,9 @@ for (i in seq(files)) {
                 tibble(Cruise = NA_character_)
             })
         
-        
+        # try catch to find which row starts with `ZOOPLANKTON SAMPLING` then 
+        # skip these many
+        # if any errors, set result to NA_character_
         skips <-
             tryCatch({
                 which(
@@ -93,14 +202,26 @@ for (i in seq(files)) {
                 
             }, error = function(e) {
                 message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
-                integer()
+                integer(0)
             }, finally = {
-                
+                 
             })
+        if (identical(skips, integer()) ) skips <- NA_integer_
+
+        # cruise_id %>%
+        # pull(Cruise) %>%
+        # cat(skips, sep = "\n")
+        # 
+        # test <- add_column(cruise_id, skips = skips) %>%
+        # add_row(test,.)
+        # 
+        # next
         
-        
+        # read file with skips and cruise ID
         if (!is_empty(skips)) {
+            # ---
             temp <-
+                # read file based on file[i], temp_sht[j], and skips
                 readxl::read_xlsx(
                     files[i],
                     sheet = temp_sht[j],
@@ -108,46 +229,63 @@ for (i in seq(files)) {
                     .name_repair = janitor::make_clean_names,
                     na = c("skip", "Did not collect", "not recorded")
                 ) %>%
+                
+                # remove rows that are fully empty
                 janitor::remove_empty(which = "rows") %>%
+                
+                # fill station names down if not there
                 tidyr::fill(station) %>%
+                
+                # drop rows when flowmeter_out = NA
                 drop_na(flowmeter_out) %>%
+                
+                # fill down if lat, lon, date, or time is not there
                 tidyr::fill(contains(c("lat", "lon", "date", "time"))) %>%
+                
+                
                 mutate(
+                    # convert time if labeled as time_gmt if needed
                     try(across(contains(c("time_gmt")),
                            list(time_gmt = ~ hms::as_hms(
                                format(.x, format = "%H:%M:%S",
                                         tz = "utc")
                            )),
                            .names = "{.fn}"), silent = T),
+                    
+                    # convert time_gmt to date_time if possible with date and time_gmt columns
                     try(across(contains(c("time_gmt")),
                            list(date_time = ~ ymd_hms(paste(date, .x),tz = "utc")),
 
                            .names = "{.fn}"), silent = T),
                     .after = 4
                 ) %>%
+                
+                # add cruise ID column to beginning of metadata
                 mutate(
                     cruise_id = as.character(cruise_id$Cruise),
                     .before = everything()
                 )
-
+            
+           
+            # ---
+            # convert lat_in and/or lon_in from deg minutes to decimal degrees if is characters
             if (is.character(temp$lat_in) | is.character(temp$lon_in)) {
+                message("Converting lat and lon into decimal degrees for \n")
+                print(basename(files[i]))
                 temp %<>%
-                    separate(lat_in, into = c("latdeg", "latmin"), " ") %>%
-                    separate(lon_in, into = c("londeg", "lonmin"), " ") %>%
-                    mutate(
-                        across(latdeg:lonmin, as.numeric),
-                        lat_in = latdeg + (latmin / 60),
-                        lon_in = -(londeg + (lonmin / 60)),
-                        .before = latdeg
-                    ) %>%
-                    select(-(latdeg:lonmin))
+                    add_column(
+                        with(.,
+                            parzer::parse_lon_lat(lon_in, lat_in))) %>%
+                    select(-lon_in, -lat_in) %>%
+                    rename(lon_in = lon, lat_in = lat)
+               
             }
 
             temp <- tryCatch({
                 hablar::retype(temp,-time_gmt)
             }, error = function(e) {
                 # message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
-                message("Doesn't a time_gmt column. Returning as is.")
+                message("Doesn't have a time_gmt column. Returning as is.")
                 temp
             })
 
@@ -170,9 +308,9 @@ for (i in seq(files)) {
 }
 
 
-rm(i, j, skips, temp_sht, cruise_id)
-rm(list = names(which(sapply(
-    globalenv(), is.null)))) # or .GlobalEnv
+# rm(i, j, skips, temp_sht, cruise_id)
+# rm(list = names(which(sapply(
+#     globalenv(), is.null)))) # or .GlobalEnv
 ```
 
 
