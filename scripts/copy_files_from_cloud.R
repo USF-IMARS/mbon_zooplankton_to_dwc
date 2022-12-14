@@ -74,6 +74,8 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     cloud         <- .cloud_dir  %>%
         fs::dir_ls(., type = "directory")
     
+    cloud <- cloud[!str_detect(cloud, "cruise")]
+    
     # ---- location for local directory ----
     if (is.null(new_dir)) {
         new_dir <- here::here("data","raw")
