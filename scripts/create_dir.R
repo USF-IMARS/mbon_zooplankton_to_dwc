@@ -32,7 +32,8 @@ subDir_deflt <- c(
 
 cust_dir <- c(
     "data/processed/ind_file_merg",
-    "data/metadata/aphia_id"
+    "data/metadata/aphia_id",
+    "data/metadata/cruise_logsheets"
 )
 
 subDir <- here::here(c(subDir_deflt, cust_dir))
