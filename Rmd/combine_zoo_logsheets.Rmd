@@ -26,12 +26,8 @@ librarian::shelf(
 2. Remove files that would not contain zooplankton metadata
 3. Loop through each file and look for sheet with `zooplankton` in the name 
 ```{r}
-# files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
-#            regexp = "^[^~]*\\.(xlsx)$") 
-# files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
-
 # select all cruise files
-files <- 
+meta <- 
     fs::dir_ls(here::here("data", "metadata"), recurse = T,
                regexp = "^[^~]*\\.(xlsx)$")  %>%
     tibble(file = .) %>%
@@ -46,20 +42,19 @@ files <-
         base = basename(file)
     )
 
-# read all files for sheet names
-temp <- files %>%
-    mutate(  sheets = map(.x = file, ~ readxl::excel_sheets(.x))
-    ) %>%
+# read all files for sheet names that match zooplankton
+temp <- meta %>%
+    mutate(sheets = map(.x = file, ~ readxl::excel_sheets(.x))) %>%
     unnest(sheets) %>%
     group_by(base) %>%
     
-    # fitler for sheets with zooplankton
-    filter(str_detect(sheets, "zooplankton")) %>%
+    # filter for sheets with zooplankton
+    filter(str_detect(sheets, "zooplankton|Sheet2")) %>%
     ungroup() %>%
     select(-file)
 
 # join filenames with sheet names, any NAs will be figured out later
-files <- left_join(files, temp, by = "base") %>% 
+meta <- left_join(meta, temp, by = "base") %>% 
     filter(!is.na(sheets)) %>%
     mutate(
         cruise_id = map2(.x = file, .y = sheets, function(.x, .y) {
@@ -116,21 +111,117 @@ files <- left_join(files, temp, by = "base") %>%
     })
         
     ) %>%
- unnest(cruise_id, skips)
-
-
+    unnest(c(cruise_id, skips)) 
 ```
 ```{r}
-temp %>%
-    add_column(
-with(.,
-    parzer::parse_lon_lat(lon_in, lat_in))) %>%
-    select(-lon_in, -lat_in)
+meta <- meta %>%
+    # slice(n = 1) %>%
+    mutate(
+        data = pmap(
+            .l = list(.x = file, .y = skips, .z = sheets, .c = cruise_id), 
+            function(.x, .y, .z, .c) {
+                cli_alert_info(.c)
+                temp <- readxl::read_xlsx(
+                        .x,
+                        sheet = .z,
+                        skip = .y,
+                        .name_repair = janitor::make_clean_names,
+                        na = c("skip", "Did not collect", "not recorded")
+                    ) %>%
+                
+                    # remove rows that are fully empty
+                    janitor::remove_empty(which = "rows") %>%
+                    
+                    # fill station names down if not there
+                    tidyr::fill(station) %>%
+                    
+                    # drop rows when flowmeter_out = NA
+                    drop_na(flowmeter_out) %>%
+                    
+                    # fill down if lat, lon, date, or time is not there
+                    tidyr::fill(contains(c("lat", "lon", "date", "time"))) %>%
+                
+                
+                mutate(
+                    # convert time if labeled as time_gmt if needed
+                    try(across(contains(c("time_gmt")),
+                           list(time_gmt = ~ hms::as_hms(
+                               format(.x, format = "%H:%M:%S",
+                                        tz = "utc")
+                           )),
+                           .names = "{.fn}"), silent = T),
+                    
+                    # convert time_gmt to date_time if possible with date and time_gmt columns
+                    try(across(contains(c("time_gmt")),
+                           list(date_time = ~ ymd_hms(paste(date, .x),tz = "utc")),
 
+                           .names = "{.fn}"), silent = T),
+                    .after = 4
+                ) 
+            # convert lat_in and/or lon_in from deg minutes to decimal degrees 
+            # if type is str
+            if (is.character(temp$lat_in) | is.character(temp$lon_in)) {
+                message("Converting lat and lon into decimal degrees.\n")
+                temp %<>%
+                    add_column(
+                        with(.,
+                            parzer::parse_lon_lat(lon_in, lat_in)), 
+                        .after = "lon_in"
+                        ) %>%
+                    select(-lon_in, -lat_in) %>%
+                    rename(lon_in = lon, lat_in = lat)
+
+            }
+                
+            if (!is.null(temp)) temp <- rename(temp, any_of(c(notes = "x")))
+                
+            temp <- tryCatch({
+                
+                temp <- hablar::retype(temp,-time_gmt)
+            }, error = function(e) {
+                message("Doesn't have a time_gmt column. Returning as is.\n")
+                temp
+            })
+            
+             temp <- tryCatch({
+                
+                temp <- hablar::convert(temp,chr(ship_speed_knots, split_size,
+                                                 station, mesh_size_um))
+            }, error = function(e) {
+                message("Doesn't have a ship_speed_knots column. Returning as is.\n")
+                temp
+            })
+        }
+            )
+    )  %>%
+    
+    # filter for sheets without any information
+    mutate(data_exists = map(.x = data , ~ if_else(nrow(.x) > 0, 1, 0))  %>%
+    unlist()) 
+
+no_data <- meta %>%
+    filter(data_exists == 0)
+
+meta <- meta %>%
+    filter(data_exists > 0) %>%
+    select(-data_exists) %>%
+    unnest(data) %>%
+    select(-file, -sheets, -skips, -local_time_est, file = base) %>%
+    separate_rows(mesh_size_um, sep = "/") %>%
+    mutate(
+        mesh_size_um = str_trim(mesh_size_um), 
+        mesh_size_um = retype(mesh_size_um),
+        # file = str_remove(file,pattern = "\\.\\d{1,3}$")
+        # mesh_size_um = strsplit(as.character(mesh_size_um), "/")
+        ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
+        file = tools::file_path_sans_ext(file)
+    ) %>%
+      arrange(date)
 ```
 
+
 ```{r}
-test <- tibble(Cruise = "", skips = NA_integer_)
+# test <- tibble(Cruise = "", skips = NA_integer_)
 files <- fs::dir_ls(here::here("data", "metadata"), recurse = T,
            regexp = "^[^~]*\\.(xlsx)$")
 files <- files[!grepl("BB3|Digna|Schedule|Kelble", files)][-1]
@@ -206,7 +297,8 @@ for (i in seq(files)) {
             }, finally = {
                  
             })
-        if (identical(skips, integer()) ) skips <- NA_integer_
+        
+        if (identical(skips, integer()) ) skips <- NULL
 
         # cruise_id %>%
         # pull(Cruise) %>%
@@ -219,7 +311,7 @@ for (i in seq(files)) {
         
         # read file with skips and cruise ID
         if (!is_empty(skips)) {
-            # ---
+            # --- done
             temp <-
                 # read file based on file[i], temp_sht[j], and skips
                 readxl::read_xlsx(
@@ -267,7 +359,7 @@ for (i in seq(files)) {
                 )
             
            
-            # ---
+            # --- done
             # convert lat_in and/or lon_in from deg minutes to decimal degrees if is characters
             if (is.character(temp$lat_in) | is.character(temp$lon_in)) {
                 message("Converting lat and lon into decimal degrees for \n")
@@ -275,31 +367,37 @@ for (i in seq(files)) {
                 temp %<>%
                     add_column(
                         with(.,
-                            parzer::parse_lon_lat(lon_in, lat_in))) %>%
+                            parzer::parse_lon_lat(lon_in, lat_in)),
+                        .after = "lon_in") %>%
                     select(-lon_in, -lat_in) %>%
                     rename(lon_in = lon, lat_in = lat)
                
             }
-
+            
+            # --- done
             temp <- tryCatch({
                 hablar::retype(temp,-time_gmt)
             }, error = function(e) {
-                # message(sprintf("Error in %s: %s", deparse(e[["call"]]), e[["message"]]))
                 message("Doesn't have a time_gmt column. Returning as is.")
                 temp
             })
 
-            
+            # --- next
             if (nrow(temp) == 0) temp <- NULL
             
+            if (!is.null(temp)) temp <- rename(temp, any_of(c(notes = "x")))
+            
+            # --- next
             do.call("<-", list(tools::file_path_sans_ext(basename(files[i])), temp))
             message("SUCESSS")
             next
         } else {
+            # --- next
             message(paste0(
                 "Might not be this sheet:\n",
+                # return filename without extension
                 tools::file_path_sans_ext(basename(files[i])),
-                ":  ",
+                ": ",
                 temp_sht[j]
             ))
         }
@@ -308,9 +406,9 @@ for (i in seq(files)) {
 }
 
 
-# rm(i, j, skips, temp_sht, cruise_id)
-# rm(list = names(which(sapply(
-#     globalenv(), is.null)))) # or .GlobalEnv
+rm(i, j, skips, temp_sht, cruise_id)
+rm(list = names(which(sapply(
+    globalenv(), is.null)))) # or .GlobalEnv
 ```
 
 
@@ -327,6 +425,7 @@ janitor::compare_df_cols(meta_full,
 # test1 <- 
      # reduce(test[c(1:6,8:12)], full_join )
 
+# convert time to NA om the form of POSIXct and rename
 meta_full$`fknms_logsheet_July 2016_Hepner` <- meta_full$`fknms_logsheet_July 2016_Hepner` %>%
     mutate(date_time = NA_POSIXct_, .after = local_time_est) %>%
     rename(time_gmt = local_time_est)
@@ -356,7 +455,7 @@ rm(list = meta_list)
 ```{r save}
 # ---- write metadata to file ----
 if (FALSE) {
-    write_csv(meta_df,
+    write_csv(meta,
                   here::here("data", "metadata", 
                                  glue("meta_combined", 
                                       format(Sys.time(), '_%Y%m%d_%H%M%S'),
@@ -366,4 +465,9 @@ if (FALSE) {
 }
 ```
 
+
+```{r}
+meta
+meta_df
+```
 
