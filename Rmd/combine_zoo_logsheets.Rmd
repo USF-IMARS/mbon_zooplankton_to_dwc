@@ -223,7 +223,7 @@ meta <- meta %>%
 # Save merged metadata
 ```{r save}
 # ---- write metadata to file ----
-if (TRUE) {
+if (FALSE) {
     write_csv(meta,
               here::here("data", "metadata", "cruise_loghseets", 
                          glue("meta_combined", 
