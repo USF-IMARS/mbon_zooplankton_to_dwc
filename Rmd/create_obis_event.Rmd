@@ -141,7 +141,7 @@ aphia_id <-
 
 # ---- load metadata ----
 meta_df <-
-    fs::dir_ls(path = here::here("data", "metadata"),
+    fs::dir_ls(path = here::here("data", "metadata", "cruise_logsheets"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
