@@ -39,15 +39,17 @@ cust_dir <- c(
 subDir <- here::here(c(subDir_deflt, cust_dir))
 subDir <- subDir[which(!fs::dir_exists(subDir))]
 
+show   <- FALSE
 if (!length(subDir) == 0) {
     cli::cli_alert_info("Creating {length(subDir)} director{?y/ies}.")
     cli::cli_ul(subDir, .close = T)
-    showTree(showtree = TRUE)
+    show <- TRUE
     } else {
         cli::cli_alert_info("No new directories created.")
         }
 
 fs::dir_create(path = subDir)
+if (show) showTree(showtree = TRUE)
 rm(subDir_deflt, cust_dir, subDir)
 
 

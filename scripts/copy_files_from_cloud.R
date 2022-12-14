@@ -131,7 +131,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
         # ---- copy files  ----
         if (!rlang::is_empty(new_files) & auto) {
             
-            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            copy_file(new_dir, new_files, mesh_txt, info_txt, cloud[i])
             
         } else if (!rlang::is_empty(new_files) & ask) {
             
@@ -148,7 +148,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
             }
         
         if (copy == 1) {
-            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            copy_file(new_dir, new_files, mesh_txt, info_txt, cloud[i])
             
         } else {
             cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
@@ -166,11 +166,11 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     }
 }
 
-copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
+copy_file <- function(new_dir, new_files, mesh_txt, info_txt, base_dir) {
     cli_alert_info(
         c("{.strong {col_yellow('Copying')}}: ",
           "({.file {new_dir}} for ", mesh_txt, ")"))
     cli_ul(basename(new_files))
-
-    fs::file_copy(new_files, here(new_dir, basename(cloud[i])))
+    
+    fs::file_copy(new_files, here(new_dir, basename(base_dir)))
 }
