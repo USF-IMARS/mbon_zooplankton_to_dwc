@@ -225,7 +225,7 @@ meta <- meta %>%
 # ---- write metadata to file ----
 if (FALSE) {
     write_csv(meta,
-              here::here("data", "metadata", "cruise_loghseets", 
+              here::here("data", "metadata", "cruise_logsheets", 
                          glue("meta_combined", 
                               format(Sys.time(), '_%Y%m%d_%H%M%S'),
                               ".csv")
