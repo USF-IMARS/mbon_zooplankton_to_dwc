@@ -29,14 +29,14 @@ library("magrittr")
 library("broom") # optional
 
 library("tidyverse")
-# library("ggforce")
-# library("geosphere")
-# library("vroom")
-# library("plotly")
+library("ggforce")
+library("geosphere")
+library("vroom")
+library("plotly")
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
-# startup("log_edits2")
+# startup("log_edits")
 # log_add()
 
 # ---- recorded by info ----
@@ -59,7 +59,8 @@ rm(which_one)
 ```
 
 
-# Load functions if not in .Rprofile and already attached to the searchpath
+# Load functions if not already
+This will load the functions needed if not already contain in the search path.
 ```{r load-functions}
 if (!rlang::is_attached('my_funcs')) { 
     cli_alert_info(
@@ -140,7 +141,7 @@ aphia_id <-
 
 # ---- load metadata ----
 meta_df <-
-    fs::dir_ls(path = here::here("data", "metadata"),
+    fs::dir_ls(path = here::here("data", "metadata", "cruise_logsheets"),
                regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
@@ -174,9 +175,7 @@ meta_df <-
 taxa_files <-
     fs::dir_ls(path = here::here("data", "processed"),
                regexp = "all_merged_processed") %>%
-    
-    # use all files or only most recent
-    last_mod(., check = TRUE) %>%
+    last_mod(.) %>%
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
     mutate(
         # fix some cruise ID from data spreadsheets
