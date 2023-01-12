@@ -312,6 +312,7 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
         return(taxa_matched)
     }
     
+    # TODO: see why doesn't work currently
     taxa_ntmtch <-
         taxa_matched  %>%
         distinct(taxa_orig, .keep_all = TRUE) %>%

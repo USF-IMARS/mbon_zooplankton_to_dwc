@@ -72,7 +72,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     
     # ---- list all sub-directories in main cloud directory ----
     cloud         <- .cloud_dir  %>%
-        fs::dir_ls(., type = "directory")
+        fs::dir_ls(., type = "directory", regexp = "samples")
     
     cloud <- cloud[!str_detect(cloud, "cruise")]
     
