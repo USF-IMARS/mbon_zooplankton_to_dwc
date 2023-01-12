@@ -11,11 +11,14 @@ if (!require("librarian")) {
     install.packages("librarian")
 }
 
-librarian::shelf(bdchecks, broom, data.table, dplyr, forcats, fs, geosphere, 
-                 ggforce, ggplot2, glue, hablar, here, hms, httr, janitor, 
-                 jsonlite, knitr, lubridate, magrittr, obistools, 
-                 plotly, purrr, readr, readxl, renv, rmarkdown, stringr, tibble, 
-                 tidyr, tidyverse, tools, vroom, worrms)
+librarian::shelf(
+#    bdchecks,  # prereq on ubuntu: `sudo apt install -y libjq-dev`
+    broom, data.table, dplyr, forcats, fs, geosphere, 
+    ggforce, ggplot2, glue, hablar, here, hms, httr, janitor, 
+    jsonlite, knitr, lubridate, magrittr, 
+    iobis/obistools,
+    plotly, purrr, readr, readxl, renv, rmarkdown, stringr, tibble, 
+    tidyr, tidyverse, tools, vroom, worrms)
 
 # library("here")
 # library("cli")
