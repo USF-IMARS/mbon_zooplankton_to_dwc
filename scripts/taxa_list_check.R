@@ -41,8 +41,9 @@ load_data <- function(file.taxa) {
     # find the number of skips to start of taxa information
     skips <-  which(readxl::read_xlsx(file.taxa, 
                                       range = cellranger::cell_cols("A"), 
-                                      col_names = FALSE ) == "Taxa",
-                                      .name_repair = "unique_quiet") - 1
+                                      col_names = FALSE,
+                                      .name_repair = "unique_quiet") == "Taxa"
+                                      ) - 1
     
     # extract values for calculating individuals per cubic meter
     calc <-
