@@ -7,10 +7,10 @@
 # This is the basis for the creation the MoF file to be used
 #
 # ---- INPUTS: -----------
-# NA =  
+# NA  
 #
 # ---- OUTPUTS: ----------
-# Save File = 
+# MoF1 = Tibble of Measurments or Facts
 #
 # ---- NOTES: ------------
 #
@@ -20,10 +20,28 @@
 # Sebastian Di Geronimo (2023-01-12 17:03:19)
 # 
 
+library("here")
+library("fs")
+library("cli")
+library("readr")
+
+    
+mof_file <- fs::dir_ls(here(), 
+                       regexp = "mof_sheet", 
+                       recurse = TRUE) 
+
 # ============================================================================ #
 # ---- Create table ----
-# ============================================================================ #    
-MoF1 <-
+# ============================================================================ #   
+if (identical(as.character(mof_file), character())) {
+    
+    mof_path <- here("data", "metadata", "mof")
+    cli_alert_info("An MoF base file doesn't exist.")
+    cli_inform("One will be created in {.file {mof_path}}")
+    
+    fs::dir_create(mof_path)
+    
+    MoF1 <-
     tibble::tribble(
         ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
         "Net_Type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
@@ -53,18 +71,24 @@ MoF1 <-
         "mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",                NA,         "Micrometres",    "P06/current/UMIC/",              NA,
         "microscopy",           "microscopy",    "S04/current/S0419/",                NA,                    NA,                     NA,              NA
     )  
+    # ======================================================================== #
+    # ---- Save Table ----
+    # ======================================================================== #    
+    
+    # file name
+    file_mof <- glue::glue("{here(mof_path,'mof_sheet')}",
+               "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
+               ".csv")
+    
+    readr::write_csv(MoF1, 
+                     file_mof)
+    
+    
 
-# ============================================================================ #
-# ---- Save Table ----
-# ============================================================================ #    
-
-file_mof <- glue::glue("{here::here('data', 'metadata', 'mof','mof')}",
-           "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
-           ".csv")
-
-fs::dir_create(here::here('data', 'metadata', 'mof'))
-readr::write_csv(MoF1, 
-                 file_mof)
+} else {
+    cli_inform("Loading MoF table: {.file {mof_file}}")
+    MoF1 <- readr::read_csv(mof_file, show_col_types = FALSE)
+}
 
 
 
