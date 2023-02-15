@@ -19,18 +19,9 @@ lifestage <-
     paste0("copepodite|nauplii|larvae|larva|juvenile|",
            "eggs|egg|zoea|protozoea|cypris|megalopa")  
 
-# ---- functions ----
-# returns most recent modified file path
-last_mod <-  function(fpath, check = TRUE) {
-    
-    if (!check) return(fpath)
-    
-    ftime <- file.mtime(fpath)           
-    return(fpath[which.max(ftime)]) 
-}
-
 # load function to get taxa names from WoRMS
 source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
+source(here::here("scripts", "misc_functions.R"), local = my_funcs)
 
 # ---- 1. Load data -----------------------------------------------------------
 # works only for raw abundance data for this project
