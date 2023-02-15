@@ -72,10 +72,11 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     
     # ---- list all sub-directories in main cloud directory ----
     cloud         <- .cloud_dir  %>%
-        fs::dir_ls(., type = "directory", regexp = "samples")
+        fs::dir_ls(., type = "directory")
     
-    cloud <- cloud[!str_detect(cloud, "cruise")]
     
+    test <- fs::dir_ls("C:/Users/spd19/Box/zoo_test", type = "directory")
+    cloud[!str_detect(test, "cruise")]
     # ---- location for local directory ----
     if (is.null(new_dir)) {
         new_dir <- here::here("data","raw")
@@ -131,7 +132,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
         # ---- copy files  ----
         if (!rlang::is_empty(new_files) & auto) {
             
-            copy_file(new_dir, new_files, mesh_txt, info_txt, cloud[i])
+            copy_file(new_dir, new_files, mesh_txt, info_txt)
             
         } else if (!rlang::is_empty(new_files) & ask) {
             
@@ -148,7 +149,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
             }
         
         if (copy == 1) {
-            copy_file(new_dir, new_files, mesh_txt, info_txt, cloud[i])
+            copy_file(new_dir, new_files, mesh_txt, info_txt)
             
         } else {
             cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
@@ -166,11 +167,11 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     }
 }
 
-copy_file <- function(new_dir, new_files, mesh_txt, info_txt, base_dir) {
+copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
     cli_alert_info(
         c("{.strong {col_yellow('Copying')}}: ",
           "({.file {new_dir}} for ", mesh_txt, ")"))
     cli_ul(basename(new_files))
-    
-    fs::file_copy(new_files, here(new_dir, basename(base_dir)))
+
+    fs::file_copy(new_files, here(new_dir, basename(cloud[i])))
 }
