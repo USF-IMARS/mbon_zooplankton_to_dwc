@@ -1,8 +1,8 @@
-# ============================================================================ #
-#                                                                              # 
-#               Create Measurment or Fact .csv for later                       #
-#                                                                              #    
-# ============================================================================ #
+##%######################################################%##
+#                                                          #
+####     Create Measurement or Fact .csv for later      ####
+#                                                          #
+##%######################################################%##
 # ---- DESCRIPTION: ------
 # This is the basis for the creation the MoF file to be used
 #
@@ -18,28 +18,42 @@
 #
 # ---- AUTHOR(s): --------
 # Sebastian Di Geronimo (2023-01-12 17:03:19)
-# 
 
-library("here")
-library("fs")
-library("cli")
-library("readr")
-
+#' Create Measurement or Fact .csv for later
+#'
+#' This is the basis for the creation the MoF file to be used
+#'
+#' @return MoF1 variable
+#' @examples
+#' # ADD_EXAMPLES_HERE
+mof_read <- function() {
     
-mof_file <- fs::dir_ls(here(), 
-                       regexp = "mof_sheet", 
-                       recurse = TRUE) 
+    library("here")
+    library("fs")
+    library("cli")
+    library("readr")
+
+if (!exists("last_mod")) {
+    source(here("scripts", "misc_functions.R"))
+}
+
+mof_file <- dir_ls(here(), 
+                   regexp = "mof_sheet", 
+                   recurse = TRUE) %>%
+            last_mod(.)
+
 
 # ============================================================================ #
 # ---- Create table ----
-# ============================================================================ #   
+# ============================================================================ # 
+# if file doesnt exists, will create a stock one based on previous information
 if (identical(as.character(mof_file), character())) {
     
     mof_path <- here("data", "metadata", "mof")
     cli_alert_info("An MoF base file doesn't exist.")
-    cli_inform("One will be created in {.file {mof_path}}")
+    cli_inform("One will be created in {.file {mof_path}} using info from Jan 2023")
     
-    fs::dir_create(mof_path)
+    dir_create(mof_path)
     
     MoF1 <-
     tibble::tribble(
@@ -90,5 +104,6 @@ if (identical(as.character(mof_file), character())) {
     MoF1 <- readr::read_csv(mof_file, show_col_types = FALSE)
 }
 
+}
 
-
+mof_read()
