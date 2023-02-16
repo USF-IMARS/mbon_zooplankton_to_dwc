@@ -28,6 +28,15 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     #' @examples
     #' # rprofile_setup(prof = here::here(), .choose = FALSE)
 
+    librarian::shelf(
+        librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+        forcats, lubridate, glue, fs, magrittr, here,
+        # broom # optional
+        
+        # additional
+        
+    )
+    
     
     # defaults
     pkgs  <- paste(
@@ -35,13 +44,16 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     "# base R",
     ".First.sys()\n",
     "# external packages",
-    "librarian::shelf(
+    'librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
     # broom, # optional
     
     quiet = TRUE
-    )",
+    )\n', 
+    'library("conflicted")\n',
+    'conflict_prefer("filter", "dplyr")',
+    'conflict_prefer("select", "dplyr")',
     sep = "\n")
     
     funcs <- paste(
