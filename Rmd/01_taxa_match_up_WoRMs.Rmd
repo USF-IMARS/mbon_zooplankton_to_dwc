@@ -9,10 +9,6 @@ This loads any packages that are not contained in the .Rprofile.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
-    # librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
-    # forcats, lubridate, glue, fs, magrittr, here,
-    # broom, # optional
-    
     readxl, hablar, worrms, ggforce, geosphere, vroom, plotly,
     
     quiet = TRUE
