@@ -11,7 +11,7 @@
 # to download, all, some or none.
 #
 # ---- INPUTS: -----------
-# .cloud_dir = location of cloud directory 
+# .cloud_dir = 
 # new_dir    = location of local directory 
 # .choose    = TRUE/FALSE to select cloud directory location on first attempt
 # ask        = TRUE/FAlSE to ask if want to download new files
@@ -29,9 +29,29 @@
 #
 # ---- AUTHOR(s): --------
 # Sebastian Di Geronimo (2022-12-12 18:58:34)
-copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
-                           .choose = FALSE, ask = FALSE, auto = FALSE) {
-    
+
+
+copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
+                             ask = FALSE, auto = FALSE) {
+    #' Copy file from Cloud Directory
+    #'
+    #' The first time this function is run, it will ask were is the cloud directory 
+    #' located on your computuer.
+    #'
+    #' @param .cloud_dir Path to cloud directory.
+    #' @param new_dir Path to local directory .
+    #' @param ask TRUE/FALSE to ask if want to download new files \cr
+    #'              Yes: download all \cr
+    #'              No: skip download \cr
+    #'              Some: select which files to download  
+    #' @param auto automatically download all new files
+    #'
+    #' @author Sebastian Di Geronimo (2022-12-12 18:58:34)
+    #' 
+    #' @return Copying files from cloud directory to local directory.
+    #' @examples
+    #' # copy_files_cloud(cloud_dir, new_dir = here(), ask = TRUE)
+
     # ---- load libraries ----
     library("fs")
     library("magrittr")
@@ -43,33 +63,32 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
     ignore_files = paste("blank", sep = "|")
 
     # ---- check if cloud_dir var exist in .Rprofile ----
-    if (!exists("cloud_dir")) {
-        cli_alert_info(c(
-            "You need to setup {.file .Rprofile} ",
-            "with the location of cloud directory in your computer.\n",
-            "Use the format: ",
-            "{.code {col_yellow('cloud_dir = \" \"')}}.",
-            "\n(i.e. {.code {col_yellow('cloud_dir = \"C:/<my-directory>\"')}})",
-            "\n\nThen save and restart R.\n"
+    if (is.null(.cloud_dir)) {
+        cli_alert_danger(c(
+            "{.var .cloud_dir} is `NULL`",
+            "\nYou may need to set up {.file .Rprofile} ",
+            "with the location of cloud directory.\n\n",
+            "Run the function {.file rprofile_setup()} to help with this. ", 
+            "Then save and restart R.\n\n",
+            "Instead you may supply it as an argument using the format: ",
+            "{ {col_yellow('\"<drive>:",
+            "/<my-directory>/\"')}}\n\n"
         ))
+        return(invisible(""))
+    }
+    if (grepl("EDIT", .cloud_dir)) {
+        cli_alert_danger(c(
+            "{.var .cloud_dir} contains `EDIT HERE`. You may have forgotten to",
+            " fix this.\n",
+            "Please edit this in the `.Rprofile` or\n\n", 
+            "Run `rprofile_setup(.choose = TRUE)` to add or\n\n",
+            "You may supply it as an argument using the format: ",
+            "{ {col_yellow('\"<drive>:",
+            "/<my-directory>/\"')}}\n\n"
+        ))
+        return(invisible(""))
+    }
         
-        old <- readLines(here(".Rprofile"))
-        
-        if (.choose) {
-            new_dir <- rstudioapi::selectDirectory()
-            new_dir <- glue("cloud_dir = \"{new_dir}\"")
-            cli::cli_text(new_dir)
-            cat(c(new_dir, "", old), sep = "\n", file = here(".Rprofile"))
-            
-        } else {
-            usethis::edit_r_profile(scope = "project")
-            cat(c("cloud_dir = \"EDIT HERE\"\n", old), sep = "\n", file = here(".Rprofile"))
-        }
-        
-        return()
-        
-        }
-    
     # ---- list all sub-directories in main cloud directory ----
     cloud         <- .cloud_dir  %>%
         fs::dir_ls(., type = "directory")
@@ -166,6 +185,7 @@ copy_files_cloud <- function(.cloud_dir = cloud_dir, new_dir = NULL,
         }
     }
 }
+
 
 copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
     cli_alert_info(
