@@ -25,9 +25,9 @@ source(here::here("scripts", "misc_functions.R"), local = my_funcs)
 
 # ---- 1. Load data -----------------------------------------------------------
 # works only for raw abundance data for this project
-load_data <- function(file.taxa) {
+load_data <- function(file.taxa, verbose = TRUE) {
 
-    cli::cli_alert_info(basename(file.taxa))
+    if (verbose) cli::cli_alert_info(basename(file.taxa))
     
     # find the number of skips to start of taxa information
     skips <-  which(readxl::read_xlsx(file.taxa, 
@@ -62,12 +62,8 @@ load_data <- function(file.taxa) {
         readxl::read_xlsx(file.taxa,  
                           skip = skips, 
                           .name_repair = janitor::make_clean_names) %>%
-        mutate(
-            cruise_id = calc$sample_id,
-            .before = everything()
-        ) %>%
-        full_join(x = calc, by = c("sample_id" = "cruise_id")) %>%
-        select(cruise_id = sample_id, everything()) %>%
+        bind_cols(calc, .) %>%
+        select("cruise_id" = sample_id, everything()) %>%
         filter(mean > 0) %>%
         mutate(
             site = as.character(site),
@@ -76,12 +72,15 @@ load_data <- function(file.taxa) {
         )
     
     return(taxa)
+    # ---- end of function ----
 }
 
 # ---- 2. Merge taxa with taxa list ----------------------------------------------
-merge_taxa <- function(dat, file_base = "aphia_taxa", 
-                       .file_expr = file_expr, 
-                       regex_lifestage = lifestage, check = FALSE) {
+merge_taxa <- function(dat, 
+                       file_base       = "aphia_taxa", 
+                       .file_expr      = file_expr, 
+                       regex_lifestage = lifestage, 
+                       check           = FALSE) {
     
     if (!check) cli::cli_alert_warning(
         c("Will {col_red('NOT')} be checking for {.emph NAs} in ",
@@ -99,11 +98,13 @@ merge_taxa <- function(dat, file_base = "aphia_taxa",
         "Loading previous file of aphiaIDs or creating new one\n")
     Sys.sleep(1)
     
-    taxa_aphia <- taxa_list_check(taxa_list = taxa_list, 
-                                  regex_lifestage = regex_lifestage,
-                                  file_base = file_base,
-                                  .file_expr = .file_expr,
-                                  check = FALSE)
+    # * function call: taxa_list_check ----
+    taxa_aphia <- 
+        taxa_list_check(taxa_list       = taxa_list,
+                        regex_lifestage = regex_lifestage,
+                        file_base       = file_base,
+                        .file_expr      = .file_expr,          
+                        check           = FALSE)
     
     # ---- merge data with taxa ----
     Sys.sleep(1)
@@ -116,10 +117,13 @@ merge_taxa <- function(dat, file_base = "aphia_taxa",
         distinct(taxa_orig, .keep_all = TRUE)
     
     taxa_matched_merg <-
+        # * function call: taxa_unmatch ----
         taxa_unmatch(taxa_matched_merg, regex_lifestage = regex_lifestage,
                  .file_expr = .file_expr, 
                  file_base = file_base, check = check) %>%
         right_join(., dat, by = c("taxa_orig" = "taxa"))
+    
+    # ---- end of function ----
 }
 
 # ---- 3. Load taxa list ---------------------------------------------------------
@@ -148,6 +152,8 @@ load_taxa_list <- function(.file_expr = file_expr,
                  check = check)
     
     return(taxa_matched)
+    
+    # ---- end of function ----
 }
 
 
@@ -285,6 +291,8 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
     }
     
     return(taxa_matched)
+    
+    # ---- end of function ----
 }
 
 # ---- 5. Find unmatched taxa and fix -----------------------------------------
@@ -373,6 +381,8 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
     }
     
     return(taxa_matched)
+    
+    # ---- end of function ----
 }
 
 # ---- 6. Save merged data ----------------------------------------------------
@@ -418,16 +428,38 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
     Sys.sleep(1)
     
     if (!is.null(.taxa_file)) skip_file(.taxa_file, check = FALSE)
+    
+    # ---- end of function ----
 }
 
 # ---- 7. Save list of processed files ----------------------------------------
-skip_file <- function(file.taxa, check = TRUE) {
+skip_file <- function(file.taxa, file_name = "processed_files", check = TRUE) {
+    #' Skip Files
+    #'
+    #' This function will skip files that have already been processed using a 
+    #' file with the suffix set in `file_suf`.
+    #'
+    #' @param file.taxa List of files currently in local directory to be 
+    #' processed.
+    #' 
+    #' @param file_name The file containing the processed data file paths.
+    #' @param check
+    #' 
+    #' TRUE = check list and remove old files from processesing \cr
+    #' FALSE = use entire list of files
+    #'
+    #' @return List of files to be processed.
+    #' @examples
+    #' # ADD_EXAMPLES_HERE
+    #' 
     
     # load file most recent taxa with aphiaID 
     files_lists <-  
-        fs::dir_ls(path =  here::here("data", "metadata"),
-                   regexp = "processed_files.*\\.csv$")
+        fs::dir_ls(path    =  here::here(),
+                   regexp  = glue("{file_name}.*\\.csv$"),
+                   recurse = TRUE)
     
+    # check list of files to remove from search
     if (check) {
         files_lists <- files_lists %>%
             {if (!is_empty(.))
@@ -437,14 +469,15 @@ skip_file <- function(file.taxa, check = TRUE) {
         
         file.taxa <-  file.taxa[!(file.taxa %in% files_lists)]
         
+        
         assertthat::assert_that(
             assertthat::not_empty(file.taxa),
-            msg = cli::cli_alert_danger("No files need processing!"))
+            msg = "No files need processing!")
         
         return(file.taxa)
     }
     
-    file.name <- here::here("data", "metadata", "processed_files.csv")
+    file.name <- here::here("data", "metadata", glue("{file_name}.csv"))
     
     # ---- initialize file list ----
     if (is_empty(files_lists)) {
@@ -464,11 +497,16 @@ skip_file <- function(file.taxa, check = TRUE) {
         files_lists %>%
             read_csv(., show_col_types = FALSE) %>%
             bind_rows(tibble(files = file.taxa, time = Sys.time())) %>%
+            distinct(files, .keep_all = TRUE) %>%
             write_csv(
                 file.name
             )
     }
-}
+    
+    return(tibble(files = file.taxa))
+
+    # ---- end of function ----
+    }
 
 # ---- 8. Push/Pull Master List to Cloud/Local---------------------------------
 master_taxa_cloud <- function(taxa_list = NULL, 
