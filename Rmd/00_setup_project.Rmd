@@ -11,10 +11,13 @@ if (!require("librarian")) {
     install.packages("librarian")
 }
 
+if (!require("conflicted")) {
+    install.packages("conflicted")
+}
+
 librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
-    broom, # optional
     
     # additional
     cli, rlang, data.table, geosphere, ggforce, hablar, hms, httr, janitor, jsonlite, 
