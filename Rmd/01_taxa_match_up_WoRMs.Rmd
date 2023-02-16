@@ -18,24 +18,9 @@ librarian::shelf(
 # Load functions if not already
 This will load the functions needed if not already contain in the search path.
 ```{r load-functions}
-if (!rlang::is_attached('my_funcs')) { 
-    cli_alert_info(
-        c("Attaching project functions to the {.code searchpath} as ",
-          "{.code my_funcs}."))
-    
-    # source scripts with functions in new environment
-    my_funcs <- new.env()
-    
-    # create directory structure if does not exists and create tree map
-    source(here::here("scripts","create_dir.R"), local = my_funcs)
-    # copy files from a cloud service
-    source(here::here("scripts", "copy_files_from_cloud.R"), local = my_funcs)
-    # loading check for taxa 
-    source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
-    
-    attach(my_funcs)
-    rm(my_funcs)
-}
+source(here("scripts", "attach_funcs.R"))
+func_attach()
+rm(func_attach)
 ```
 
 # Load Data Sets
@@ -47,18 +32,19 @@ if (!rlang::is_attached('my_funcs')) {
 ```{r load-taxa-data}
 # ---- find all file names and filter ----
 file.taxa <- 
-    fs::dir_ls(path =  here::here("data", "raw"),
-               regexp = "^[^~]*\\.xlsx$",
+    fs::dir_ls(path    =  here::here("data", "raw"),
+               regexp  = "^[^~]*\\.xlsx$",
                recurse = TRUE) %>%
-    skip_file(.)
+    skip_file(., check = FALSE)
 
 # ---- load all files into one tibble ----
 taxa_data <-
     file.taxa %>%
-    map_dfr(., ~ load_data(.x), .id = "Files") %>%
-    mutate(Files = basename(Files))
-taxa_data
-
+    mutate(
+    data = map(files, ~ load_data(.x, verbose = FALSE), .id = "files")
+    ) %>%
+    unnest(data)
+head(taxa_data)
 ```
 # Merge taxanomic list and save new data
 1. Loads previous master taxonomic data sheet
@@ -79,7 +65,8 @@ taxa_data
 ```{r}
 # TODO: read in all files, joining with scientific names, then add more if they 
 # don't exist
-taxa_matched_merg <- merge_taxa(taxa_data, check = TRUE) %>%
+taxa_matched_merg <- 
+    merge_taxa(taxa_data, check = TRUE) %>%
     relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
     arrange(date_collected, site, taxa)
 
