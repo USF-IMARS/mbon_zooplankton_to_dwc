@@ -23,10 +23,15 @@ lifestage <-
 source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
 source(here::here("scripts", "misc_functions.R"), local = my_funcs)
 
-# ---- 1. Load data -----------------------------------------------------------
+##%######################################################%##
+#                                                          #
+####               ---- 1. Load data ----               ####
+#                                                          #
+##%######################################################%##
+
 # works only for raw abundance data for this project
 load_data <- function(file.taxa, verbose = TRUE) {
-
+    
     if (verbose) cli::cli_alert_info(basename(file.taxa))
     
     # find the number of skips to start of taxa information
@@ -72,10 +77,14 @@ load_data <- function(file.taxa, verbose = TRUE) {
         )
     
     return(taxa)
-    # ---- end of function ----
+    # ---- end of function
 }
 
-# ---- 2. Merge taxa with taxa list ----------------------------------------------
+##%######################################################%##
+#                                                          #
+####      ---- 2. Merge taxa with taxa list -----       ####
+#                                                          #
+##%######################################################%##
 merge_taxa <- function(dat, 
                        file_base       = "aphia_taxa", 
                        .file_expr      = file_expr, 
@@ -93,7 +102,7 @@ merge_taxa <- function(dat,
         select(taxa) %>%
         distinct()
     
-    # ---- load previous creation of aphiaID list or create new one ----
+    # ---- load previous creation of aphiaID list or create new one
     cli::cli_alert_info(
         "Loading previous file of aphiaIDs or creating new one\n")
     Sys.sleep(1)
@@ -106,7 +115,7 @@ merge_taxa <- function(dat,
                         .file_expr      = .file_expr,          
                         check           = FALSE)
     
-    # ---- merge data with taxa ----
+    # ---- merge data with taxa
     Sys.sleep(1)
     cli::cli_alert_info("Moving to joining section")
     
@@ -116,74 +125,112 @@ merge_taxa <- function(dat,
         by = c("taxa_orig" = "taxa")) %>%
         distinct(taxa_orig, .keep_all = TRUE)
     
+    if (check) {
     taxa_matched_merg <-
         # * function call: taxa_unmatch ----
-        taxa_unmatch(taxa_matched_merg, regex_lifestage = regex_lifestage,
-                 .file_expr = .file_expr, 
-                 file_base = file_base, check = check) %>%
+        taxa_unmatch(taxa_matched_merg, 
+                     regex_lifestage = regex_lifestage,
+                     .file_expr      = .file_expr, 
+                     file_base       = file_base,
+                     save_file       = TRUE) %>%
         right_join(., dat, by = c("taxa_orig" = "taxa"))
+    }
     
-    # ---- end of function ----
+    return(taxa_matched_merg)
+    # ---- end of function
 }
 
-# ---- 3. Load taxa list ---------------------------------------------------------
-load_taxa_list <- function(.file_expr = file_expr,
-                           file_base = "aphia_taxa",
+
+##%######################################################%##
+#                                                          #
+####     ---- 3. Load Taxonomic List from File ----     ####
+#                                                          #
+##%######################################################%##
+load_taxa_list <- function(loc = here::here("data", "metadata", "aphia_id"),
+                           .file_expr      = file_expr,
+                           file_base       = "aphia_taxa",
                            regex_lifestage = lifestage,
-                           check = FALSE) {
-    
+                           check           = FALSE) {
+    #' Load Taxonomic List from File
+    #'
+    #' This function is used to load a taxa list if one has been created. 
+    #' Optionally, can check if previous taxa has not found a match.
+    #'
+    #' @param loc The location where the `aphia ID` file is located
+    #' @param .file_expr Used when checking file names, allows to save
+    #' @param file_base The file base to search for.
+    #' @param regex_lifestage any rege
+    #' @param check DESCRIPTION.
+    #'
+    #' @return Taxa sheet
+    #' @examples
+    #' # ADD_EXAMPLES_HERE
     # load file most recent taxa with aphiaID 
+    
+    # search for aphia_id
     taxa_file <-  
-        fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
+        fs::dir_ls(path   =  loc,
                    regexp = glue("{file_base}.*\\.csv$"))  %>%
         last_mod(.)
     
     assertthat::assert_that(assertthat::not_empty(taxa_file),
                             msg = glue("Taxa list file with '{file_base}'",
-                                       "does not exist",.sep = " "))
+                                       "does not exist", .sep = " "))
     taxa_matched <-  
         readr::read_csv(taxa_file, 
                         show_col_types = FALSE)
     
-    if (check) taxa_matched <- taxa_unmatch(taxa_matched = taxa_matched, 
-                 regex_lifestage = regex_lifestage,
-                 file_base = file_base, 
-                 .file_expr = .file_expr, 
-                 check = check)
+    if (check) {
+        taxa_matched <- 
+        # * function call: taxa_unmatch ----
+        taxa_unmatch(
+            taxa_matched    = taxa_matched,
+            regex_lifestage = regex_lifestage,
+            file_base       = file_base,
+            .file_expr      = .file_expr,
+            save_file       = TRUE)
+        }
     
     return(taxa_matched)
     
-    # ---- end of function ----
+    # ---- end of function
 }
 
-
-# ---- 4. Check taxa list ---------------------------------------------------------
-taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL, 
-                            file_base = NULL, .file_expr = NULL,
-                            check = FALSE) {
+##%######################################################%##
+#                                                          #
+####            ---- 4. Check taxa list ----            ####
+#                                                          #
+##%######################################################%##
+taxa_list_check <- function(loc = here::here("data", "metadata", "aphia_id"),
+                            taxa_list       = NULL, 
+                            regex_lifestage = NULL, 
+                            file_base       = NULL, 
+                            .file_expr      = NULL,
+                            check           = FALSE) {
 
     # load file most recent taxa with aphiaID 
     taxa_file <-  
-        fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
+        fs::dir_ls(path =  loc,
                    regexp = glue("{file_base}.*\\.csv$"))  %>%
         last_mod(.)
     
-    # ---- search cloud directory for master aphia ID list ----
+    # ---- search cloud directory for master aphia ID list
     # if no file exists, will look in root of cloud directory
     # copy it to data/metadata/aphia_id directory
     if (is_empty(taxa_file) & exists("cloud_dir")) {
         try(
+            # * function call: master_taxa_cloud ----
             master_taxa_cloud(.cloud_dir = cloud_dir, 
-                              where_to = "local"), 
+                              where_to   = "local"), 
             silent = TRUE)
         
         taxa_file <-  
-            fs::dir_ls(path =  here::here("data", "metadata", "aphia_id"),
+            fs::dir_ls(path   =  loc,
                        regexp = glue("{file_base}.*\\.csv$"))  %>%
             last_mod(.)
     }
     
-    # ---- initialize taxa file ----
+    # ---- initialize taxa file
     if (is_empty(taxa_file)) {
         cli::cli_alert_info("This is the creation of a taxanomic list!")
         
@@ -200,37 +247,14 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         taxa.name <-
             taxa_list  %>% 
             select(taxa_orig = taxa) %>%
-            mutate(
-                # remove extra info from taxa
-                taxa = str_remove(
-                    taxa_orig, 
-                    regex("sp{0,2}\\.|\\(unknown\\)|\\(.*\\)", 
-                        ignore_case = TRUE)
-                ),
-                
-                # life stage
-                lifeStage = str_extract_all(
-                    taxa,
-                    regex(regex_lifestage,
-                          ignore_case = TRUE),
-                    simplify = TRUE
-                ) %>% str_to_lower(),
-                
-                # cleaned taxa for OBIS search
-                taxa = str_remove(
-                    taxa,
-                    regex(regex_lifestage,
-                        ignore_case = TRUE)
-                )  %>%
-                    str_trim()
-            ) 
+            sep_life(.)
         
-        # ---- run taxa matching with WoRMS database ----
+        # ---- run taxa matching with WoRMS database
         taxa_matched <- 
             match_taxa_fix(taxa.name$taxa, fuzzy = TRUE, ask = TRUE)  %>%
             bind_cols(taxa.name, .)
 
-        # ---- save first WoRMS database search ----
+        # ---- save first WoRMS database search
         filename <- eval(.file_expr)
 
         cli::cli_alert_info(c("File created: {.file {basename(filename)}}\n",
@@ -240,7 +264,7 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         write_csv(taxa_matched, filename, na = "")
         
     } else {
-        # ---- read taxa file ----
+        # ---- read taxa file
         cli::cli_alert_info(
            c("Reading taxa list file: ",
              "{.file {basename(taxa_file)}}\n"))
@@ -260,9 +284,10 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         cli::cli_alert_warning("Duplicates in {.code orig_taxa} found!\n")
         Sys.sleep(1)
         
-        taxa_matched <- taxa_matched %>%
+        taxa_matched <- 
+            taxa_matched %>%
             arrange(taxa_orig, taxa) %>%
-        distinct(taxa_orig, .keep_all = TRUE)
+            distinct(taxa_orig, .keep_all = TRUE)
         
         filename <- eval(.file_expr)
         
@@ -273,18 +298,19 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
         write_csv(taxa_matched, filename, na = "")
     }
     
-    # ---- optional check NAs ----
+    # ---- optional check NAs
     if (check) {
-        # ---- fix non-matched taxa names ----
+        # ---- fix non-matched taxa names
         cli::cli_alert_info(c("Checking file if any NAs are present in ",
                             "{.code scientificName}.\n"))
         Sys.sleep(1)
         taxa_matched <- 
+            # * function call: taxa_unmatch
             taxa_unmatch(taxa_matched, 
                          regex_lifestage = regex_lifestage,
-                         file_base = file_base, 
-                         .file_expr = .file_expr,
-                         check = check) 
+                         file_base       = file_base, 
+                         .file_expr      = .file_expr,
+                         save_file       = TRUE) 
     } else {
         cli::cli_alert_info("Not checking for NAs in aphiaID list.\n")
         Sys.sleep(1)
@@ -292,56 +318,36 @@ taxa_list_check <- function(taxa_list = NULL, regex_lifestage = NULL,
     
     return(taxa_matched)
     
-    # ---- end of function ----
+    # ---- end of function
 }
 
-# ---- 5. Find unmatched taxa and fix -----------------------------------------
-taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
-                         file_base = NULL, 
-                         .file_expr = NULL, 
-                         check = FALSE) {
+##%######################################################%##
+#                                                          #
+####      ---- 5. Find unmatched taxa and fix ----      ####
+#                                                          #
+##%######################################################%##
+taxa_unmatch <- function(taxa_matched    = NULL, 
+                         regex_lifestage = NULL,
+                         file_base       = NULL, 
+                         .file_expr      = NULL,
+                         save_file       = FALSE) {
     
     assertthat::assert_that(
-    assertthat::not_empty(taxa_matched), 
-    msg = cli_abort(
-        "{.strong taxa_matched} is missing. Please supply a variable!\n")
+        assertthat::not_empty(taxa_matched), 
+        msg = cli_abort(
+            "{.strong taxa_matched} is missing. Please supply a variable!\n")
     )
     
-    if (!check) {
-        return(taxa_matched)
-    }
-    
-    # TODO: see why doesn't work currently
+    # TODO: see why doesn't work currently ?? seems to be working
     taxa_ntmtch <-
         taxa_matched  %>%
         distinct(taxa_orig, .keep_all = TRUE) %>%
         filter(is.na(scientificName)) %>%
         select(taxa_orig) %>%
-        mutate(
-            # remove extra info from taxa  
-            taxa      = str_remove(
-                taxa_orig, 
-                regex("sp{0,2}\\.|\\(unknown\\)|\\(.*\\)", 
-                      ignore_case = TRUE)
-            ),
-            
-            # life stage  
-            lifeStage = str_extract_all(
-                taxa,
-                regex(regex_lifestage,
-                      ignore_case = TRUE),
-                simplify = TRUE
-            ) %>% str_to_lower(),
-            
-            # cleaned taxa for OBIS search
-            taxa      = str_remove(
-                taxa,
-                regex(regex_lifestage,
-                      ignore_case = TRUE)
-            ) %>% str_trim()
-        )
+        sep_life(.)
+       
     
-    # ---- run taxa matching with WoRMS database ----
+    # ---- run taxa matching with WoRMS database
     if (assertthat::not_empty(taxa_ntmtch)) {
         
         taxa_matched <- tryCatch({
@@ -352,21 +358,24 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
             
             cli_alert("Re-running taxa search.\n")
             Sys.sleep(1)
+            
             taxa_matched <- 
-                match_taxa_fix(taxa_ntmtch$taxa, fuzzy = TRUE, ask = T) %>%
+                match_taxa_fix(taxa_ntmtch$taxa, fuzzy = TRUE, ask = TRUE) %>%
                 bind_cols(taxa_ntmtch, .) %>%
                 bind_rows(taxa_matched, .) %>%
                 arrange(taxa_orig, scientificName) %>%
                 distinct(taxa_orig, .keep_all = TRUE)
             
-            # ---- save WoRMS database search ----
-            filename <-  eval(.file_expr)
-    
-            cli::cli_alert_info(c("Writing new file: ",
-                                  "{.file {basename(filename)}}\n"))
-            Sys.sleep(1)
-            write_csv(taxa_matched, filename, na = "")
-   
+            if (save_file) {
+                # ---- save WoRMS database search
+                filename <-  eval(.file_expr)
+        
+                cli::cli_alert_info(c("Writing new file: ",
+                                      "{.file {basename(filename)}}\n"))
+                Sys.sleep(1)
+                write_csv(taxa_matched, filename, na = "")
+            }
+            
             return(taxa_matched)
             
             }, interrupt = function(e){
@@ -382,33 +391,38 @@ taxa_unmatch <- function(taxa_matched = NULL, regex_lifestage = NULL,
     
     return(taxa_matched)
     
-    # ---- end of function ----
+    # ---- end of function
 }
 
-# ---- 6. Save merged data ----------------------------------------------------
+##%######################################################%##
+#                                                          #
+####           ---- 6. Save merged data ----            ####
+#                                                          #
+##%######################################################%##
 save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
 
-    # ---- save processed taxa data ----
+    # ---- save processed taxa data
     file.name <-
-        glue(
-            "{here::here('data', 'processed')}/",
-            "all_merged_", 
-            "processed",
-            "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
-            ".csv"
-        ) %>%
-        str_remove_all("(\\\n\\\b)") 
+        here::here('data', 'processed', 
+                   glue(
+                       "all_merged_", 
+                       "processed",
+                       "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
+                       ".csv"
+                       )) #%>%
+        # str_remove_all("(\\\n\\\b)") 
+    
     dir <- here::here('data', 'processed', 'ind_file_merg')
     
     taxa_matched_merg %>% 
-        select(-Files) %>%
+        select(-files) %>%
         write_csv(file.name, na = "")
     
     taxa_matched_merg <- taxa_matched_merg %>%
         mutate(
-            Files =  glue(
+            files =  glue(
                 "{dir}/",
-                "{(taxa_matched_merg$Files)}_",
+                "{(taxa_matched_merg$files)}_",
                 "processed",
                 "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
                 ".csv"
@@ -417,9 +431,9 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
         .before = 1)
 
     taxa_matched_merg %>%
-        group_by(Files) %>%
+        group_by(files) %>%
         group_walk(
-            ~ write_csv(.x, .y$Files, na = "")
+            ~ write_csv(.x, .y$files, na = "")
         )
     
     cli::cli_alert_info("Saving merged files in {.file {dirname(file.name)}}")
@@ -429,10 +443,14 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL) {
     
     if (!is.null(.taxa_file)) skip_file(.taxa_file, check = FALSE)
     
-    # ---- end of function ----
+    # ---- end of function
 }
 
-# ---- 7. Save list of processed files ----------------------------------------
+##%######################################################%##
+#                                                          #
+####     ---- 7. Save list of processed files ----      ####
+#                                                          #
+##%######################################################%##
 skip_file <- function(file.taxa, file_name = "processed_files", check = TRUE) {
     #' Skip Files
     #'
@@ -479,7 +497,7 @@ skip_file <- function(file.taxa, file_name = "processed_files", check = TRUE) {
     
     file.name <- here::here("data", "metadata", glue("{file_name}.csv"))
     
-    # ---- initialize file list ----
+    # ---- initialize file list
     if (is_empty(files_lists)) {
         cli::cli_alert_info("Creating a list of processed files!")
         cli::cli_alert_info(c("File created: {.file {basename(file.name)}}\n",
@@ -505,15 +523,32 @@ skip_file <- function(file.taxa, file_name = "processed_files", check = TRUE) {
     
     return(tibble(files = file.taxa))
 
-    # ---- end of function ----
-    }
+    # ---- end of function
+}
 
-# ---- 8. Push/Pull Master List to Cloud/Local---------------------------------
-master_taxa_cloud <- function(taxa_list = NULL, 
+##%######################################################%##
+#                                                          #
+#### ---- 8. Push/Pull Master List to Cloud/Local ----  ####
+#                                                          #
+##%######################################################%##
+master_taxa_cloud <- function(taxa_list  = NULL, 
                               .cloud_dir,
-                              file_base = "aphia_taxa",
-                              where_to = NULL, 
+                              file_base  = "aphia_taxa",
+                              where_to   = NULL, 
                               .file_expr = file_expr) {
+    #' Push/Pull Master List to Cloud/Local
+    #'
+    #' FUNCTION_DESCRIPTION
+    #'
+    #' @param taxa_list DESCRIPTION.
+    #' @param .cloud_dir DESCRIPTION.
+    #' @param file_base DESCRIPTION.
+    #' @param where_to DESCRIPTION.
+    #' @param .file_expr DESCRIPTION.
+    #'
+    #' @return RETURN_DESCRIPTION
+    #' @examples
+    #' # ADD_EXAMPLES_HERE
     
     assertthat::assert_that(
         !rlang::is_null(where_to),
@@ -553,4 +588,30 @@ master_taxa_cloud <- function(taxa_list = NULL,
     
 }
 
-
+##%######################################################%##
+#                                                          #
+####          ---- 9. Separate Life Stage ----          ####
+#                                                          #
+##%######################################################%##
+sep_life <- function(.x, .regex_lifestage = regex_lifestage) {
+    mutate(
+        .x,
+        # remove extra info from taxa
+        taxa      = str_remove(
+            taxa_orig,
+            regex("sp{0,2}\\.|\\(unknown\\)|\\(.*\\)",
+                  ignore_case = TRUE)
+        ),
+        
+        # life stage
+        lifeStage = str_extract_all(taxa,
+                                    regex(.regex_lifestage,
+                                          ignore_case = TRUE),
+                                    simplify = TRUE) %>% str_to_lower(),
+        
+        # cleaned taxa for OBIS search
+        taxa      = str_remove(taxa,
+                               regex(.regex_lifestage,
+                                     ignore_case = TRUE)) %>% str_trim()
+    )
+}
