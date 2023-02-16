@@ -15,6 +15,14 @@ librarian::shelf(
     )
 ```
 
+# Load functions if not already
+This will load the functions needed if not already contain in the search path.
+```{r load-functions}
+source(here("scripts", "attach_funcs.R"))
+func_attach()
+rm(func_attach)
+```
+
 # Load cruise metadata files from `data/metadata/` 
 1. Parse all file paths
 - Will ignore files with `~$` in front because these are usually temporary files that are opened
