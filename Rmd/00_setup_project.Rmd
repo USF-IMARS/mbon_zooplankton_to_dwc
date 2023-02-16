@@ -11,10 +11,6 @@ if (!require("librarian")) {
     install.packages("librarian")
 }
 
-if (!require("conflicted")) {
-    install.packages("conflicted")
-}
-
 librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
@@ -24,6 +20,10 @@ librarian::shelf(
     knitr, lubridate, iobis/obistools, plotly, readxl, parzer,
     renv, rmarkdown, tools, vroom, worrms
 )
+
+if (!require("conflicted")) {
+    install.packages("conflicted")
+}
 
 library("conflicted")
 
@@ -40,7 +40,7 @@ Creates .Rprofile file that contains:
 NOTE: to take effect, will need to restart R afterwards
 ```{r}
 source(here("scripts", "rprofile_setup.R"))
-prof <- here(".Rprofile")
+prof <- here()
 
 # .choose 
 #   TRUE: gives popup to select directory
