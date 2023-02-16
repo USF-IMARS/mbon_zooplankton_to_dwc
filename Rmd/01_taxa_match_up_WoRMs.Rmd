@@ -67,13 +67,14 @@ head(taxa_data)
 # don't exist
 taxa_matched_merg <- 
     merge_taxa(taxa_data, check = TRUE) %>%
-    relocate(Files, cruise_id, date_collected, site, .before = 1) %>%
+    relocate(files, cruise_id, date_collected, site, .before = 1) %>%
     arrange(date_collected, site, taxa)
 
-save_merged(taxa_matched_merg = taxa_matched_merg, 
-            .taxa_file = file.taxa
-            )
-
+if (FALSE) {
+    save_merged(taxa_matched_merg = taxa_matched_merg, 
+                .taxa_file = file.taxa
+                )
+}
 ```
 
 # Push current master taxonomic sheet to cloud
@@ -81,7 +82,7 @@ save_merged(taxa_matched_merg = taxa_matched_merg,
 2. Check if there any unmatched taxa
 3. Push to cloud location
 ```{r push-to-cloud}
-taxa_list <- load_taxa_list(check = TRUE) 
+taxa_list  <- load_taxa_list(check = TRUE) 
 no_matches <- taxa_list %>%
     filter(is.na(scientificName))
 
@@ -89,36 +90,5 @@ no_matches <- taxa_list %>%
 master_taxa_cloud(taxa_list  = taxa_list, 
                   .cloud_dir = cloud_dir, 
                   where_to   = "cloud")
-```
-
-# tried a different database without working
-```{r}
-# library("taxize")
-# 
-# 
-# 
-# cbind(taxa.name, test)
-# 
-# ?get_tsn
-# get_tsn(taxa.name[1:5])
-# get_tsn(("Acartia"))
-# get_wormsid(test)
-# get_wormsid("fish", searchtype = 'common')
-# 
-# rgbif::name_backbone("Acartia")
-# 
-# obistools::match_taxa(c("Acartia","Candacia","copepod","Euterpina acuntifrons"), ask = T)
-```
-
-```{r}
-
-
-# obis.taxa <- obistools::match_taxa(taxa.name, ask = T)
-# 
-# robis::taxon(11676)
-# 
-# # with this 20 have NA without ability to ask for input
-# obis.taxa %>%
-#     mutate(taxa.name, .before = 1)
 ```
 
