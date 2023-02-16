@@ -1,3 +1,9 @@
+##%######################################################%##
+#                                                          #
+####        Create list of all samples analyized        ####
+#                                                          #
+##%######################################################%##
+##
 librarian::shelf(
     librarian, tibble, tidyr, dplyr, stringr,
     lubridate, glue, fs, magrittr, here
