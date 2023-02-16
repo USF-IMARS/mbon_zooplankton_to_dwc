@@ -86,9 +86,10 @@ taxa_list  <- load_taxa_list(check = TRUE)
 no_matches <- taxa_list %>%
     filter(is.na(scientificName))
 
-
-master_taxa_cloud(taxa_list  = taxa_list, 
-                  .cloud_dir = cloud_dir, 
-                  where_to   = "cloud")
+if (FALSE) {
+    master_taxa_cloud(taxa_list  = taxa_list, 
+                      .cloud_dir = cloud_dir, 
+                      where_to   = "cloud")
+}
 ```
 
