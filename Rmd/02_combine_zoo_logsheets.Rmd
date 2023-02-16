@@ -31,7 +31,8 @@ rm(func_attach)
 ```{r read-sheets, include=FALSE}
 # select all cruise files
 meta <- 
-    fs::dir_ls(here::here("data", "metadata", "cruise_logsheets"), recurse = T,
+    fs::dir_ls(here::here("data", "metadata", "cruise_logsheets"), 
+               recurse = TRUE,
                regexp = "^[^~]*\\.(xlsx)$")  %>%
     tibble(file = .) %>%
     
@@ -53,6 +54,7 @@ temp <- meta %>%
     
     # filter for sheets with zooplankton
     filter(str_detect(sheets, "zooplankton|Sheet2")) %>%
+    distinct(base, .keep_all = TRUE) %>%
     ungroup() %>%
     select(-file)
 
@@ -71,20 +73,22 @@ meta <-
                 id_skip <- 
                     readxl::read_xlsx(
                        .x,
-                        range = cell_cols("A"),
-                        col_names = FALSE,
-                        sheet = .y
+                        range       = cell_cols("A"),
+                        col_names   = FALSE,
+                        sheet       = .y,
+                       .name_repair = "unique_quiet"
                         ) %>%
                     pull(1)  %>%
                     str_which("Cruise")
                 
                 # extract cruise ID 
                 readxl::read_xlsx(
-                    path = .x,
-                    skip = id_skip - 1,
-                    sheet = .y,
-                    col_names = F,
-                    n_max = 1
+                    path         = .x,
+                    skip         = id_skip - 1,
+                    sheet        = .y,
+                    col_names    = FALSE,
+                    n_max        = 1,
+                    .name_repair = "unique_quiet"
                 ) %>%
                     pivot_wider(names_from = `...1`, values_from = `...2`)
                 
@@ -96,9 +100,10 @@ meta <-
             # find number of rows to skip to get to metadata
             skips <- readxl::read_xlsx(
                        .x,
-                        range = cell_cols("A"),
-                        col_names = FALSE,
-                        sheet = .y
+                        range        = cell_cols("A"),
+                        col_names    = FALSE,
+                        sheet        = .y,
+                        .name_repair = "unique_quiet"
                         ) %>%
             pull(1)  %>%
             str_which("(?i)zooplankton sampling")
