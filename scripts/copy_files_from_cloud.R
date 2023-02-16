@@ -1,42 +1,18 @@
-# ============================================================================ #
-#                                                                              # 
-#                        Copy file from Cloud Directory                        #
-#                                                                              #    
-# ============================================================================ #
-# ---- DESCRIPTION: ------
-# The first time this function is run, it will ask were is the cloud directory
-# located on your computuer.
-# 
-# The second time this function is run, it will ask which files you would like
-# to download, all, some or none.
-#
-# ---- INPUTS: -----------
-# .cloud_dir = 
-# new_dir    = location of local directory 
-# .choose    = TRUE/FALSE to select cloud directory location on first attempt
-# ask        = TRUE/FAlSE to ask if want to download new files
-#              - Yes  = download all
-#              - No   = skip download
-#              - Some = select which files to download  
-# auto       = automatically download all new files
-#
-# ---- OUTPUTS: ----------
-# NA
-#
-# ---- NOTES: ------------
-#
-# ---- REFERENCES(s): ----
-#
-# ---- AUTHOR(s): --------
-# Sebastian Di Geronimo (2022-12-12 18:58:34)
-
-
+##%######################################################%##
+#                                                          #
+####           Copy file from Cloud Directory           ####
+#                                                          #
+##%######################################################%##
 copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
                              ask = FALSE, auto = FALSE) {
     #' Copy file from Cloud Directory
     #'
+    #' @description 
     #' The first time this function is run, it will ask were is the cloud directory 
-    #' located on your computuer.
+    #' located on your computer. \cr
+    #' 
+    #' The second time this function is run, it will ask which files you would 
+    #' like to download, all, some or none.
     #'
     #' @param .cloud_dir Path to cloud directory.
     #' @param new_dir Path to local directory .
@@ -131,6 +107,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         info_txt  <- str_extract(basename(cloud[i]), '[:number:]*')
         mesh_txt  <- "{.strong {glue_col('{red {info_txt} \u03BCm}')}} mesh"
         
+        
         if (!rlang::is_empty(new_files)) {
             cli_alert_info(
                 c("Files that need {.strong {col_yellow('copying')}} ",
@@ -151,7 +128,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         # ---- copy files  ----
         if (!rlang::is_empty(new_files) & auto) {
             
-            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            copy_file(cloud, new_dir, new_files, mesh_txt, info_txt)
             
         } else if (!rlang::is_empty(new_files) & ask) {
             
@@ -168,7 +145,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
             }
         
         if (copy == 1) {
-            copy_file(new_dir, new_files, mesh_txt, info_txt)
+            copy_file(cloud, new_dir, new_files, mesh_txt, info_txt)
             
         } else {
             cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
@@ -187,11 +164,23 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
 }
 
 
-copy_file <- function(new_dir, new_files, mesh_txt, info_txt) {
+copy_file <- function(old_dir, new_dir, new_files, mesh_txt, info_txt) {
+    #' Copy Files
+    #'
+    #' This is a useful function to actually copy the files from cloud to local.
+    #'
+    #' @param old_dir Cloud directory
+    #' @param new_dir Local directory
+    #' @param new_files The files to be copied
+    #' @param mesh_txt Formatted text used in mesh_txt
+    #' 
+    #' @return Copied files to path in `new_dir`
+    #' @examples
+    #' # ADD_EXAMPLES_HERE
     cli_alert_info(
-        c("{.strong {col_yellow('Copying')}}: ",
-          "({.file {new_dir}} for ", mesh_txt, ")"))
+        c("{.strong {col_yellow('Copying')}} to ",
+          "{.file {new_dir}} for ", mesh_txt))
     cli_ul(basename(new_files))
 
-    fs::file_copy(new_files, here(new_dir, basename(cloud[i])))
+    fs::file_copy(new_files, here(new_dir, basename(old_dir)))
 }
