@@ -31,7 +31,9 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     # defaults
     pkgs <- paste(
     "# packages used in .Rmd and scripts",
-    ".First.sys() # loads base R \n", 
+    "# base R",
+    ".First.sys()\n",
+    "# external packages",
     "librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
@@ -41,20 +43,15 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     )",
     sep = "\n")
     
-    funcs <- paste(
-        '\n# source scripts with functions in new environment',
-        'my_funcs <- new.env()\n',
-        '# create directory structure if does not exists and create tree map',
-        'source(here("scripts","create_dir.R"), local = my_funcs)',
-        '# copy files from cloud service',
-        'source(here("scripts", "copy_files_from_cloud.R"), local = my_funcs)',
-        '# loading check for taxa',
-        'source(here("scripts", "taxa_list_check.R"), local = my_funcs)\n',
-        'attach(my_funcs)',
-        'rm(my_funcs)\n',
-        'copy_files_cloud(ask = TRUE)\n',
-        sep = "\n"
-    )
+    funcs <-
+        paste(
+            '# source scripts with functions in new environment',
+            'source(here("scripts", "attach_funcs.R"))',
+            'func_attach()',
+            'rm(func_attach)',
+            '\n# Copy files from cloud server',
+            'copy_files_cloud(.cloud_dir = here(cloud_dir, "raw"), ask = TRUE)\n',
+             sep = "\n")
     
     if (!file.exists(prof)) {
         
