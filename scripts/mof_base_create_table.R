@@ -103,7 +103,7 @@ mof_read <- function() {
         cli_inform("Loading MoF table: {.file {mof_file}}")
         MoF1 <- readr::read_csv(mof_file, show_col_types = FALSE)
     }
-
+    
+    return(MoF1)
 }
 
-mof_read()
