@@ -36,7 +36,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     library("glue")
     
     # ---- ignore files that contain ----
-    ignore_files = paste("blank", sep = "|")
+    ignore_files <- paste("\\~\\$", "blank",  sep = "|")
 
     # ---- check if cloud_dir var exist in .Rprofile ----
     if (is.null(.cloud_dir)) {
@@ -69,9 +69,6 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     cloud         <- .cloud_dir  %>%
         fs::dir_ls(., type = "directory")
     
-    
-    test <- fs::dir_ls("C:/Users/spd19/Box/zoo_test", type = "directory")
-    cloud[!str_detect(test, "cruise")]
     # ---- location for local directory ----
     if (is.null(new_dir)) {
         new_dir <- here::here("data","raw")
@@ -85,7 +82,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     fs::dir_create(
         here(new_dir, basename(cloud))
     )
-    
+
     # ---- copy files from cloud to local if needed ----
     for (i in seq(cloud)) {
         # check if files exists
@@ -128,7 +125,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         # ---- copy files  ----
         if (!rlang::is_empty(new_files) & auto) {
             
-            copy_file(cloud, new_dir, new_files, mesh_txt, info_txt)
+            copy_file(cloud[i], new_dir, new_files, mesh_txt, info_txt)
             
         } else if (!rlang::is_empty(new_files) & ask) {
             
@@ -145,7 +142,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
             }
         
         if (copy == 1) {
-            copy_file(cloud, new_dir, new_files, mesh_txt, info_txt)
+            copy_file(cloud[i], new_dir, new_files, mesh_txt, info_txt)
             
         } else {
             cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
