@@ -36,6 +36,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     library("glue")
     
     # ---- ignore files that contain ----
+    # this wil be negated in the fs::dir_ls(., ignore_files, negate = TRUE)
     ignore_files <- paste("\\~\\$", "blank",  sep = "|")
 
     # ---- check if cloud_dir var exist in .Rprofile ----
