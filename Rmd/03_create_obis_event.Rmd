@@ -10,29 +10,25 @@ editor_options:
 TODO: check how to save UTF-8 encoding on csv files 
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
+librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom # optional
+    
+    # additional
+    
+)
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
 library("readxl")
 library("hablar") # might be useful when needing to fix names
 library("worrms")
-library("here")
-library("ggplot2")
-library("tibble")
-library("tidyr")
-library("readr")
-library("purrr")
-library("dplyr")
-library("stringr")
-library("forcats")
-library("lubridate")
-library("glue")
-library("fs")
-library("magrittr")
-library("broom") # optional
-
-library("tidyverse")
-library("ggforce")
 library("geosphere")
-library("vroom")
-library("plotly")
+
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
@@ -122,7 +118,7 @@ aphia_id <-
         info = map(aphiaID, ~ worrms::wm_record(.x))
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
-    select(!contains("_2"), -c(1:6)) 
+    select(!contains("_2"), -c(2:6)) 
 
 # ---- load metadata ----
 meta_df <-
@@ -168,7 +164,7 @@ taxa_files <-
             str_detect(cruise_id, "006") ~ "WS20006",
             str_detect(cruise_id, "WS118218") ~ "WS18218",
             str_detect(cruise_id, "WS18224") ~ "WS18218",
-            str_detect(cruise_id, "WS18284") ~ "WS18285",
+            str_detect(cruise_id, "WS18284") ~ "WS18218",
             # str_detect(cruise_id, "") ~ "", # incase other become problematic
             TRUE ~ cruise_id
         ),
@@ -198,12 +194,12 @@ taxa_matched_merg <-
         aphiaID = if_else(!is.na(scientificNameID), 
                           str_split(scientificNameID, ":", simplify = T)[, 5],
                           NA_character_) %>%
-                          as.numeric(.),
+                          as.numeric(.)
         # info = map(aphiaID, ~ worrms::wm_record(.x))
         ) %>%
     left_join(., 
               aphia_id,
-              by = c("aphiaID" = "aphia_id"))
+              by = c("taxa_orig" = "taxa_orig", "aphiaID" = "aphia_id"))
 ```
 
 # Occurrence Bare Minimum example
@@ -234,11 +230,12 @@ taxa_matched_merg <-
         modified            = Sys.Date(),
         language            = "en",
         license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
-        institutionCode     = "USF_IMaRS",
+        # institutionCode     = "USF_IMaRS",
+        institutionCode     = "USF",
         parentEventID       = "IMaRS_MBON_zooplankton",
-        datasetName         = "MBON Florida Keys National Marine Sanctuary",
+        datasetName         = "MBON Florida Keys National Marine Sanctuary Zooplankton Net Tows",
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
-        informationWithheld = "collector identities withheld because changed frequently",
+        # informationWithheld = "collector identities withheld because changed frequently",
         recordedBy          = nlf,
         recordedByID        = orcid_nat,
     ) 
@@ -252,26 +249,27 @@ rm(nlf, orcid_nat)
 # Event Level Info
 ```{r event}
 event <-
-    # meta_df %>%
-    # TODO: should probably be just meta_df
     taxa_matched_merg  %>%
     dplyr::transmute(
         cruise_id, mesh, parentEventID, type, modified, license, 
-        institutionCode, datasetName, basisOfRecord, informationWithheld,
-        recordedBy, recordedByID, language,
+        institutionCode, datasetName, 
+        # basisOfRecord,  informationWithheld,
+        #recordedBy, recordedByID, 
+        language,
         # catalogNumber   = row_number(),
         locationID = site,
         # parentEventID      = "IMaRS_MBON_zooplankton",
         datasetID          = glue("{parentEventID}:{cruise_id}"),
-        eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+        # eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+        eventDate          = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
                         "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
         )  %>% str_remove("\\+0000"),
         fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
-        eventDate          = date(date_time),
-        eventTime          = format(date_time, "%H:%m:%S%z"),
+        # eventDate          = date(date_time), 
+        # eventTime          = format(date_time, "%H:%m:%S%z"),
         year               = year(date_time),
         month              = month(date_time),
         day                = day(date_time),
@@ -294,7 +292,7 @@ event <-
      )
 ```
 
-# Loctation Level Info:
+# Location Level Info:
 ```{r location}
 location <-
     taxa_matched_merg %>%
@@ -329,19 +327,29 @@ Ocurrence Level Info:
 occur <-
     taxa_matched_merg %>%
     left_join(event, 
-              by = c("cruise_id", "site" = "locationID", "mesh", "recordedBy", 
-                     "recordedByID", "basisOfRecord")
+              by = c("cruise_id", 
+                     "site" = "locationID", 
+                     "mesh" #, 
+                     # "recordedBy", 
+                     #"recordedByID", "basisOfRecord"
+                     )
               ) %>%
     dplyr::transmute(
         eventID, 
         occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        
+        # taxa names
         scientificName,
         across(kingdom:genus),
         taxonRank = rank,
-        taxonID = taxon_rank_id,
+        # taxonID = taxon_rank_id,
+         
+        # recorded by
         recordedBy,
         recordedByID,
         dateIdentified           = date_analyzed,
+        
+        # counts of organisms?
         # IDk which of these is accurate
         individualCount          = number_ind_sample,
         organismQuantity         = ind_m3,
@@ -354,17 +362,18 @@ occur <-
         
         # TODO: check this information ----
         lifeStage,
-        establishmentMeans       = "native | uncertain",
+        # establishmentMeans       = "native | uncertain",
         occurrenceStatus         = "present",
         preparations             = "formalin before analysis | ethanol after analysis",
         scientificNameID,
         # like urn:lsid:ipni.org:names:37829-1:1.3
         basisOfRecord,
-        datasetID,
-        eventDate                = date(date_time),
+        # datasetID,
+        # eventDate                = date(date_time),
         identificationReferences = "WoRMS",
         verbatimIdentification   = taxa_orig,
-        georeferenceVerificationStatusProperty = "verified by contributor",
+        # georeferenceVerificationStatusProperty = "verified by contributor",
+        georeferenceVerificationStatus = "verified by contributor",
         dispostion = "in collection"
     )
 
@@ -414,7 +423,7 @@ tibble::tribble(
 # TODO: edit MoF for more information
 # result of script is MoF1 variable
 source("../scripts/mof_base_create_table.R")
-
+MoF1 <- mof_read()
 
 # names(taxa_matched_merg)
 # need:
@@ -457,8 +466,13 @@ mutate(
 MoF  <-
     taxa_matched_merg %>%
      left_join(event, 
-              by = c("cruise_id", "site" = "locationID", "mesh", "recordedBy", 
-                     "recordedByID", "basisOfRecord")
+              by = c("cruise_id", 
+                     "site" = "locationID", 
+                     "mesh", 
+                     # "recordedBy", 
+                     # "recordedByID", 
+                     # "basisOfRecord"
+                     )
               ) %>%
     distinct(eventID, .keep_all = TRUE) %>%
     select(-c(aphiaID:recordedByID)) %>%
@@ -474,7 +488,8 @@ MoF  <-
                  values_to = "measurementValue",
         values_transform = list(measurementValue = as.character)
     ) %>%
-    select(datasetID, eventID, orig_term, measurementValue) %>%
+    select(# datasetID, 
+           eventID, orig_term, measurementValue) %>%
     left_join(MoF1, by = c("orig_term"))
 
 
