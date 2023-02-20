@@ -70,18 +70,25 @@ rprofile_setup <- function(prof, .choose = FALSE, edit_path = FALSE) {
         'func_attach()',
         'rm(func_attach)',
         '\n# Copy files from cloud server',
-        'if (!exists("cloud_dir")) {
-        rlang::abort(c("x" = "`cloud_dir` doesn\'t exist.",
+        
+        'if (!exists("cloud_dir")) {',
+        '\trlang::abort(c("x" = "`cloud_dir` doesn\'t exist.",
                    "Please run `rprofile_setup()` to add."))
-        }\n\n',
-        'if (cloud_dir == "EDIT HERE") {
-        rlang::abort(c("x" = "`cloud_dir` = EDIT HERE",
-                   "Please edit this in .Rprofile or", 
-                   "Run `rprofile_setup(.choose = TRUE)` to add."))
         }\n',
-        'copy_files_cloud(.cloud_dir = here(cloud_dir, "raw"), ask = TRUE)\n',
+        
+        'if (cloud_dir == "EDIT HERE" & !is.na(cloud_dir)) {',
+        '\trlang::abort(c("x" = "`cloud_dir` = EDIT HERE",
+                   "Please edit this in .Rprofile or", 
+                   "Run `rprofile_setup(.choose = TRUE)` to add."))',
+        '\t}\n',
+        
+        'if (!is.na(cloud_dir)) {',
+        '\tcloud_dir_raw <- here(cloud_dir, "raw")', 
+        '\t} else {cloud_dir_raw <- cloud_dir}\n',
+        
+        'copy_files_cloud(.cloud_dir = cloud_dir_raw, ask = TRUE)\n',
         sep = "\n"
-        )
+    )
     
     # ---- set expression for `.choose` options
     cld_dir_expr <- expression(
@@ -98,7 +105,7 @@ rprofile_setup <- function(prof, .choose = FALSE, edit_path = FALSE) {
                                   "{col_red(style_underline('mistake'))}, ",
                                   "change {.var {col_red('.choose')}} ",
                                   "and re-run {.fun rprofile_setup}"))
-            new_dir <- glue("cloud_dir <- \"{new_dir}\"")
+            new_dir <- glue("cloud_dir <- {new_dir}")
             
         } else if (.choose) {
             # select interactively
