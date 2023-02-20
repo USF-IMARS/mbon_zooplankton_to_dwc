@@ -38,8 +38,11 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     # ---- ignore files that contain ----
     # this wil be negated in the fs::dir_ls(., ignore_files, negate = TRUE)
     ignore_files <- paste("\\~\\$", "blank",  sep = "|")
-
-    # ---- check if cloud_dir var exist in .Rprofile ----
+    
+    # ======================================================================== #
+    # ---- Check Status of Cloud Directory ----
+    # ======================================================================== #    
+    # ---- check if cloud_dir var exist in .Rprofile
     if (is.null(.cloud_dir)) {
         cli_alert_danger(c(
             "{.var .cloud_dir} is `NULL`",
@@ -53,6 +56,8 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         ))
         return(invisible(""))
     }
+    
+    # ---- check if cloud_dir is set to "EDIT HERE"
     if (grepl("EDIT", .cloud_dir)) {
         cli_alert_danger(c(
             "{.var .cloud_dir} contains `EDIT HERE`. You may have forgotten to",
@@ -65,12 +70,32 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         ))
         return(invisible(""))
     }
-        
-    # ---- list all sub-directories in main cloud directory ----
+    
+    # ---- check if cloud_dir is set to `NA`
+    if (is.na(.cloud_dir)) {
+        cli_alert_warning(
+            c("{.var .cloud_dir} was set to {col_red(\"NA\")}. ",
+              "Will be {col_red(\"ignoring\")} the copying of files from a ",
+              "cloud directory!",
+              "\nIf this was a mistake, you may need to edit ",
+              "{col_yellow(\"cloud_dir\")} in {.file .Rprofile}",
+              "\nUse the function {.var {col_blue(style_underline",
+              "(\"rprofile_setup(edit_path = TRUE)\"))}} ",
+              "for faster editing. ",
+              "\nRun {.var {col_blue('source(here(\"scripts\", ",
+              "\"rprofile_setup.R\"))')}} first.")
+            )
+        return(invisible(""))
+    }
+     
+    # ======================================================================== #
+    # ---- Find Files to Copy ----
+    # ======================================================================== #    
+    # ---- list sub-directories in base cloud directory ----
     cloud         <- .cloud_dir  %>%
         fs::dir_ls(., type = "directory")
     
-    # ---- location for local directory ----
+    # ---- location of local directory
     if (is.null(new_dir)) {
         new_dir <- here::here("data","raw")
     }
@@ -79,12 +104,12 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
     cli::cli_alert_info("Local directory: {.file {new_dir}}")
     cli_inform("")
     
-    # ---- create same directories from cloud repo ----
+    # ---- create same directories from cloud repo
     fs::dir_create(
         here(new_dir, basename(cloud))
     )
 
-    # ---- copy files from cloud to local if needed ----
+    # ---- copy files from cloud to local if needed
     for (i in seq(cloud)) {
         # check if files exists
         new_files <- 
@@ -97,7 +122,7 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
                 )
 
         
-        # ---- display files that are to be copied ----
+        # ---- display files that are to be copied
         new_files <- dir_ls(cloud[i], 
                             regexp = ignore_files, 
                             invert = TRUE)[new_files]
@@ -123,36 +148,43 @@ copy_files_cloud <- function(.cloud_dir = NULL, new_dir = NULL,
         }
         cli_inform("")
         
-        # ---- copy files  ----
+        # ==================================================================== #
+        # ---- Start Copying Files ----
+        # ==================================================================== #    
+        # ---- check which files need to be copied
         if (!rlang::is_empty(new_files) & auto) {
             
             copy_file(cloud[i], new_dir, new_files, mesh_txt, info_txt)
             
         } else if (!rlang::is_empty(new_files) & ask) {
+            # ---- ask which files you want to copy
+            cli_text("Do you want to copy these files? (Yes/No)")
+            copy <- utils::menu(c("Yes", "No", "Some"))
             
-        cli_text("Do you want to copy these files? (Yes/No)")
-        copy <- utils::menu(c("Yes", "No", "Some"))
-        
-        if (copy == 3) {
-            cli_text("Select which files to copy")
-            nums      <- utils::select.list(basename(new_files), 
-                                     multiple = TRUE)
-            nums      <- glue("{dirname(new_files)[1]}/{nums}")
-            new_files <- new_files[new_files %in% nums]
-            copy      <-  1
+            # ---- ask which ones if `some` is selected
+            if (copy == 3) {
+                cli_text("Select which files to copy")
+                nums      <- utils::select.list(basename(new_files), 
+                                         multiple = TRUE)
+                nums      <- glue("{dirname(new_files)[1]}/{nums}")
+                new_files <- new_files[new_files %in% nums]
+                copy      <-  1
             }
-        
-        if (copy == 1) {
-            copy_file(cloud[i], new_dir, new_files, mesh_txt, info_txt)
             
-        } else {
-            cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
-                                "files that need ",
-                                "{.strong {col_yellow('copying')}} ",
-                               "from ", mesh_txt))
+            if (copy == 1) {
+                # ---- copy files to local
+                copy_file(cloud[i], new_dir, new_files, mesh_txt, info_txt)
+                
+            } else {
+                # ---- warn if need to copy files
+                cli_alert_danger(c("{.strong {col_red('Skipping')}} ",
+                                    "files that need ",
+                                    "{.strong {col_yellow('copying')}} ",
+                                   "from ", mesh_txt))
         }
         cli_inform("")
         } else if (!rlang::is_empty(new_files)) {
+            # ---- no files need copying
             cli_alert_warning(c("Not copying files. In ",
                                 "{.fn {col_yellow('copy_files_cloud')}} set ",
                                 "ask = {.code {col_red(TRUE)}}."))
