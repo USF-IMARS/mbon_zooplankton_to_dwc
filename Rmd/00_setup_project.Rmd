@@ -45,8 +45,11 @@ prof <- here()
 # .choose 
 #   TRUE: gives popup to select directory
 #   FALSE: open .Rprofile for manual addition to line 1
-rprofile_setup(prof = prof, 
-               .choose = TRUE)
+#   string: string: set manually (i.e here::here("<path>") or "C:/<path>/") 
+#   NA: ignore using a cloud directory
+rprofile_setup(prof      = prof, 
+               .choose   = TRUE,
+               edit_path = FALSE)
 
 rm(list = ls())
 ```
