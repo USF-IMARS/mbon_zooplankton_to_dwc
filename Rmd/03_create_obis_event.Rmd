@@ -265,7 +265,8 @@ event <-
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
-                        "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
+                        # "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
+                        "{datasetID}:stn{locationID}:{mesh}um:{eventDate}"
         )  %>% str_remove("\\+0000"),
         fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
         # eventDate          = date(date_time), 
@@ -380,43 +381,43 @@ occur <-
 ```
 # Mearuement or Fact example
 ```{r MoF-example}
-# MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
-if (FALSE) {
-# ---- Measurement or Fact ----
-
-tibble::tribble(
-              ~Origin.Term,                                       ~measurementTypeID,       ~URI,
-                "Net_Type",                                             "plankton net",       "22",
-               "Mesh_Size",                                   "Sampling net mesh size", "Q0100015",
-               "NET_DEPTH",       "Depth (spatial coordinate) of sampling event start", "DXPHPRST",
-                 "COMMENT",            "N/A (mapped to measurementRemark field above)",      "N/A",
-       "Plankton_Net_Area",                    "Sampling device aperture surface area", "Q0100017",
-         "Volume_Filtered",                                                   "Volume",      "VOL",
-            "Sample_Split", "N/A (information added to measurementRemark field above)",      "N/A",
-       # "Sample_Dry_Weight",                                       "Dry weight biomass", "ODRYBM01",
-                # "DW_G_M_2",                                       "Dry weight biomass", "ODRYBM01",
-         "Dilution_Factor",                                                      "???",      "???",
-    "TOTAL_DILFACTOR_CFIN",                                                      "???",      "???"
-    )
-
-
-
-# ---- example MoF ---- 
-
-# column_mappings <- 
-    tibble::tribble(
-~orig_term,                             ~uri,     ~unit,             ~unitID, ~accuracy,      ~measurementTypeID,         ~measurementMethod,
-"Net_Type",                "L05/current/22/",        NA,                  NA,   NA,                   "net type",                         NA,
-"Bongo Nets",        "L22/current/NETT0176/",        NA,                  NA,   NA,                           NA,                         NA, 
-"Mesh_Size",         "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",   NA,                  "mesh size",                         NA,
-"NET_DEPTH",         "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",   NA,                  "net depth",                         NA,
-"Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",   NA,          "plankton net area",                         NA,
-"Volume_Filtered",        "P25/current/VOL/",      "m3", "P06/current/UPAA/",   NA,            "volume filtered", "geometrically determined",
-"Dilution_Factor",                        NA,      "ml", "P06/current/VVML/",   NA,            "dilution factor",                         NA,
-"TOTAL_DILFACTOR_CFIN",                   NA,      "ml", "P06/current/VVML/",   NA, "Total Dilution factor CFIN",                         NA,
-"Sample_Split",                           NA, "decimal", "P06/current/UPCT/",   NA,               "sample split",          "Folsom Splitter"
-        )
-}
+# # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
+# if (FALSE) {
+# # ---- Measurement or Fact ----
+# 
+# tibble::tribble(
+#               ~Origin.Term,                                       ~measurementTypeID,       ~URI,
+#                 "Net_Type",                                             "plankton net",       "22",
+#                "Mesh_Size",                                   "Sampling net mesh size", "Q0100015",
+#                "NET_DEPTH",       "Depth (spatial coordinate) of sampling event start", "DXPHPRST",
+#                  "COMMENT",            "N/A (mapped to measurementRemark field above)",      "N/A",
+#        "Plankton_Net_Area",                    "Sampling device aperture surface area", "Q0100017",
+#          "Volume_Filtered",                                                   "Volume",      "VOL",
+#             "Sample_Split", "N/A (information added to measurementRemark field above)",      "N/A",
+#        # "Sample_Dry_Weight",                                       "Dry weight biomass", "ODRYBM01",
+#                 # "DW_G_M_2",                                       "Dry weight biomass", "ODRYBM01",
+#          "Dilution_Factor",                                                      "???",      "???",
+#     "TOTAL_DILFACTOR_CFIN",                                                      "???",      "???"
+#     )
+# 
+# 
+# 
+# # ---- example MoF ---- 
+# 
+# # column_mappings <- 
+#     tibble::tribble(
+# ~orig_term,                             ~uri,     ~unit,             ~unitID, ~accuracy,      ~measurementTypeID,         ~measurementMethod,
+# "Net_Type",                "L05/current/22/",        NA,                  NA,   NA,                   "net type",                         NA,
+# "Bongo Nets",        "L22/current/NETT0176/",        NA,                  NA,   NA,                           NA,                         NA, 
+# "Mesh_Size",         "Q01/current/Q0100015/", "microns", "P06/current/UMIC/",   NA,                  "mesh size",                         NA,
+# "NET_DEPTH",         "P01/current/DXPHPRST/",       "m", "P06/current/UPAA/",   NA,                  "net depth",                         NA,
+# "Plankton_Net_Area", "Q01/current/Q0100017/",      "m2", "P06/current/UPAA/",   NA,          "plankton net area",                         NA,
+# "Volume_Filtered",        "P25/current/VOL/",      "m3", "P06/current/UPAA/",   NA,            "volume filtered", "geometrically determined",
+# "Dilution_Factor",                        NA,      "ml", "P06/current/VVML/",   NA,            "dilution factor",                         NA,
+# "TOTAL_DILFACTOR_CFIN",                   NA,      "ml", "P06/current/VVML/",   NA, "Total Dilution factor CFIN",                         NA,
+# "Sample_Split",                           NA, "decimal", "P06/current/UPCT/",   NA,               "sample split",          "Folsom Splitter"
+#         )
+# }
 ```
 
 ```{r IMaRS-MoF}
@@ -461,14 +462,12 @@ mutate(
 # Meaurement or Fact Level Info
 ```{r MoF}
 # def_web <- "http://vocab.nerc.ac.uk/collection/"
-
-
 MoF  <-
     taxa_matched_merg %>%
      left_join(event, 
               by = c("cruise_id", 
                      "site" = "locationID", 
-                     "mesh", 
+                     "mesh"#, 
                      # "recordedBy", 
                      # "recordedByID", 
                      # "basisOfRecord"
@@ -518,40 +517,51 @@ MoF  <-
 #     sort()
 ```
 
-
+# Don't Run
 ```{r bd-check, result = 'hide}
-compiled  <-
-    reduce(list(event, location, occur, MoF), left_join) %>%
-    group_by(eventID) %>%
-    slice(1)
-checks  <-
-    compiled %>%
-    bdchecks::perform_dc(.)
-
-cat(summary_dc(checks), sep = "\n")
+# compiled  <-
+#     reduce(list(event, location, occur, MoF), left_join) %>%
+#     group_by(eventID) %>%
+#     slice(1)
+# checks  <-
+#     compiled %>%
+#     bdchecks::perform_dc(.)
+# 
+# cat(summary_dc(checks), sep = "\n")
 
 ```
 
+# Example to save
 ```{r save}
+set.seed(1234)
+dir <- here("data", "processed", "obis_example")
 path <-
-    here("data", "processed", "obis")
+    here(dir, 
+         glue("{c('event', 'occur', 'mof')}",
+              "_example_update_{Sys.Date()}.csv"))
+path
 
-dir_create(path)
+dir_create(dir)
+
+events <- sample(unique(event$eventID), 5)
 
 left_join(event, location) %>%
-    group_by(eventID)%>%
-    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = glue("{path}/event_example.csv"), na = "")
+    # group_by(eventID) %>%
+    filter(eventID %in% events) %>%
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[1], na = "")
 
 occur %>%
-    group_by(eventID) %>%
-    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = glue("{path}/occur_example.csv"), na = "")
+    # group_by(eventID) %>%
+    filter(eventID %in% events) %>%
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[2], na = "")
 
 MoF %>%
-    group_by(eventID) %>%
-    filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = glue("{path}/mof_example.csv"), na = "")
+    # group_by(eventID) %>%
+    filter(eventID %in% events) %>%
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[3], na = "")
 
 ```
 
