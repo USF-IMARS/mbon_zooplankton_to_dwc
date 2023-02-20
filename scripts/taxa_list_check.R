@@ -517,7 +517,8 @@ taxa_unmatch <- function(taxa_matched    = NULL,
 #                                                          #
 ##%######################################################%##
 save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
-                        loc = here::here('data', 'processed')) {
+                        loc = here::here('data', 'processed'),
+                        ...) {
     
     dir <- here::here(loc, "ind_file_merg") 
     
@@ -566,7 +567,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
     
     Sys.sleep(1)
     
-    if (!is.null(.taxa_file)) skip_file(.taxa_file, check = FALSE)
+    if (!is.null(.taxa_file)) skip_file(.taxa_file, check = FALSE, ...)
     
     # ---- end of function
 }
@@ -643,7 +644,7 @@ skip_file <- function(file.taxa,
         
         files_lists %>%
             read_csv(., show_col_types = FALSE) %>%
-            bind_rows(tibble(files = file.taxa, time = Sys.time())) %>%
+            bind_rows(tibble(file.taxa, time = Sys.time())) %>%
             distinct(files, .keep_all = TRUE) %>%
             write_csv(
                 file.name
