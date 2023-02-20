@@ -205,19 +205,19 @@ taxa_matched_merg <-
 # Occurrence Bare Minimum example
 set to `TRUE` if want to run
 ```{r obis-file}
-if (FALSE) {
-   data.table::data.table(
-          occurrenceID = c("my-dataset-0001c29"),
-       decimalLatitude = c(-87.7575),
-      decimalLongitude = c(24.4727),
-        scientificName = c("Sparisoma aurofrenatum"),
-      scientificNameID = c("urn:lsid:ipni.org:names:37829-1:1.3"),
-      occurrenceStatus = c("present"),
-         basisOfRecord = c("HumanObservation"),
-             datasetID = c("my-dataset-tylar-2020-01-08-123456"),
-             eventDate = c("2010-01-03T13:44Z")
-    )
-}
+# if (FALSE) {
+#    data.table::data.table(
+#           occurrenceID = c("my-dataset-0001c29"),
+#        decimalLatitude = c(-87.7575),
+#       decimalLongitude = c(24.4727),
+#         scientificName = c("Sparisoma aurofrenatum"),
+#       scientificNameID = c("urn:lsid:ipni.org:names:37829-1:1.3"),
+#       occurrenceStatus = c("present"),
+#          basisOfRecord = c("HumanObservation"),
+#              datasetID = c("my-dataset-tylar-2020-01-08-123456"),
+#              eventDate = c("2010-01-03T13:44Z")
+#     )
+# }
 ```
 
 # Record Level Info
