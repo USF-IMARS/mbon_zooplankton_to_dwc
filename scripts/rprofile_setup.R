@@ -3,7 +3,7 @@
 ####         Create .Rprofile file for startup          ####
 #                                                          #
 ##%######################################################%##
-rprofile_setup <- function(prof, .choose = FALSE) {
+rprofile_setup <- function(prof, .choose = FALSE, edit_path = FALSE) {
     #' Create .Rprofile file for startup 
     #'
     #'This script help create a .Rprofile file for the first time using this 
@@ -17,11 +17,19 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     #'           
     #'                TRUE: opens file explorer to choose directory
     #'           
-    #'                FALSE: opens .Rprofile with `cloud_dir = "EDIT HERE"` to 
+    #'                FALSE: in .Rprofile sets `cloud_dir = "EDIT HERE"` to 
     #'                       edit file directory manually in line 1
+    #'                       
+    #'                NA: ignore using a cloud directory
+    #'                
+    #'                string: set manually (i.e here::here("<path>") or 
+    #'                "C:/<path>/")
     #'
+    #' @param edit_path Select TRUE/FALSE when wanting to edit the `cloud_dir`
+    #'                  path
+    #' 
     #' @return Creation of .Rprofile to set cloud path, attach functions at
-    #' startup of R and copy new files to local directory.
+    #' start up of R and copy new files to local directory.
     #' 
     #' @author Sebastian Di Geronimo (2022-11-28 00:49:10)
     #' 
@@ -78,30 +86,71 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     # check if location for .Rprofile is file path
     if (!fs::is_dir(prof)) {
         rlang::abort(message = c("x" = "prof needs to be a directory.\n", 
-                                 "!" = "Preferably use prof = `here::here()`"),
+                                 "!" = "Preferably use `prof = here::here()`"),
                                         use_cli_format = TRUE)
         }
     
     prof <- here(prof, ".Rprofile")
     
     if (!file.exists(prof)) {
+        # abort if didn't set `.choose`
+        if (is.null(.choose)) {
+            cli::cli_alert_danger(
+                c("{.strong {col_red(style_underline(\"cot Creating\"))}} ",
+                  "{.var .Rprofile}"))
+            
+            cli::cli_alert_danger(
+                c("{.strong {col_yellow(style_underline(\"Aborting\"))}}: ",
+                  "{.var {col_red('.choose')}} was set to ", 
+                  "{.var {col_yellow('NULL')}}.",
+                  "\nSetting `{col_red('.choose = TRUE')}` will open a dialog ", 
+                  "box to choose the location of your ", 
+                  "cloud directory.",
+                  "\nSetting `{col_red('.choose = FALSE')}` will ",
+                  "add a  placeholder in {.var .Rprofile} to ",
+                  "`{col_red('cloud_dir = ",
+                  "\"EDIT HERE\"')}` for manually editing.",
+                  "\nSetting `{col_red('.choose = \"<drive>:/<path>/\"')}` ",
+                  "will manually set the cloud directory path.",
+                  "\nSetting `{col_red('.choose = NA')}` will ignore using a ",
+                  "cloud directory."))
+            
+            rlang::abort("Please re-run after setting `.choose`.")
+        }
+        
+        cli::cli_alert_info("Creating `{col_yellow('.Rprofile')}`!")
         
         # create .Rprofile file
         cat(character(0), file = prof)
         
         # set cloud_dir location
-        if (.choose) {
-            # select interatively
+        if (is.character(.choose)) {
+            new_dir <- .choose
+            cli::cli_alert_info("Setting cloud_dir to {.file {new_dir}}")
+            new_dir <- glue("cloud_dir <- \"{new_dir}\"")
+            
+        } else if (is.na(.choose)) {
+            new_dir <- .choose
+            cli::cli_alert_info(c("Setting cloud_dir to `{new_dir}`. ",
+                                  "If this was a ", 
+                                  "{col_red(style_underline('mistake'))}, ",
+                                  "change {.var {col_red('.choose')}} ",
+                                  "and re-run {.fun rprofile_setup}"))
+            new_dir <- glue("cloud_dir <- \"{new_dir}\"")
+            
+        } else if (.choose) {
+            # select interactively
             new_dir <- rstudioapi::selectDirectory()
-            cli::cli_text("{.file {new_dir}}")
+            cli::cli_alert_info("Setting cloud_dir to {.file {new_dir}}")
             new_dir <- glue("cloud_dir <- \"{new_dir}\"")
         } else {
             # edit later
+            cli::cli_alert_info("Setting cloud_dir to {.file EDIT HERE}")
             new_dir <- "cloud_dir <- \"EDIT HERE\""
-            cli::cli_alert_warning(c("within {.file {prof}}, you will have to ", 
-                                   "edit {.var cloud_dir} because ", 
-                                   "{.var .choose} was set to {.var FALSE}\n",
-                                   "Currently, {.var {new_dir}}"))
+            cli::cli_alert_warning(c("Within {.file {prof}}, you will have to ", 
+                                     "edit {.var cloud_dir} because ", 
+                                     "{.var .choose} was set to {.var FALSE}\n")
+                                   )
         }
         
         # add pkgs and functions to .Rprofile
@@ -110,37 +159,34 @@ rprofile_setup <- function(prof, .choose = FALSE) {
             append = TRUE)
         
     } else {
-        # if .Rprofile exists
+        # ---- if .Rprofile exists
         line1 <- readLines(prof) 
-            
-        # check if cloud directory exists
+        
+        # ---- check existence of cloud directory in `.Rprofile`
         strt  <- grep("cloud_dir <-", line1)
         if (identical(strt, integer(0))) {
-            # copy_files_cloud(ask = TRUE, .choose = TRUE)
+            # ---- not existing
             cli::cli_alert_info("Adding {.var cloud_dir} to {.var .Rprofile}")
-            if (.choose) {
-                new_dir <- rstudioapi::selectDirectory()
-                new_dir <- glue("cloud_dir <- \"{new_dir}\"")
-                cli::cli_text(new_dir)
-                cat(c(new_dir, "", line1), sep = "\n", file = prof)
-                
-            } else {
-                # edit later
-                new_dir <- "cloud_dir <- \"EDIT HERE\""
-                cli::cli_alert_warning(c("within {.file {prof}}, you will have to ", 
-                                         "edit {.var cloud_dir} because ", 
-                                         "{.var .choose} was set to {.var FALSE}\n",
-                                         "Currently, {.var {new_dir}}"))
-                cat(c(new_dir, "", line1), sep = "\n", file = prof)
-            }
-        }
-        
-        strt  <- grep("cloud_dir <- \"EDIT HERE\"", line1) 
-        if (.choose & identical(strt, 1L)) {
-            new_dir <- rstudioapi::selectDirectory()
-            new_dir <- glue("cloud_dir <- \"{new_dir}\"")
-            cli::cli_text(new_dir)
-            cat(c(new_dir, line1[-1]), sep = "\n", file = prof)
+            
+            eval(cld_dir_exp)
+            
+            cat(c(new_dir, "", line1), sep = "\n", file = prof)
+           
+        } else if (length(strt) >= 1 && edit_path) {
+            # ---- editing
+            cli::cli_alert_info("Editing {.var cloud_dir} in {.var .Rprofile}")
+            
+            eval(cld_dir_exp)
+            
+            cat(c(new_dir, "", line1[-c(strt, strt + 1)]), 
+                sep = "\n", file = prof)  
+            
+        } else {
+            # ---- no editing
+            cli::cli_alert_info(c("Not changing {.var cloud_dir} in ", 
+                                  "{.var .Rprofile}. Set ",
+                                  "{.var {col_red(\"edit_path = TRUE\")}} ",
+                                  "to change {.var cloud_dir}."))
         }
         
         # check if packages exists
@@ -149,7 +195,7 @@ rprofile_setup <- function(prof, .choose = FALSE) {
             cli::cli_alert_info("Adding {.var packages} to {.var .Rprofile}")
             cat(c(line1, pkgs, funcs), sep = "\n\n", file = prof)
         }
-    
+        
     }
     
     cli::cli_inform("\n")
@@ -157,4 +203,6 @@ rprofile_setup <- function(prof, .choose = FALSE) {
     cli::cli_ul(
         c("{.strong Session > Restart R}  -or-",
           "{.strong command/ctrl + shift + F10 }"))
+    
+    # ---- end function
 }
