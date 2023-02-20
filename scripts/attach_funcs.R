@@ -30,6 +30,6 @@ func_attach <- function() {
         attach(my_funcs)
     } else {
         cli::cli_alert_info(c("Skipping attach,{.var my_funcs} is already ", 
-                            "attached to the searchpath."))
+                              "attached to the searchpath."))
     }
 }
