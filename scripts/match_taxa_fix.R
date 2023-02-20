@@ -1,4 +1,4 @@
-match_taxa_fix <- function (names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
+match_taxa_fix <- function(names, ask = TRUE, fuzzy = TRUE, taxa_type = "taxa") 
 {
     
     # functions ------------------------------
