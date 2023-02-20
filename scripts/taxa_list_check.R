@@ -738,6 +738,8 @@ master_taxa_cloud <- function(taxa_list  = NULL,
                              "{.var taxa_list}"))
     
     return(invisible(NULL))
+    
+    # ---- end of function
 }
 
 ##%######################################################%##
@@ -758,12 +760,14 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
         # life stage
         lifeStage = str_extract_all(taxa,
                                     regex(.regex_lifestage,
-                                          ignore_case = TRUE)),
-        #                             simplify = TRUE) %>% str_to_lower(),
-        # 
+                                          ignore_case = TRUE),
+                                    simplify = TRUE) %>% str_to_lower(),
+
         # cleaned taxa for OBIS search
         taxa      = str_remove(taxa,
                                regex(.regex_lifestage,
                                      ignore_case = TRUE)) %>% str_trim()
     )
+    
+    # ---- end of function
 }
