@@ -48,7 +48,7 @@ file_expr(
     - `copy_files_cloud(ask = TRUE)` to ask which files to download, all, some or none
     - `copy_files_cloud(ask = TRUE, auto = TRUE)` to auto download all new files without asking
     - `copy_files_cloud(ask = FALSE, auto = FALSE)` to not download new file at all
-    - [Example .Rprofile](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/README.md#example-rprofile)
+    - [Example .Rprofile](https://github.com/sebastiandig/obis_zooplankton_setup#example-rprofile)
 
     
 ### 2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/01_taxa_match_up_WoRMs.Rmd)
