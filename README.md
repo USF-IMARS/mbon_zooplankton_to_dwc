@@ -2,7 +2,7 @@
 This repository is used to setup a pipeline to convert zooplankton data collected in South Florida into DarwinCore to be added to OBIS.
 
 # 3 Main tasks
-1. Ingest zooplankton counts
+### ***1. Ingest zooplankton counts***
 - Pull new files from cloud service (i.e. Box) where raw count data is stored
    - You may ignore using a cloud directory if set `.choose = NA` in `rprofile_setup()` in `00_setup_project.Rmd`
 - Add species information from WoRMS using a custom `match_taxa()` function (based from `obistools::match_taxa()`)
@@ -20,12 +20,12 @@ file_expr(
 - Save all new raw files into one file with a timestamp
 - Append new files to previous merged data
    
-2. Ingest cruise metadata
+### ***2. Ingest cruise metadata***
 - Merge all cruise data into one .csv
 - Correct errors along the way
 - Attempt to document changes made to raw data
   
-3. Convert to DarwinCore format 
+### ***3. Convert to DarwinCore format***
 - This loads:
   - merged `metadata`
   - merged `abudance data`
@@ -34,7 +34,7 @@ file_expr(
 
 
 ## Steps:
-1. [setup_project.RMD](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/00_setup_project.Rmd)
+### 1. [setup_project.RMD](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/00_setup_project.Rmd)
 - If it's the first time, this will set up the .Rprofile (used at start up of Rstudio)
 - info for .Rprofile:
     1. creates file structure used for this project
@@ -49,7 +49,49 @@ file_expr(
     - `copy_files_cloud(ask = TRUE, auto = TRUE)` to auto download all new files without asking
     - `copy_files_cloud(ask = FALSE, auto = FALSE)` to not download new file at all
 
-example `.Rprofile`
+
+    
+### 2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/01_taxa_match_up_WoRMs.Rmd)
+- Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
+- Take new files and match taxa, reformat for later use
+- Ability to fix non-matched taxa
+- Save all reformatted files as individuals and one fully merged
+- Save a log of files ran to skip next time
+ 
+### 3. [combine_zoo_logsheets.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/02_combine_zoo_logsheets.Rmd)
+- Rough way of taking cruise metadata and merge all cruises together
+- TODO: clean up code, maybe create a function out of it
+
+### 4. [create_obis_event.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/03_create_obis_event.Rmd)
+- TODO: needs updating for final submission
+- loads metadata, species data and master taxa sheet
+- master taxa sheet adds more taxa information using ` worrms::wm_record()`
+- metadata, raw data, and additional taxa informatino is merged into one dataframe
+- processing steps:
+    1. record level
+    2. event 
+    3. occurence
+    4. measurement or fact
+
+
+## Custom Functions
+### [taxa_list_check](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/taxa_list_check.R)
+- Load all the data from [zooplankton counts format](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/cruise_id_stn_mesh_blank_count.xlsx).
+  - This is used for all cruises, stations and mesh size. 
+- Useful when extracting taxonomic names from a dataset and creating a master sheet to merge with all data. 
+- This will create/search for a master sheet.
+- Check for unmatched taxa.
+- Pull/Push a master sheet from a cloud directory if using.
+- Save merged data with master taxa sheet in an `all merged` file and individual files per cruise, station and mesh.
+- You wll be able to set the file expression for the location and base file name for the master sheet.
+
+### [match_taxa_fix.R](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/match_taxa_fix.R)
+- Useful for creating a master taxa sheet with `verbatim names`, and `scientific name`. 
+- This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
+for fixing names that have no matches by typing in your own. 
+
+
+# Example `.Rprofile`
 ```
 cloud_dir = "<drive>:/<main-directory>/<sub-directory>/<location-of-folder-with-data>"
 
@@ -94,45 +136,3 @@ if (!is.na(cloud_dir)) {
 
 copy_files_cloud(.cloud_dir = cloud_dir_raw, ask = TRUE)
 ```
-    
-2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/01_taxa_match_up_WoRMs.Rmd)
-- Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
-- Take new files and match taxa, reformat for later use
-- Ability to fix non-matched taxa
-- Save all reformatted files as individuals and one fully merged
-- Save a log of files ran to skip next time
- 
-3. [combine_zoo_logsheets.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/02_combine_zoo_logsheets.Rmd)
-- Rough way of taking cruise metadata and merge all cruises together
-- TODO: clean up code, maybe create a function out of it
-
-4. [create_obis_event.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/03_create_obis_event.Rmd)
-- TODO: needs updating for final submission
-- loads metadata, species data and master taxa sheet
-- master taxa sheet adds more taxa information using ` worrms::wm_record()`
-- metadata, raw data, and additional taxa informatino is merged into one dataframe
-- processing steps:
-    1. record level
-    2. event 
-    3. occurence
-    4. measurement or fact
-
-
-## Custom Functions
-[taxa_list_check](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/taxa_list_check.R)
-- Load all the data from [zooplankton counts format](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/cruise_id_stn_mesh_blank_count.xlsx).
-  - This is used for all cruises, stations and mesh size. 
-- Useful when extracting taxonomic names from a dataset and creating a master sheet to merge with all data. 
-- This will create/search for a master sheet.
-- Check for unmatched taxa.
-- Pull/Push a master sheet from a cloud directory if using.
-- Save merged data with master taxa sheet in an `all merged` file and individual files per cruise, station and mesh.
-- You wll be able to set the file expression for the location and base file name for the master sheet.
-
-[match_taxa_fix.R](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/scripts/match_taxa_fix.R)
-- Useful for creating a master taxa sheet with `verbatim names`, and `scientific name`. 
-- This takes in a vector of scientific names and will work similar to `obistools::match_taxa`, but this allows the option
-for fixing names that have no matches by typing in your own. 
-
-
-
