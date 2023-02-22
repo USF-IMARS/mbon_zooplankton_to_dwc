@@ -5,3 +5,6 @@
 .Rprofile
 
 data/**
+
+# folder may exists if not using a cloud directory
+IMaRS Zooplankton data* 
