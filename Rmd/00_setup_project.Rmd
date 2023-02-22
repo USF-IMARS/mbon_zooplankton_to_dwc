@@ -49,7 +49,7 @@ prof <- here()
 #   string: string: set manually (i.e here::here("<path>") or "C:/<path>/") 
 #   NA: ignore using a cloud directory
 rprofile_setup(prof      = prof, 
-               .choose   = TRUE,
+               .choose   = NULL, # <--- edit this, option above or will error 
                edit_path = FALSE)
 
 rm(list = ls())
