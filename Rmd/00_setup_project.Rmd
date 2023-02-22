@@ -16,9 +16,10 @@ librarian::shelf(
     forcats, lubridate, glue, fs, magrittr, here,
     
     # additional
-    cli, rlang, data.table, geosphere, ggforce, hablar, hms, httr, janitor, jsonlite, 
-    knitr, lubridate, iobis/obistools, plotly, readxl, parzer,
-    renv, rmarkdown, tools, vroom, worrms
+    cli, rlang, data.table, geosphere, ggforce, hablar, hms, httr, janitor,
+    jsonlite, knitr, lubridate, iobis/obistools, plotly, readxl, parzer,
+    renv, rmarkdown, tools, vroom, worrms, rmarkdown,
+    
 )
 
 if (!require("conflicted")) {
