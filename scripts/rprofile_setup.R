@@ -22,8 +22,8 @@ rprofile_setup <- function(prof, .choose = FALSE, edit_path = FALSE) {
     #'                       
     #'                NA: ignore using a cloud directory
     #'                
-    #'                string: set manually (i.e here::here("<path>") or 
-    #'                "C:/<path>/")
+    #'                "<drive>:/<path>": set manually (i.e here::here("<path>") 
+    #'                or "<drive>:/<path>/")
     #'
     #' @param edit_path Select TRUE/FALSE when wanting to edit the `cloud_dir`
     #'                  path
