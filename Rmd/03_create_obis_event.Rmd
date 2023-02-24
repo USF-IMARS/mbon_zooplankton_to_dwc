@@ -120,6 +120,10 @@ aphia_id <-
     unnest(info, names_repair = janitor::make_clean_names) %>%
     select(!contains("_2"), -c(2:6)) 
 
+aphia_id %>%
+    janitor::get_dupes(aphia_id) %>%
+    View(., "duplicates")
+
 # ---- load metadata ----
 meta_df <-
     fs::dir_ls(path = here::here("data", "metadata", "cruise_logsheets"),
@@ -233,6 +237,7 @@ taxa_matched_merg <-
         # institutionCode     = "USF_IMaRS",
         institutionCode     = "USF",
         parentEventID       = "IMaRS_MBON_zooplankton",
+        # datasetName         = "MBON Florida Keys National Marine Sanctuary",
         datasetName         = "MBON Florida Keys National Marine Sanctuary Zooplankton Net Tows",
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         # informationWithheld = "collector identities withheld because changed frequently",
@@ -259,14 +264,15 @@ event <-
         # catalogNumber   = row_number(),
         locationID = site,
         # parentEventID      = "IMaRS_MBON_zooplankton",
-        datasetID          = glue("{parentEventID}:{cruise_id}"),
+        # datasetID          = glue("{parentEventID}:{cruise_id}"),
+        # datasetID          = glue("{cruise_id}"),
         # eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
         eventDate          = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
                         # "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
-                        "{datasetID}:stn{locationID}:{mesh}um:{eventDate}"
+                        "{cruise_id}:stn{locationID}:{mesh}um:{eventDate}"
         )  %>% str_remove("\\+0000"),
         fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
         # eventDate          = date(date_time), 
@@ -323,7 +329,7 @@ left_join(
 
 ```
 
-Ocurrence Level Info:
+# Ocurrence Level Info:
 ```{r occurence}
 occur <-
     taxa_matched_merg %>%
@@ -337,7 +343,9 @@ occur <-
               ) %>%
     dplyr::transmute(
         eventID, 
-        occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        # changed to taxa_orig to make sure occur ID is unique
+        occurrenceID             = glue("{eventID}:{taxa_orig}:{lifeStage}"),
         
         # taxa names
         scientificName,
@@ -352,13 +360,17 @@ occur <-
         
         # counts of organisms?
         # IDk which of these is accurate
-        individualCount          = number_ind_sample,
+        # individualCount          = number_ind_sample,
+        # add each aliquot as a total count per sample event
+        individualCount          = sum(aliquot_1, 
+                                       aliquot_2, 
+                                       aliquot_3),
         organismQuantity         = ind_m3,
         organismQuantityType     = "Individuals per cubic metre",
         # or
         # measurementType          = "Number per cubic metre",
         # MOF? should also include ind/sample?
-        measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+        # measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
         # MOF?
         
         # TODO: check this information ----
@@ -546,6 +558,7 @@ dir_create(dir)
 events <- sample(unique(event$eventID), 5)
 
 left_join(event, location) %>%
+    select(-cruise_id) %>%
     # group_by(eventID) %>%
     filter(eventID %in% events) %>%
     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
