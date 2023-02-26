@@ -39,7 +39,7 @@ file.taxa <-
     fs::dir_ls(path    =  here::here("data", "raw"),
                regexp  = "^[^~]*\\.xlsx$",
                recurse = TRUE) %>%
-    skip_file(., check = FALSE)
+    skip_file(., check = TRUE)
 
 # ---- load all files into one tibble ----
 taxa_data <-
@@ -106,9 +106,10 @@ taxa_matched_merg <-
 # save data and append processed files log
 if (FALSE) {
     save_merged(taxa_matched_merg = taxa_matched_merg, 
-                # .taxa_file = file.taxa,
+                .taxa_file = file.taxa,
                 loc = here("data", "processed"),
-                ind_file = FALSE
+                ind_file = FALSE,
+                append = FALSE
                 )
 }
 ```
@@ -151,9 +152,11 @@ if (FALSE) {
     tibble(files = .) %>%
     mutate(base      = basename(files),
            base      = str_replace(base, "processed.*", "processed\\.csv"),
-           new_files = here(copy_loc, base)) %>%
-        
-    arrange(desc(new_files)) %>%
+           new_files = here(copy_loc, base), 
+           times = file_info(files)  %>%
+                     select(birth_time)) %>%
+    unnest(times) %>%
+    arrange(desc(birth_time)) %>%
         
     distinct(new_files, .keep_all = TRUE) %$%
 
@@ -177,5 +180,4 @@ if (FALSE) {
    file_copy(path = files, new_path = new_files, overwrite = TRUE)
 }
 ```
-
 
