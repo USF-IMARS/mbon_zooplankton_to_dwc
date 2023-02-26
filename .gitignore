@@ -4,7 +4,12 @@
 .Ruserdata
 .Rprofile
 
+# ignore the data folder 
 data/**
 
 # folder may exists if not using a cloud directory
 IMaRS Zooplankton data* 
+
+# ignore test files
+Rmd/obis*
+Rmd/old*
