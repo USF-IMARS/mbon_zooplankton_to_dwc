@@ -524,7 +524,8 @@ taxa_unmatch <- function(taxa_matched    = NULL,
 ##%######################################################%##
 save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
                         loc = here::here('data', 'processed'),
-                        ind_file = TRUE,
+                        ind_file = TRUE, 
+                        append = TRUE,
                         ...) {
     
     dir <- here::here(loc, "ind_file_merg") 
@@ -545,7 +546,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
         last_mod(.)
     
    # ---- save merged list
-    if (!is_empty(old_merged)) {
+    if (!is_empty(old_merged) & append) {
         # ---- append all merged
         old_merged %>%
         read_csv(show_col_types = FALSE,
@@ -659,11 +660,14 @@ skip_file <- function(file.taxa,
         cli::cli_alert_info("Creating a list of processed files!")
         cli::cli_alert_info(c("File created: {.file {basename(file.name)}}\n",
                               "Located in: {.file {dirname(file.name)}}"))
+
+        as_tibble(file.taxa) %>%
+            rename("files" = 1) %>%
+            mutate(time = Sys.time()) %>%
+            write_csv(
+                file.name
+            )
         
-        tibble(files = file.taxa, time = Sys.time()) %>%
-        write_csv(
-            file.name
-        )
     } else {
         cli::cli_alert_info("Appending the list of processed files!")
         cli::cli_alert_info(c("File appended: {.file {basename(file.name)}}\n",
