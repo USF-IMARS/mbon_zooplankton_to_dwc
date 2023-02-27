@@ -247,7 +247,7 @@ load_taxa_list <- function(loc             = here::here(),
                    "does not exist in {loc}.",
                    "\nYou may have to set `recurse = TRUE` or",
                    "\nIf one exists in your cloud directory, run",
-                   "`master_taxa_cloud()` to pull and save",
+                   "`master_taxa_list()` to pull and save",
                    "to your local directory.", 
                    .sep = " "))
     
@@ -263,7 +263,6 @@ load_taxa_list <- function(loc             = here::here(),
             regex_lifestage = regex_lifestage,
             # file_base       = file_base,
             .file_expr      = .file_expr,
-            save_file       = TRUE,
             ...)
         }
     
@@ -302,8 +301,8 @@ taxa_list_check <- function(loc             = here::here(),
     # copy it to data/metadata/aphia_id directory
     if (is_empty(taxa_file) & exists("cloud_dir")) {
         try(
-            # * function call: master_taxa_cloud ----
-            master_taxa_cloud(.cloud_dir = cloud_dir, 
+            # * function call: master_taxa_list ----
+            master_taxa_list(.cloud_dir = cloud_dir, 
                               where_to   = "local"), 
             silent = TRUE)
         
@@ -635,15 +634,16 @@ skip_file <- function(file.taxa,
                    recurse = TRUE)
     
     # check list of files to remove from search
-    if (check) {
+    if (isTRUE(check)) {
         files_lists <- files_lists %>%
             {if (!is_empty(.))
                 read_csv(., show_col_types = FALSE) %>%
                     pull(files)
             }
         
-        file.taxa <-  file.taxa[!(file.taxa %in% files_lists)]
+        if (all(class(file.taxa) != "character")) file.taxa <- pull(file.taxa, 1)
         
+        file.taxa <-  file.taxa[!(file.taxa %in% files_lists)]
         
         assertthat::assert_that(
             assertthat::not_empty(file.taxa),
@@ -651,6 +651,11 @@ skip_file <- function(file.taxa,
         
         # return(file.taxa)
         return(tibble(files = file.taxa)) 
+    } 
+    
+    if (str_detect(check, "(?i)ig")) {
+        cli::cli_alert_info("Ignoring checks and returning same input!")
+        return(tibble(files = file.taxa))
     }
     
     file.name <- here::here(loc, glue("{file_name}.csv"))
@@ -682,7 +687,7 @@ skip_file <- function(file.taxa,
             )
     }
     
-    return(tibble(files = file.taxa))
+    return(as_tibble(file.taxa))
 
     # ---- end of function
 }
@@ -692,11 +697,12 @@ skip_file <- function(file.taxa,
 #### ---- 8. Push/Pull Master List to Cloud/Local ----  ####
 #                                                          #
 ##%######################################################%##
-master_taxa_cloud <- function(taxa_list  = NULL, 
-                              .cloud_dir,
-                              # file_base  = "aphia_taxa",
-                              where_to   = NULL, 
-                              .file_expr = file_expr()) {
+master_taxa_list <- function(taxa_list  = NULL, 
+                             .cloud_dir,
+                             # file_base  = "aphia_taxa",
+                             where_to   = NULL, 
+                             save       = FALSE,
+                             .file_expr = file_expr()) {
     #' Push/Pull Master Taxonomic List to Cloud/Local
     #'
     #' @description 
@@ -731,7 +737,7 @@ master_taxa_cloud <- function(taxa_list  = NULL,
     file_location <- here(.cloud_dir, glue("{.file_expr[[1]]}.csv"))
     
     # push to cloud
-    if (str_detect(where_to, "cloud") & !is.null(taxa_list)) {
+    if (str_detect(where_to, "cloud") & !is.null(taxa_list) & save) {
         file_location %>%
             write_csv(taxa_list, ., na = "")
         
@@ -743,7 +749,7 @@ master_taxa_cloud <- function(taxa_list  = NULL,
     }
     
     # pull from cloud
-    if (str_detect(where_to, "local")) {
+    if (str_detect(where_to, "local") & !save) {
         
         file_location <- 
             here::here(.cloud_dir) %>%
@@ -764,6 +770,20 @@ master_taxa_cloud <- function(taxa_list  = NULL,
         
         return(invisible(NULL))
     }
+    
+    # save to local 
+    if (str_detect(where_to, "local") & !is.null(taxa_list) & save) {
+        file_location <- eval(.file_expr[[2]])
+        
+        cli::cli_alert_success(c("Saving ",
+                                 "{.strong {col_green('Master Taxa Sheet')}} ",
+                                 "to {.path {dirname(file_location)}}"))
+        write_csv(taxa_list, 
+                  file = file_location,
+                  na = "")
+        
+        return(invisible(NULL))
+    } 
     
     cli::cli_alert_warning(c("Nothing was pushed or pulled.\nIf pushing to", 
                              "{.var cloud}, make sure to have to set",
@@ -797,7 +817,7 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
         # life stage
         lifestage = if_else(
             str_detect(taxa_orig, lifer),
-            str_extract(values$taxa_orig, lifer),
+            str_extract(taxa_orig, lifer),
             NA_character_)  %>% str_to_lower(),
           
         # cleaned taxa for OBIS search
@@ -805,8 +825,6 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
                                regex(.regex_lifestage,
                                      ignore_case = TRUE)) %>% str_trim()
     )
-    
-    print("fd")
     
     return(values)
     # ---- end of function
