@@ -112,17 +112,18 @@ aphia_id <-
     read_csv(show_col_types = FALSE) %>%
     mutate(
         aphiaID = if_else(!is.na(scientificNameID), 
-                          str_split(scientificNameID, ":", simplify = T)[, 5],
+                          str_split(scientificNameID, ":", 
+                                    simplify = TRUE)[, 5],
                           NA_character_) %>%
                           as.numeric(.),
-        info = map(aphiaID, ~ worrms::wm_record(.x))
+        info = map(aphiaID, 
+                   ~ tryCatch({worrms::wm_record(.x)
+                       }, error = function(e) {
+                           return(NULL)
+                           }))
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
-    select(!contains("_2"), -c(2:6)) 
-
-# aphia_id %>%
-    # janitor::get_dupes(aphia_id) %>%
-    # View(., "duplicates")
+    select(!contains("_2"), -c(2:6))
 
 # ---- load metadata
 meta_df <-
@@ -164,21 +165,25 @@ taxa_files <-
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
     mutate(
         # fix some cruise ID from data spreadsheets
-        cruise_id = case_when(
-            str_detect(cruise_id, "006") ~ "WS20006",
-            str_detect(cruise_id, "WS118218") ~ "WS18218",
-            str_detect(cruise_id, "WS18224") ~ "WS18218",
-            str_detect(cruise_id, "WS18284") ~ "WS18218",
-            str_detect(cruise_id, "WS8218") ~ "WS18218",
-            # str_detect(cruise_id, "") ~ "", # incase other become problematic
-            TRUE ~ cruise_id
-            ),
+        # cruise_id = case_when(
+        #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
+        #     TRUE ~ cruise_id
+        #     ),
         site      = str_replace(site, "MK", "MR"),
         lifeStage = case_when(
             is.na(lifeStage) ~ "adult",
             TRUE ~ lifeStage)
     ) %>%
-  select(-mean_ind_dil_factor)
+  select(-mean_ind_dil_factor) %>%
+  rowwise(aliquot_1:aliquot_3) %>%
+  mutate(
+      individualCount = sum(aliquot_1, 
+                            aliquot_2, 
+                            aliquot_3, 
+                            na.rm = TRUE),
+      .before = aliquot_1
+  ) %>%
+  ungroup()
 
 # ---- merge metadata and taxa data
 taxa_matched_merg <-
@@ -206,53 +211,7 @@ taxa_matched_merg <-
     left_join(., 
               aphia_id,
               by = c("taxa_orig" = "taxa_orig", 
-                     "aphiaID"   = "aphia_id"))
-```
-
-
-```{r load-data}
-cid <- meta_df %$% unique(cruise_id)
-cid1 <- taxa_files %$% unique(cruise_id)
-cid[cid %in% cid1]
-cid1[cid1 %in% cid]
-cid[!(cid %in% cid1)]
-cid1[!(cid1 %in% cid)]
-
-taxa_matched_merg %>%
-    # filter(cruise_id == "WS19210") %>%
-    # distinct(site, mesh, .keep_all = TRUE)
-    filter(is.na(flowmeter_in)) %>%
-    full_join(filter(meta_df, cruise_id == "WS19210"), 
-              by = c("cruise_id", 
-                     "site" = "locationID", 
-                     "mesh" = "mesh_size_um")) %>%
-    select(1:3, mesh, file.y:last_col())
-
-taxa_files %>%
-    filter(str_detect(cruise_id, "WS2000")) %>%
-    select(cruise_id, site, mesh) %>%
-    distinct() %>%
-    arrange(site, mesh)
-
-
-taxa_matched_merg %>% 
-    distinct(cruise_id, site, mesh) %>%
-    arrange(cruise_id, site)
-
-here(cloud_dir, "raw") %>%
-    
-# here("data", "raw") %>%
-    dir_ls(type = "file", recurse = TRUE) %>%
-    tibble(files = .) %>%
-    mutate(
-        base = fs::path_ext_remove(files),
-        base = basename(base),
-        # cruise = str_replace(base, "(.*)_(.*)_(.*)", "\\1"),
-        
-    ) #%>%
-    filter(!str_detect(cruise, "~")) %>%
-    arrange(cruise)
-
+                     "aphiaID"   = "aphia_id")) 
 ```
 
 # Ex: Occurrence Bare Minimum example
@@ -287,12 +246,15 @@ taxa_matched_merg <-
         institutionCode     = "USF",
         parentEventID       = "IMaRS_MBON_zooplankton",
         # datasetName         = "MBON Florida Keys National Marine Sanctuary",
-        datasetName         = "MBON Florida Keys National Marine Sanctuary Zooplankton Net Tows",
+        datasetName         = glue("MBON Florida Keys National Marine Sanctuary", 
+                                   "Zooplankton Net Tows (",
+                                   "{min(year(date_time), na.rm = TRUE)} - ",
+                                   "{max(year(date_time), na.rm = TRUE)})"),
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         # informationWithheld = "collector identities withheld because changed frequently",
         recordedBy          = nlf,
         recordedByID        = orcid_nat,
-    ) 
+    )
 
 rcd_lvl <- taxa_matched_merg %>%
     distinct()
@@ -304,7 +266,7 @@ rm(nlf, orcid_nat)
 ```{r event}
 event <-
     taxa_matched_merg  %>%
-    dplyr::transmute(
+    transmute(
         cruise_id, mesh, parentEventID, type, modified, license, 
         institutionCode, datasetName, 
         # basisOfRecord,  informationWithheld,
@@ -316,7 +278,7 @@ event <-
         # datasetID          = glue("{parentEventID}:{cruise_id}"),
         # datasetID          = glue("{cruise_id}"),
         # eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
-        eventDate          = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+        eventDate          = format_ISO8601(date_time, usetz = "Z"),
         # eventID - something like cruiseID:stationID:meshsize
         # {{mbon} : cruise} : stn : mesh : date_time
         eventID            = glue(
@@ -331,7 +293,8 @@ event <-
         day                = day(date_time),
         # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
         samplingProtocol   = glue(
-            "{mesh} mesh size (um) - bongo nets | http://drs.nio.org/drs/handle/2264/95"
+            "{mesh} mesh size (um) - ",
+            "bongo nets | http://drs.nio.org/drs/handle/2264/95"
         ),
         
         # TODO: habitat NERC vocab
@@ -340,12 +303,12 @@ event <-
         sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
         samplingEffort     = str_c(tow_time_min, "minutes", sep = " ")
     ) %>%
-     distinct() %>%
-     mutate(
-         # TODO: save for the end when combining all same sizes together
-         catalogNumber   = row_number(),
-         .before = everything()
-     )
+    distinct() %>%
+    mutate(
+        # TODO: save for the end when combining all same sizes together
+        catalogNumber   = row_number(),
+        .before = everything()
+     ) 
 ```
 
 # Location Level Info:
@@ -411,15 +374,14 @@ occur <-
         # IDk which of these is accurate
         # individualCount          = number_ind_sample,
         # add each aliquot as a total count per sample event
-        individualCount          = sum(aliquot_1, 
-                                       aliquot_2, 
-                                       aliquot_3),
+        individualCount,
         organismQuantity         = ind_m3,
         organismQuantityType     = "Individuals per cubic metre",
         # or
         # measurementType          = "Number per cubic metre",
         # MOF? should also include ind/sample?
-        # measurementUnitID        = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+        # measurementUnitID        = 
+        # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
         # MOF?
         
         # TODO: check this information ----
@@ -439,11 +401,13 @@ occur <-
         dispostion = "in collection"
     )
 
+
 ```
 # MoF
 ## Ex: Mearuement or Fact
+MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 ```{r MoF-example}
-# # MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
+# # 
 # if (FALSE) {
 # # ---- Measurement or Fact
 # 
@@ -481,50 +445,39 @@ occur <-
 #         )
 # }
 ```
-
-```{r IMaRS-MoF}
+## Meaurement or Fact Level Info
+URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
+```{r MoF-base}
 # TODO: edit MoF for more information
 # result of script is MoF1 variable
 source("../scripts/mof_base_create_table.R")
 MoF1 <- mof_read()
-
-# names(taxa_matched_merg)
 # need:
 # measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
 def_web <- "http://vocab.nerc.ac.uk/collection/"
 
-MoF1 <- MoF1 %>%
-mutate(
-    measurementTypeID = case_when(
-        !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~ 
-            str_c(def_web, measurementType_uri),
-        TRUE ~ ""
-    ),
-    measurementUnitID = case_when(
-        !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~ 
-            str_c(def_web, measurementUnit_uri),
-        TRUE ~ ""
-    )
-)  %>%
-   select(-measurementValue & !ends_with("_uri"))
-    
-# after merge to measurementValue
-# "Individuals per cubic metre", "P06/current/UPMM/"
+MoF1 <-
+    MoF1 %>%
+    mutate(
+        measurementTypeID = case_when(
+            !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~
+                str_c(def_web, measurementType_uri),
+            TRUE ~ ""
+        ),
+        measurementUnitID = case_when(
+            !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~
+                str_c(def_web, measurementUnit_uri),
+            TRUE ~ ""
+        )
+    )  %>%
+    select(-measurementValue & !ends_with("_uri"))
 
-# clipr::write_clip(calc)
-# tibble::tribble(
-#     ~date_collected, ~sample_id, ~filtered_volume_m3, ~pipette_vol_m_l, ~dillution, ~dillution_factor, ~mesh, ~date_analyzed, ~split_amount,
-#        "2015-11-16",  "MR 1115",                 97L,               5L,       250L,               50L,  500L,   "2021-07-23",            2L
-#     )
-
-# http://vocab.nerc.ac.uk/collection/L05/current/22/
-# might need to pivot wider first, then pivot longer
-
+MoF1
 ```
-## Meaurement or Fact Level Info
+
 ```{r MoF}
-# def_web <- "http://vocab.nerc.ac.uk/collection/"
-MoF  <-
+# # ---- Event MoF
+MoF_event  <-
     taxa_matched_merg %>%
      left_join(event, 
               by = c("cruise_id", 
@@ -537,7 +490,7 @@ MoF  <-
               ) %>%
     distinct(eventID, .keep_all = TRUE) %>%
     select(-c(aphiaID:recordedByID)) %>%
-        mutate(
+    mutate(
         Net_type = "bongo nets",
         microscopy = "microscopy"
     ) %>%
@@ -551,45 +504,32 @@ MoF  <-
     ) %>%
     select(# datasetID, 
            eventID, orig_term, measurementValue) %>%
-    left_join(MoF1, by = c("orig_term"))
+    left_join(MoF1, by = c("orig_term")) %>%
+    filter(event_occur == "event")
 
+# ---- Occurence MoF
+MoF_occur  <-
+    occur %>%
+        select(eventID, occurrenceID, 
+               "number_ind_sample" = individualCount, 
+               "ind_m3" = organismQuantity,
+               verbatimIdentification, scientificName) %>%
+        
+        pivot_longer(
+                     cols = c(number_ind_sample, ind_m3),
+            # cols = c("split_amount", "mesh", "ind_m3"),
+                     names_to = "orig_term",
+                     values_to = "measurementValue",
+            values_transform = list(measurementValue = as.character)
+        ) %>%
+        select(occurrenceID, orig_term, measurementValue) %>%
+        left_join(MoF1, by = c("orig_term")) 
+        filter(event_occur == "event")
 
-# ---- MoF MBON ----
-# TODO: maybe create a list for each measurement type? 
-# use occurrence and event ID and the rest would be dependent on the actual
-# mesurements: 
-# i.e. net, mesh, area, volume filtered, etc..
-# mof <- 
-#     taxa_matched_merg %>%
-#     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
-#     dplyr::transmute(
-#         occurrenceID,
-#         eventID,
-#         measurementType   = "Relative abundance",
-#         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600020/",
-#         
-#         measurementValue  = ind_m3,
-#         measurementType   = "Number per cubic metre", # MOF?
-#         measurementID     = "http://vocab.nerc.ac.uk/collection/S06/current/S0600002/",
-#         measurementUnitID = "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/", # MOF?
-#     )
-# 
-# taxa_matched_merg %>%
-#     names() %>%
-#     sort()
-```
-
-# Don't Run
-```{r bd-check, result = 'hide}
-# compiled  <-
-#     reduce(list(event, location, occur, MoF), left_join) %>%
-#     group_by(eventID) %>%
-#     slice(1)
-# checks  <-
-#     compiled %>%
-#     bdchecks::perform_dc(.)
-# 
-# cat(summary_dc(checks), sep = "\n")
+MoF <- 
+    bind_rows(MoF_event, MoF_occur) %>%
+    relocate(occurrenceID, 1) %>%
+    select(-orig_term, -event_occur)
 
 ```
 
@@ -608,9 +548,9 @@ dir_create(dir)
 events <- sample(unique(event$eventID), 5)
 
 left_join(event, location) %>%
-    select(-cruise_id) %>%
+    select(-cruise_id, -parentEventID, -catalogNumber, -mesh) %>%
     # group_by(eventID) %>%
-    filter(eventID %in% events) %>%
+    filter(eventID %in% events) %>% 
     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
     write_csv(file = path[1], na = "")
 
@@ -622,7 +562,7 @@ occur %>%
 
 MoF %>%
     # group_by(eventID) %>%
-    filter(eventID %in% events) %>%
+    filter(eventID %in% events | str_detect(occurrenceID, paste(events, collapse = "|"))) %>%
     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
     write_csv(file = path[3], na = "")
 
@@ -647,3 +587,5 @@ obistools::report %>%
     View()
 
 ```
+
+
