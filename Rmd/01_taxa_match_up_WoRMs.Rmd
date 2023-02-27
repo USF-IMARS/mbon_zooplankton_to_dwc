@@ -39,7 +39,7 @@ file.taxa <-
     fs::dir_ls(path    =  here::here("data", "raw"),
                regexp  = "^[^~]*\\.xlsx$",
                recurse = TRUE) %>%
-    skip_file(., check = TRUE)
+    skip_file(., check = "ignore")
 
 # ---- load all files into one tibble ----
 taxa_data <-
@@ -50,22 +50,25 @@ taxa_data <-
     unnest(data)
     
 head(taxa_data)
-distinct(taxa_data, cruise_id, site)
+distinct(taxa_data, cruise_id, site, mesh)
 ```
 # Merge taxanomic list and save new data
 1. Loads previous master taxonomic data sheet
-- This will check if it is contained in the cloud service at the root level, or create one if it doesn't exists
-- If it doesn't exist, it will check the long format data for a column called taxa
-- Then, it will `clean` the taxa list by removing sp., spp. and life stage information
+- This will check if it is contained in the cloud service at the root level, or 
+  create one if it doesn't exists
+- If it doesn't exist, it will check the long format data for a column called 
+  taxa
+- Then, it will `clean` the taxa list by removing sp., spp. and life stage 
+  information
 - Next, it will use the custom function for searching scientific names in `WoRMS`
-    - The base for this is `obistools::match_taxa`, but it adds the ability to type non-matched names or to use common names
+    - The base for this is `obistools::match_taxa`, but it adds the ability to 
+      type non-matched names or to use common names
 - Once completed, it will save the taxa list in `data/metadata/aphia_id/` 
 - It will check if there are any `NAs` if set `check = TRUE`
-    - Only the `NA` rows will be rechecked again. Then it will merge with previous sheet with a new filename 
+    - Only the `NA` rows will be rechecked again. Then it will merge with 
+      previous sheet with a new filename 
 
 ```{r aphia-ids}
-# TODO: read in all files, joining with scientific names, then add more if they 
-# don't exist
 taxa <-
     taxa_data %>%
     select(taxa) %>%
@@ -77,17 +80,45 @@ taxa <-
                # .recurse   = TRUE
                )
 
+taxa
+
 # Check unmatched taxa names
 taxa %>%
     filter(is.na(scientificName))
+```
+# Push current master taxonomic sheet to cloud
+1. Load most recent taxa sheet
+2. Check if there any unmatched taxa
+3. Push to cloud location
+
+```{r push-pull-save}
+# current saved
+taxa_list <- load_taxa_list(check = TRUE)
+
+# join to current taxa list to add new ones
+taxa_list <- 
+    taxa_list %>%
+    full_join(taxa) 
+
+# check if there are not matches and decide if want to fix
+no_matches <- taxa_list %>%
+    filter(is.na(scientificName))
+no_matches
 
 # uncomment if want to fix unmatched names
-# taxa_unmatch(taxa,
-#              lifestage,
-#              .file_expr = file_exprs,
-#              save_file  = TRUE,
-#              viewer     = TRUE)
+# taxa_list <-
+#     taxa_unmatch(taxa,
+#                  lifestage,
+#                  .file_expr = file_exprs,
+#                  save_file  = FALSE,
+#                  viewer     = TRUE)
 
+if (FALSE) {
+    master_taxa_list(taxa_list  = taxa_list, 
+                     .cloud_dir = cloud_dir, 
+                     where_to   = "local",
+                     save       = TRUE)
+}
 ```
 
 2. Merge taxa lists with long format abundance data.
@@ -106,30 +137,15 @@ taxa_matched_merg <-
 # save data and append processed files log
 if (FALSE) {
     save_merged(taxa_matched_merg = taxa_matched_merg, 
-                .taxa_file = file.taxa,
-                loc = here("data", "processed"),
-                ind_file = FALSE,
-                append = FALSE
+                .taxa_file        = file.taxa,
+                loc               = here("data", "processed"),
+                ind_file          = TRUE,
+                append            = FALSE # if starting over, create new merged
                 )
 }
 ```
 
-# Push current master taxonomic sheet to cloud
-1. Load most recent taxa sheet
-2. Check if there any unmatched taxa
-3. Push to cloud location
 
-```{r push-to-cloud}
-taxa_list  <- load_taxa_list(check = TRUE) 
-no_matches <- taxa_list %>%
-    filter(is.na(scientificName))
-
-if (FALSE) {
-    master_taxa_cloud(taxa_list  = taxa_list, 
-                      .cloud_dir = cloud_dir, 
-                      where_to   = "cloud")
-}
-```
 # Copy Processed Files to Cloud
 ```{r}
 # ============================================================================ #
@@ -143,41 +159,53 @@ if (is.na(cloud_dir) | !dir_exists(cloud_dir)) {
 # ---- Copy Individual Files ----
 # ============================================================================ #    
 if (FALSE) {
-    copy_loc <- here(cloud_dir, "processed", "ind_file_merg")
+    copy_loc <- 
+        here(cloud_dir, "processed", "ind_file_merg")
     
-    dir_create(copy_loc)
-    
-    here("data", "processed", "ind_file_merg") %>%
-    dir_ls() %>%
-    tibble(files = .) %>%
-    mutate(base      = basename(files),
-           base      = str_replace(base, "processed.*", "processed\\.csv"),
-           new_files = here(copy_loc, base), 
-           times = file_info(files)  %>%
-                     select(birth_time)) %>%
-    unnest(times) %>%
-    arrange(desc(birth_time)) %>%
+        dir_create(copy_loc)
         
-    distinct(new_files, .keep_all = TRUE) %$%
-
-    file_copy(path = files, new_path = new_files, overwrite = TRUE)
+        here("data", "processed", "ind_file_merg") %>%
+        dir_ls() %>%
+        tibble(files = .) %>%
+        
+       # extracting basename to use as name in cloud 
+        mutate(base      = basename(files),
+               base      = str_replace(base, "processed.*", "processed\\.csv"),
+               new_files = here(copy_loc, base), 
+               times     = select(file_info(files), birth_time)
+               ) %>%
+            
+        # get most recent version to send to cloud
+        unnest(times) %>%
+        arrange(desc(birth_time)) %>%
+        distinct(new_files, .keep_all = TRUE) %$%
+    
+        # copying individual files to cloud and overwriting previous one      
+        file_copy(path = files, new_path = new_files, overwrite = TRUE)
 }
 
 # ============================================================================ #
 # ---- Copy Recent Merged File ----
 # ============================================================================ #    
 if (FALSE) {
-   copy_loc <- here(cloud_dir, "processed")
-   dir_create(copy_loc)
-
-   here("data", "processed") %>%
-   dir_ls(regexp = "all_merged") %>%
-   last_mod() %>%
-   tibble(files = .) %>%
-   mutate(base      = basename(files),
-          base      = str_replace(base, "processed.*", "processed\\.csv"),
-          new_files = here(copy_loc, base)) %$%   
-   file_copy(path = files, new_path = new_files, overwrite = TRUE)
+   copy_loc <- 
+       here(cloud_dir, "processed")
+       dir_create(copy_loc)
+    
+       here("data", "processed") %>%
+       dir_ls(regexp = "all_merged") %>%
+       last_mod() %>%
+       tibble(files = .) %>%
+         
+       # extracting basename to use as name in cloud 
+       mutate(base      = basename(files),
+              base      = str_replace(base, "processed.*", "processed\\.csv"),
+              new_files = here(copy_loc, base)) %$% 
+       
+       # copying merged file to cloud and overwriting previous one    
+       file_copy(path      = files, 
+                 new_path  = new_files, 
+                 overwrite = TRUE)
 }
 ```
 
