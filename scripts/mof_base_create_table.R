@@ -10,7 +10,7 @@
 # NA  
 #
 # ---- OUTPUTS: ----------
-# MoF1 = Tibble of Measurments or Facts
+# mof_base = Tibble of Measurments or Facts
 #
 # ---- NOTES: ------------
 #
@@ -55,7 +55,7 @@ mof_read <- function() {
         
         dir_create(mof_path)
         
-        MoF1 <-
+        mof_base <-
         tibble::tribble(
             ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
             "Net_Type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
@@ -84,7 +84,14 @@ mof_read <- function() {
             "tow_speed_m_sec",           "Speed", "S06/current/S0600152/",                NA,   "Metres per second",    "P06/current/UVAA/",              NA, 
             "mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",                NA,         "Micrometres",    "P06/current/UMIC/",              NA,
             "microscopy",           "microscopy",    "S04/current/S0419/",                NA,                    NA,                     NA,              NA
-        )  
+        )  %>%
+         mutate(
+             event_occur = case_when(
+                 str_detect(orig_term, "ind_m3|number_ind_sample") ~ "occur",
+                 TRUE ~ "event"
+             ),
+             .after = orig_term
+         )
         # ==================================================================== #
         # ---- Save Table ----
         # ==================================================================== #    
@@ -94,16 +101,16 @@ mof_read <- function() {
                    "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
                    ".csv")
         
-        readr::write_csv(MoF1, 
+        readr::write_csv(mof_base, 
                          file_mof)
         
         
     
     } else {
         cli_inform("Loading MoF table: {.file {mof_file}}")
-        MoF1 <- readr::read_csv(mof_file, show_col_types = FALSE)
+        mof_base <- readr::read_csv(mof_file, show_col_types = FALSE)
     }
     
-    return(MoF1)
+    return(mof_base)
 }
 
