@@ -13,7 +13,8 @@
 #                                                          #
 ##%######################################################%##
 file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"), 
-                      file_base = "aphia_taxa") {
+                      file_base = "aphia_taxa",
+                      exts      = "csv") {
     #' List of Base File Name and File Name Expression
     #'
     #' This function take a location to save aphiaID file and a base name to 
@@ -29,7 +30,8 @@ file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
     expr(here::here(
         !!loc,
         glue(!!file_base,
-             "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.csv")
+             "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.",
+             !!exts)
     ))
     
     list(file_base = file_base,
