@@ -1,0 +1,79 @@
+---
+title: "Equations for Indivduals per Cubic Meter"
+author: "Sebastian DiGeronimo"
+date: "2023-03-07"
+output: html_document
+---
+
+# Equations used to calculate Individuals per Cubic Meter
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+$$
+D = \frac {(N \times V_S)}{N_A \times V \times P_s} \\ 
+\begin{align}
+& N = \text{total number of organisms for all aliquots} \\
+& V_S = \text {vol of split from which aliquots were removed in mL (i.e. dilution factor)} \\ 
+& N_A = \text {number of aliquots examined} \\
+& V = \text {vol filtered water} \\
+& P_S = \text {proportion of total sample analyzed} =
+     \begin{cases}
+          \text {N}_{\text {lab}_{split}} = 0, & \text {N}_{\text {cruise}_{split}} \\
+          \text {N}_{\text {lab}_{split}} > 0, 
+              &  \text {N}_{\text {cruise}_{split}} \times \text {N}_{\text{lab}_{splt}}
+     \end{cases} \\
+\end{align}
+$$
+
+$$
+D = \frac {(N \times V_S)}{N_A  \times P_s} \times V = \mu_{ind} \times \text {fact}_{dilute} \times P_S \times V\\
+\begin{align}
+& \mu_{ind} = \frac {N} {N_A} = \text {average individuals} \\
+& V_S = \text {fact}_{dilute} = \frac {vol_{w}} {vol_{pipette}} \\
+& P_S = {\frac {1}{2}}^{N_{split}}, \text { where } N_{split} = 
+     \begin{cases}
+          \text {N}_{\text {lab}_{split}} = 0, & \text {N}_{\text {cruise}_{split}} \\
+          \text {N}_{\text {lab}_{split}} > 0, 
+              &  \text {N}_{\text {cruise}_{split}} + \text {N}_{\text{lab}_{splt}}
+     \end{cases} \\
+& \text {N}_{\text {cruise}_{split}} = \text {number of splits on the cruise} \\
+& \text {N}_{\text {lab}_{split}} = \text {number of splits in the lab} \\
+\end{align} \\
+if~{N}_{\text {lab}_{split}} \text { or } \text {N}_{\text {lab}_{split}} =\text {fraction}, \\
+then,~\frac {N_{split}^{-1}} {2}
+$$
+
+```{r}
+n_ali = 74 # sum of counts for all aliquots
+folson = 1 # mL of the pipette
+splt = 2 # number of splits, i.e. how many times was sample split before counts
+vol_samp = 100 # volume of sample within beaker before count
+ali = 12 # number of counted aliquots
+
+# Jamie's original equation
+n_ali * vol_samp / ali * splt / folson
+n_ali * vol_samp / ali * 2^splt / folson # <--- this seems mor correct
+
+# Rearranged equation 
+(n_ali / ali) * # average individuals
+(vol_samp / folson) / # dilution factor
+0.5
+
+# if split was made using the equation 1/2^n_splits
+splt_alt = (1/2)^splt
+
+n_ali * vol_samp / ali / splt_alt / folson
+n_ali * vol_samp / ali * splt_alt^-1 / folson
+
+# add cruise split to formulation
+cr_splt = 1 # number of splits on cruise, 1 split = 1/2^1 sample 
+lab_splt = 2 # number of splits in the lab, 2 splits = 1/2^2 sample
+
+# test both ways depending if in fraction or integer form
+0.5^(cr_splt + lab_splt) # integer: 1 split
+0.5^lab_splt * 0.5^cr_splt # fraction: 0.5
+
+
+```
