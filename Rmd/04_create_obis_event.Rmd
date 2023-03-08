@@ -44,11 +44,21 @@ inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # net_area <- pi * 0.5^2
 
 # TODO: check this equation ---------------------------------------------------
+# Note: jamie dillution / pippete_vol_m_l is the same as nat dillution_factor
+# 
+# total num individual (sum all aliquots)  * vol sample water (known vol) / counted aliquot * split size / folson (mL per aliquot)
+# 
+# 
+# mean = total num / counted aliquots 
+# dilution factor = vol sample water / folson 
+# 
 which_one <- "nat"
 equation_zoo <- switch(
     which_one,
     "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
-    "jamie"  = expression(dillution * mean * splits_analyzed / pipette_vol_m_l),
+    "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
+    "nat3"   = expression(dillution_factor * mean * (splits_analyzed)^-1),
+    "jamie"  = expression((dillution / pipette_vol_m_l) * mean * splits_analyzed ),
     "jamie2" = expression(dillution * mean)
 )
 rm(which_one)
@@ -80,24 +90,25 @@ MOF - environmental quantities measured
 
 # not finished yet
 
-occurrence = institution_code = "USF_IMaRS" 
-collection_code = "compiled_zoo_taxonomy_nlf" 
-catalog_number = "20yy_mm_dd" 
-occurrenceID = (unique identifier) 
+occurrence       = institution_code = "USF_IMaRS" 
+collection_code  = "compiled_zoo_taxonomy_nlf" 
+catalog_number   = "20yy_mm_dd" 
+occurrenceID     = (unique identifier) 
+
 joining of <urn:catalog> institution code
 collection_code catalog_number row number 
 join by : 
-eventDate = date_time 
+eventDate        = date_time 
 decimalLongitude = lon_in 
-decimalLatitude = lat_in
-scientificName = natalia spreadsheet 
+decimalLatitude  = lat_in
+scientificName   = natalia spreadsheet 
 scientificNameID = "TODO: worms lookup", #taxonomy_df["classification"],
 
-occurence = basisOfRecord = "HumanObservation", 
-collectionCode = collection_code, 
-catalogNumber = catalog_number, 
+occurence        = basisOfRecord = "HumanObservation", 
+collectionCode   = collection_code, 
+catalogNumber    = catalog_number, 
 occurrenceStatus = "present", 
-institutionCode = institution_code
+institutionCode  = institution_code
 
 extra-stuff mesh_size flowmeter in flowmeter out ship speed inpeller
 constant distnace tow speed formalin vol filtered
@@ -150,11 +161,10 @@ meta_df <-
         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
         # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
         volume_filt_cubic_m = net_area/4 * distance_m_2,
-        split_size          = map(split_size, function(x) {
+        split_size          = map_dbl(split_size, function(x) {
                                     out <- tryCatch({
                                     eval(parse(text = x))}, 
-                                    error = function(e) {NA_integer_})}) %>% 
-                              unlist(.)
+                                    error = function(e) {NA_integer_})}) 
        ) 
 
 # ---- load zooplankton data
@@ -172,7 +182,11 @@ taxa_files <-
         site      = str_replace(site, "MK", "MR"),
         lifeStage = case_when(
             is.na(lifeStage) ~ "adult",
-            TRUE ~ lifeStage)
+            TRUE ~ lifeStage),
+        splits_analyzed = case_when(
+            is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
+            TRUE ~ splits_analyzed
+        )
     ) %>%
   select(-mean_ind_dil_factor) %>%
   rowwise(aliquot_1:aliquot_3) %>%
