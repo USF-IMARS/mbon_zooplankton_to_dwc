@@ -233,16 +233,39 @@ meta <- meta %>%
       arrange(date)
 ```
 
+# Fix Latitude and Longitude
+Some files had mixed up lat and lon and some have lon at a positive 
+decimal degree and should only be negative.
+```{r fix-lat-lon}
+meta <- 
+    meta %>%
+    mutate(
+        lon_in1 = case_when(
+            lon_in > 0 & lon_in > 75 ~ -lon_in,
+            lon_in > 0 & lon_in < 75 ~ lat_in,
+            TRUE ~ lon_in
+        ),
+        lat_in1 = case_when(
+            lat_in < 0 ~ lon_in,
+            TRUE ~ lat_in
+        ),
+        lon_in = lon_in1,
+        lat_in = lat_in1
+    ) %>%
+    select(-lat_in1, -lon_in1)
+```
+
+
+
 # Save merged metadata
 ```{r save}
 # ---- write metadata to file ----
 if (FALSE) {
     write_csv(meta,
-              here::here("data", "metadata", "cruise_logsheets", 
-                         glue("meta_combined", 
-                              format(Sys.time(), '_%Y%m%d_%H%M%S'),
-                              ".csv")
-                         ),
+              here("data", "metadata", "cruise_logsheets", 
+                   glue("meta_combined", 
+                        format(Sys.time(), '_%Y%m%d_%H%M%S'),
+                        ".csv")),
               na = ""
               )
 }
