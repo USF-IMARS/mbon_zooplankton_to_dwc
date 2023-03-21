@@ -266,8 +266,11 @@ taxa_matched_merg <-
                                    "{max(year(date_time), na.rm = TRUE)})"),
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         # informationWithheld = "collector identities withheld because changed frequently",
-        recordedBy          = nlf,
-        recordedByID        = orcid_nat,
+        # recordedBy          = nlf,
+        # recordedByID        = orcid_nat,
+        # Abbey B. recommends this change, updated March 21, 2023
+        identifiedBy        = nlf, 
+        identifiedByID      = orcid_nat,
     )
 
 rcd_lvl <- taxa_matched_merg %>%
