@@ -28,7 +28,7 @@ D = \frac {(N \times V_S)}{N_A \times V \times P_s} \\
 $$
 
 $$
-D = \frac {(N \times V_S)}{N_A  \times P_s} \times V = \mu_{ind} \times \text {fact}_{dilute} \times P_S \times V\\
+D = \frac {(N \times V_S)}{N_A  \times P_s} \times V^{-1} = \mu_{ind} \times \text {fact}_{dilute} \times P_S \times V^{-1}\\
 \begin{align}
 & \mu_{ind} = \frac {N} {N_A} = \text {average individuals} \\
 & V_S = \text {fact}_{dilute} = \frac {vol_{w}} {vol_{pipette}} \\
