@@ -271,8 +271,43 @@ merged_file <-
     file_expr(loc = here("data", "processed", "merged"),
               file_base = "zooplankton_fl_keys",
               exts = "xlsx")[[2]]
+if (FALSE) {
+    saveWorkbook(wb,
+                 file = eval(merged_file))
+} else {
+    cli::cli_alert_warning("Not saving final workbook!")
+}
+```
 
-saveWorkbook(wb,
-             file = eval(merged_file))
+```{r}
+meta <- 
+    here(cloud_dir, "cruise_logsheets") %>%
+    dir_ls(type = "file") %>%
+    last_mod() %>%
+    read_csv(show_col_types = FALSE) %>%
+    
+    mutate(locationID      = case_when(
+                str_detect(station, "Mol")  ~ "MR",
+                str_detect(station, "Loo")  ~ "LK",
+                str_detect(station, "West") ~ "WS",
+                str_detect(station, "9B")   ~ "9B",
+                TRUE ~ station), 
+           .after = station)
+
+dat <- 
+    here(cloud_dir, "processed") %>%
+    dir_ls(type = "file") %>%
+    last_mod() %>%
+    read_csv(show_col_types = FALSE)
+
+
+merged_master <- 
+    left_join(dat, 
+          meta, 
+          by = join_by(cruise_id, 
+                       site == locationID, 
+                       mesh == mesh_size_um))
+
+naniar::gg_miss_case(merged_master)
 ```
 
