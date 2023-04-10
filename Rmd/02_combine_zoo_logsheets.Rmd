@@ -31,15 +31,13 @@ rm(func_attach)
 ```{r read-sheets, include=FALSE}
 # select all cruise files
 meta <- 
-    fs::dir_ls(here::here("data", "metadata", "cruise_logsheets"), 
-               recurse = TRUE,
-               regexp = "^[^~]*\\.(xlsx)$")  %>%
+    dir_ls(here("data", "metadata", "cruise_logsheets"),
+           recurse = TRUE,
+           regexp = "^[^~]*\\.(xlsx)$")  %>%
     tibble(file = .) %>%
     
     # filter for only fknms files
-    filter(!str_detect(file, 
-                       c("All_cruise|BB3|Digna|Schedule|Kelble"))
-           ) %>%
+    filter(!str_detect(file, c("All_cruise|BB3|Digna|Schedule|Kelble"))) %>%
     
     # column for only filename
     mutate(
@@ -47,7 +45,8 @@ meta <-
     )
 
 # read all files for sheet names that match zooplankton and Sheet2
-temp <- meta %>%
+temp <- 
+    meta %>%
     mutate(sheets = map(.x = file, ~ readxl::excel_sheets(.x))) %>%
     unnest(sheets) %>%
     group_by(base) %>%
