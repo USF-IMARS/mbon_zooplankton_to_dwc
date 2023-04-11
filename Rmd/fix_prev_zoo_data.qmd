@@ -20,21 +20,32 @@ library("conflicted")
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 ```
+```{r create-folder}
+base_dir <- here("data", "zoo_pre_2018")
+
+dir_create(here(base_dir, "processed"))
+dir_create(here(base_dir, "orig"))
+```
+
 # Search for Files
 two files needed:
 compiled_zoo_taxonomy_Jaimie_31JAN2018 (1).xlsx
 sample-details.csv
 
-```{r get-sheet-info}
-base_dir <- here("data", "example", "claudia_zoo_biometry")
+Download these and put in the origins folder
+https://docs.google.com/spreadsheets/d/1GmebUJ35rlVF07b2GNWZXLj91RlDc5lW/edit#gid=1910593077
+https://drive.google.com/drive/folders/17f5gOJuU6wBuoNvkpoc7fkW4-8Ql6B3e
 
+```{r get-sheet-info}
 file_location <-
     base_dir %>%
-    dir_ls(regexp = "[^~].compiled_zoo")
+    dir_ls(regexp = "[^~].compiled_zoo",
+           recurse = TRUE)
 
 meta_samples_file <-
     base_dir %>%
-    dir_ls(regexp = "[^~].sample-details")
+    dir_ls(regexp = "[^~].sample-details",
+           recurse = TRUE)
 
 file_location
 meta_samples_file
@@ -76,7 +87,8 @@ not in a year, month, station, mesh order. This chunk will fix this issue, but
 the created file will need `repairs` before using. This is only used when 
 looking for issues in the raw data and is not used elsewhere. 
 ```{r reorder-sheets}
-if (FALSE) {
+if (!file_exists(here(base_dir, "processed", "zoo_reorder_sht.xlsx"))
+    & FALSE) {
     shelf(openxlsx)
 
     wb <- loadWorkbook(file_location)
