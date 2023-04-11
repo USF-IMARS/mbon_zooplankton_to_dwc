@@ -1,0 +1,371 @@
+---
+title: "Fix and Convert Previous Zooplankton Data"
+author: "Sebastian Di Geronimo"
+date: "2023-04-09"
+format: html
+---
+# Load Libraries
+```{r setup}
+librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom # optional
+    
+    # additional
+    readxl, janitor, hablar
+)
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+```
+# Search for Files
+two files needed:
+compiled_zoo_taxonomy_Jaimie_31JAN2018 (1).xlsx
+sample-details.csv
+
+```{r get-sheet-info}
+base_dir <- here("data", "example", "claudia_zoo_biometry")
+
+file_location <-
+    base_dir %>%
+    dir_ls(regexp = "[^~].compiled_zoo")
+
+meta_samples_file <-
+    base_dir %>%
+    dir_ls(regexp = "[^~].sample-details")
+
+file_location
+meta_samples_file
+
+# read all sheet names and filter for ones with WS and LK
+# WS = Western Sambo
+# LK = Looe Key
+sheets <-
+    excel_sheets(file_location) %>%
+    
+    # turn into tibbles (DON'T worry about what it is)
+    tibble(sheet_nm = .) %>%
+    
+    # filter(str_detect(sheets, "^(WS|LK)")) %>%
+    filter(!str_detect(sheet_nm, "Samples|PL")) %>%
+    mutate(
+        sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
+        sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)) %>%
+    separate_wider_regex(
+        sheet,
+        cols_remove = TRUE,
+        patterns = c(stn   = "\\w{2}",      # extract station
+                     month = "\\d{2}",      # extract month
+                     year  = "\\d{2}",      # extract year
+                     mesh  = "200|500|64",  # extract mesh
+                     dup   = ".*|2$"))  %>% # extract duplicates
+    arrange(year, month, stn, as.numeric(mesh)) %>%
+    mutate(dup   = if_else(str_detect(dup, "2"), 
+                           "duplicate", 
+                           NA_character_),
+           year = str_c("20", year)) %>%
+    relocate(stn, .after = year) %>%
+    relocate(year, .after = 1)
+```
+
+# Optional: Reorder Sheets
+When opening in excel, it is hard to search through each sheet because they are
+not in a year, month, station, mesh order. This chunk will fix this issue, but 
+the created file will need `repairs` before using. This is only used when 
+looking for issues in the raw data and is not used elsewhere. 
+```{r reorder-sheets}
+if (FALSE) {
+    shelf(openxlsx)
+
+    wb <- loadWorkbook(file_location)
+
+    reorder <-
+        c(
+          # first two sheets
+          (which(str_detect(names(wb), "Samples for see|PLANTILLA"))),
+          
+          # reordered sheets
+          (names(wb) %>%
+          tibble(file = .) %>%
+          mutate(rows = row_number()) %>%
+          left_join(sheets, 
+                    ., 
+                    by = join_by("sheet_nm" == "file")) %>%
+          pull(rows))
+          )
+    
+    # reordering sheets
+    openxlsx::worksheetOrder(wb) <- reorder
+    
+    # saving sheets
+    openxlsx::saveWorkbook(
+        wb, 
+        here(base_dir, "zoo_reorder_sht.xlsx"),
+        overwrite = TRUE)
+    
+    unshelf(openxlsx)
+    rm(wb, reorder)
+}
+```
+
+# Read Zooplankton Data
+```{r read-data}
+# read each sheet for data and metadata
+species <- 
+    sheets %>%
+    
+    # add 2 columns and loop through each file to load
+    # 1. meta data (includes date and location)
+    # 2. data (includes species info)
+    mutate(
+        # metadata
+        meta = map(sheet_nm, 
+                   ~read_xlsx(file_location, 
+                              sheet = .,
+                              n_max = 7, 
+                              col_names    = FALSE,
+                              .name_repair = make_clean_names) 
+                   ),
+        # extract important metadata
+        meta_top = map(meta,
+                       function(x) {
+                           r <- which(str_detect(x$x, "Vol|^\\.$"))
+                           
+                           if (any(str_detect(x$x, "^\\.$"), 
+                                   na.rm = TRUE)) 
+                               x$x[r] <- "Vol filtered  (m³ )"
+                           
+                           x_name <-
+                               slice(x, r) %>%
+                               unlist(use.names = FALSE) %>%
+                               make_clean_names()
+                           x <- slice(x, r + 1)
+                           names(x) <- x_name
+                           x <- remove_empty(x, which = "cols")
+                           }
+                       ),
+        # species data
+        data = map2(sheet_nm, 
+                    meta_top,
+                   ~read_xlsx(file_location, 
+                              sheet = .x, 
+                              skip  = 7,
+                              na    = c("", "#VALUE!"),
+                              .name_repair = make_clean_names
+                              )  %>%
+                     filter(!str_detect(clasification, "Densidad total")) %>%
+                     rename("ind_count" = x) %>%
+                     bind_cols(.y) %>%
+                     mutate(
+                        vol_filtered_m3 = if_else(!str_detect(vol_filtered_m3, 
+                                                       "no hay volumen|XXX"),
+                                           vol_filtered_m3, 
+                                           NA_character_) %>%
+                                           as.numeric()
+                     ) %>%
+                     hablar::retype()
+                   )
+    ) %>%
+    select(-meta_top)
+
+species_unnest <- 
+    species %>%
+    
+    # extract the data within the list
+    unnest(data) 
+
+species_unnest 
+species_unnest  %$% unique(vol_filtered_m3)
+# species_unnest  %>%
+#     filter(if_any(contains("vol_filt"):counted_aliquot, 
+#                   (\(x) is.na(x) | str_detect(x, "no hay volumen|XXX"))
+#                   )) 
+# 
+# shell.exec(file_location)
+```
+
+# Report No Volume Recorded
+```{r}
+# find NAs in n_ind_m3 and count sheet
+vol_miss <- 
+    species_unnest %>%
+    filter(is.na(n_ind_m3)) %>%
+    count(sheet_nm) %$% 
+    unique(sheet_nm)
+
+# determine if na for individuals per cubic meter are because:
+# 1. there was no volume recorded
+# 2. the species didn't exist
+species1 <-
+  species %>%
+  mutate(
+    data = map2(
+      .x   = sheet_nm,
+      .y   = data,
+      vols = vol_miss,
+      function(x, y, vols) {
+        mutate(
+          y,
+          no_vol = if_else(
+            x %in% vols,
+            "no volume recorded", NA_character_
+          )
+        )
+      }
+    )
+  )
+
+rm(vol_miss)
+```
+# Merge Meta Data with Zooplankton Data
+```{r}
+# load metadata and fix
+meta_samples <-
+  meta_samples_file %>%
+  read_csv(
+    show_col_types = FALSE,
+    name_repair = make_clean_names
+  ) %>%
+  filter(!if_all(2:last_col(), \(x) is.na(x))) %>%
+  mutate(
+    month   = format(date, "%m"),
+    year    = format(date, "%Y"),
+    day     = format(date, "%d"),
+    .before = date
+  ) %>%
+  mutate(
+    stn = case_when(
+      str_detect(station, "Mol")  ~ "MR",
+      str_detect(station, "West") ~ "WS",
+      str_detect(station, "Loo")  ~ "LK",
+      .default = station
+    ),
+    .before = mesh_size_um
+  ) %>%
+  separate_longer_delim(mesh_size_um, delim = " / ") %>%
+  mutate(
+    lat_in = suppressWarnings(parzer::parse_lat(lat_in)), # warns if NA
+    lon_in = suppressWarnings(parzer::parse_lon(lon_in)), # warns if NA
+    lat_in = if_else(is.numeric(lat_in) & lat_in < 0, -lat_in, lat_in),
+    lon_in = if_else(is.numeric(lon_in) & lon_in > 0, -lon_in, lon_in)
+  ) %>% 
+  nest(
+      .by = c(year,
+            month,
+            stn,
+            mesh_size_um)
+  )
+    # get_dupes(stn, date, mesh_size_um)
+    # distinct(stn, Date, `mesh size (um)`, .keep_all = TRUE)
+
+
+
+# merge metadata with zoo data
+# this combines month, year, station and mesh 
+species1 <-
+    species %>%
+    # left_join(
+    full_join(
+        meta_samples,
+        by = join_by(
+            year,
+            month,
+            stn,
+            "mesh"  == "mesh_size_um")
+    ) 
+
+species3 <- 
+    species1 %>%
+    unnest(data.x, names_repair = "unique") %>%
+    unnest(data.y, names_repair = "unique") %>%
+    remove_empty("cols") %>%
+  mutate(
+    split_size...36 = map_dbl(
+      split_size...36,
+      function(x) {
+        out <- tryCatch(
+          {
+            eval(parse(text = x))
+          },
+          error = function(e) {
+            NA_integer_
+          }
+        )
+      }
+    )
+  )
+```
+
+# Save Files
+```{r save-files}
+if (FALSE) {
+    write_csv(
+        species,
+        file = here(base_dir, 
+                    glue("zoo_compiled",
+                         format(Sys.Date(), "_%Y%m%d"),
+                         ".csv")),
+        na = "")
+    }
+if (FALSE) {
+    species3 %>%
+    select(-meta)
+    write_csv(,
+              file = here(base_dir, 
+                          glue("zoo_compiled_with_meta",
+                               format(Sys.Date(), "_%Y%m%d"),
+                               ".csv")),
+              na   = "")
+}
+```
+
+# Read 2015 - 2017 OBIS Files (needs fixing)
+```{r}
+
+"https://ipt-obis.gbif.us/archive.do?r=sfmbon_zooplankton&v=1.5"
+sf_mbon <- 
+    here("data", "example", 
+         "claudia_zoo_biometry",
+         "dwca-sfmbon_zooplankton-v1.5", "occurrence.txt") %>%
+    read_delim(
+        delim = "\t", 
+        escape_double = FALSE, 
+        trim_ws = TRUE,
+        show_col_types = FALSE)
+
+sf_mbon %>%
+    filter(
+        !eventDate > as.Date("2017-01-01")
+    ) %>%
+      View()
+
+sf_mbon %$% unique(eventDate) %>%
+    as.Date() %>%
+    sort()
+
+here("data", "example", "claudia_zoo_biometry", 
+     "0122465-220831081235567", "verbatim.txt") %>%
+    read_delim(.,
+               delim = "\t", 
+               escape_double = FALSE,
+               trim_ws = TRUE) %>%
+    remove_empty(which = "cols") %>%
+    View()
+
+here("data", "example", "claudia_zoo_biometry", 
+     "0122465-220831081235567", "occurrence.txt") %>%
+    read_delim(.,
+               delim = "\t", 
+               escape_double = FALSE,
+               trim_ws = TRUE,
+               show_col_types = FALSE) %>%
+    remove_empty(which = "cols") %>%
+    select(1:day) %>%
+    View()
+
+
+
+```
+
