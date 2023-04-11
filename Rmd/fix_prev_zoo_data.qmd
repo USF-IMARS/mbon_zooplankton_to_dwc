@@ -119,6 +119,8 @@ if (!file_exists(here(base_dir, "processed", "zoo_reorder_sht.xlsx"))
     
     unshelf(openxlsx)
     rm(wb, reorder)
+} else {
+    message("Not creating reordered xlxs sheet file.")
 }
 ```
 
@@ -186,8 +188,11 @@ species_unnest <-
     species %>%
     
     # extract the data within the list
-    unnest(data) 
+    unnest(data)
+```
 
+
+```{r testing-data}
 species_unnest 
 species_unnest  %$% unique(vol_filtered_m3)
 # species_unnest  %>%
@@ -240,6 +245,7 @@ meta_samples <-
     show_col_types = FALSE,
     name_repair = make_clean_names
   ) %>%
+  select(-x) %>%
   filter(!if_all(2:last_col(), \(x) is.na(x))) %>%
   mutate(
     month   = format(date, "%m"),
@@ -286,16 +292,17 @@ species1 <-
             month,
             stn,
             "mesh"  == "mesh_size_um")
-    ) 
+    ) %>%
+      clean_names()
 
-species3 <- 
+species3 <-
     species1 %>%
-    unnest(data.x, names_repair = "unique") %>%
-    unnest(data.y, names_repair = "unique") %>%
+    unnest(data_x, names_repair = make_clean_names) %>% 
+    unnest(data_y, names_repair = make_clean_names) %>%
     remove_empty("cols") %>%
   mutate(
-    split_size...36 = map_dbl(
-      split_size...36,
+    split_size_2 = map_dbl(
+      split_size_2,
       function(x) {
         out <- tryCatch(
           {
@@ -307,7 +314,11 @@ species3 <-
         )
       }
     )
-  )
+  ) %>%
+    relocate(contains("clasific"):n_ind_m3, 
+             .after = last_col()) %>%
+ relocate(day, date, local_time_est, station, 
+          .after = month)              
 ```
 
 # Save Files
@@ -315,7 +326,7 @@ species3 <-
 if (FALSE) {
     write_csv(
         species,
-        file = here(base_dir, 
+        file = here(base_dir, "processed",
                     glue("zoo_compiled",
                          format(Sys.Date(), "_%Y%m%d"),
                          ".csv")),
@@ -323,9 +334,9 @@ if (FALSE) {
     }
 if (FALSE) {
     species3 %>%
-    select(-meta)
+    select(-meta) %>%
     write_csv(,
-              file = here(base_dir, 
+              file = here(base_dir, "processed",
                           glue("zoo_compiled_with_meta",
                                format(Sys.Date(), "_%Y%m%d"),
                                ".csv")),
