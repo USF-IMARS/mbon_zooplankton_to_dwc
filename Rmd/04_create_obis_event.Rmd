@@ -8,6 +8,9 @@ editor_options:
     wrap: 72
 ---
 TODO: check how to save UTF-8 encoding on csv files 
+
+# 1.0 Load
+## 1.1 Libraries and Calculations
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
@@ -64,14 +67,14 @@ equation_zoo <- switch(
 rm(which_one)
 ```
 
-# Load functions if not already
+## 1.2 Load functions, if not already
 This will load the functions needed if not already contain in the search path.
 ```{r load-functions}
 source(here("scripts", "attach_funcs.R"))
 func_attach()
 rm(func_attach)
 ```
-
+## 1.3 Info on Workflow
 Workflow:
 <https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers>
 Needed: 3 things 1. Event 2. Occurances 3. Measurement of Fact (MOF)
@@ -113,7 +116,7 @@ institutionCode  = institution_code
 extra-stuff mesh_size flowmeter in flowmeter out ship speed inpeller
 constant distnace tow speed formalin vol filtered
 
-# Load data for OBIS conversion
+## 1.4 Load data for OBIS conversion
 ```{r load-data}
 # ---- load aphia id
 aphia_id <-
@@ -228,7 +231,9 @@ taxa_matched_merg <-
                      "aphiaID"   = "aphia_id")) 
 ```
 
-# Ex: Occurrence Bare Minimum example
+
+# 2.0 Start OBIS Conversion
+## 2.1 Ex: Occurrence Bare Minimum example
 set to `TRUE` if want to run
 ```{r obis-file}
 # if (FALSE) {
@@ -246,7 +251,8 @@ set to `TRUE` if want to run
 # }
 ```
 
-# Record Level Info
+
+## 2.2 Record Level Info
 ```{r record-level}
 taxa_original <- taxa_matched_merg
 taxa_matched_merg <-
@@ -260,10 +266,14 @@ taxa_matched_merg <-
         institutionCode     = "USF",
         parentEventID       = "IMaRS_MBON_zooplankton",
         # datasetName         = "MBON Florida Keys National Marine Sanctuary",
-        datasetName         = glue("MBON Florida Keys National Marine Sanctuary", 
-                                   "Zooplankton Net Tows (",
-                                   "{min(year(date_time), na.rm = TRUE)} - ",
-                                   "{max(year(date_time), na.rm = TRUE)})"),
+        # datasetName         = glue("MBON Florida Keys National Marine Sanctuary", 
+        #                            "Zooplankton Net Tows (",
+        #                            "{min(year(date_time), na.rm = TRUE)} - ",
+        #                            "{max(year(date_time), na.rm = TRUE)})"),
+        # update to remove years
+        datasetName         = paste(
+                                "MBON Florida Keys National Marine Sanctuary",
+                                "Zooplankton Net Tows"),
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         # informationWithheld = "collector identities withheld because changed frequently",
         # recordedBy          = nlf,
@@ -279,7 +289,7 @@ rcd_lvl <- taxa_matched_merg %>%
 rm(nlf, orcid_nat)
 ```
 
-# Event Level Info
+## 2.3 Event Level Info
 ```{r event}
 event <-
     taxa_matched_merg  %>%
@@ -328,7 +338,7 @@ event <-
      ) 
 ```
 
-# Location Level Info:
+## 2.4 Location Level Info:
 ```{r location}
 location <-
     taxa_matched_merg %>%
@@ -358,7 +368,7 @@ left_join(
 
 ```
 
-# Ocurrence Level Info:
+## 2.5 Ocurrence Level Info:
 ```{r occurence}
 occur <-
     taxa_matched_merg %>%
@@ -420,8 +430,8 @@ occur <-
 
 
 ```
-# MoF
-## Ex: Mearuement or Fact
+## 2.6 MoF
+### 2.6.1 Ex: Mearuement or Fact
 MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20DMAC%20DataToDwC_Notebook_event.ipynb
 ```{r MoF-example}
 # # 
@@ -462,7 +472,7 @@ MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20D
 #         )
 # }
 ```
-## Meaurement or Fact Level Info
+### 2.6.2 Meaurement or Fact Level Info
 URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
 ```{r MoF-base}
 # TODO: edit MoF for more information
@@ -550,7 +560,7 @@ MoF <-
 
 ```
 
-# Examples to save
+# 3.0 Examples to save
 ```{r save}
 set.seed(1234)
 dir <- here("data", "processed", "obis_example")
