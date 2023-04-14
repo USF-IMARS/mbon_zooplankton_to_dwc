@@ -10,6 +10,15 @@ output: html_document
 if (!require("librarian")) {
     install.packages("librarian")
 }
+if (!require("conflicted")) {
+    install.packages("conflicted")
+}
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflict_prefer("set_names", "magrittr")
 
 librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
@@ -21,15 +30,6 @@ librarian::shelf(
     renv, rmarkdown, tools, vroom, worrms, rmarkdown,
     
 )
-
-if (!require("conflicted")) {
-    install.packages("conflicted")
-}
-
-library("conflicted")
-
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
 ```
 
 # Step 2: Run `rprofile_setup()`
@@ -49,7 +49,7 @@ prof <- here()
 #   string: string: set manually (i.e here::here("<path>") or "C:/<path>/") 
 #   NA: ignore using a cloud directory
 rprofile_setup(prof      = prof, 
-               .choose   = NULL, # <--- edit this, option above or will error 
+               .choose   = NA, # <--- edit this, option above or will error 
                edit_path = FALSE)
 
 rm(list = ls())

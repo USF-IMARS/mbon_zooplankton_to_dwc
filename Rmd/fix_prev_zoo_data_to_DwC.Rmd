@@ -1,0 +1,157 @@
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here, cli
+    # broom # optional
+    
+    # additional
+    
+)
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+```
+
+```{r load csv data}
+# read `.csv` file created by `fix_prev_zoo_data.Rmd`
+dat <- readr::read_csv(
+    "../zoo_compiled_with_meta_20230411.csv", 
+    show_col_types=FALSE,
+    guess_max=10000,
+    name_repair = janitor::make_clean_names
+)
+
+# read manually created verbatim name map `sp.csv`
+species_map <- readr::read_csv(
+    "../sp.csv",
+    show_col_types=FALSE,
+    name_repair = janitor::make_clean_names
+
+)
+
+# map Jaime's species names to WoRMS-readable using `sp.csv`
+dat <- select(species_map, 1:2, 4)  %>%  # select 1st 2 columns
+  left_join(
+      dat,
+      .,
+      by=c("clasification"="jaimes_taxa_info")
+  )  # join on classification columns. `.` is where it gets piped into
+    
+# get aphiaID from WoRMS
+source("../scripts/taxa_list_check.R")
+
+# set location for aphiaID list and the base of the file name
+file_exprs <- file_expr(
+    loc       = here::here("data", "metadata", "aphia_id"), 
+    file_base = "aphia_taxa_jaime"
+    )
+taxa <-
+    dat %>%
+    select("sci_name_guessed_by_tylar") %>%
+    distinct() %>%
+    merge_taxa(., 
+               .file_expr = file_exprs, 
+               check      = FALSE, 
+               # viewer     = TRUE, 
+               # .recurse   = TRUE
+               )
+
+dat <- select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
+  right_join(
+      dat,
+      .,
+      by=c("sci_name_guessed_by_tylar"="taxa_orig")
+  )  # join on classification columns. `.` is where it gets piped into
+
+# round individual count. we don't know why there are fractional counts. 
+dat <- mutate(
+    dat,
+    ind_count = round(ind_count)
+)
+
+# === set up to align with next chunk var names
+dat <- rename( 
+    dat,
+    "taxa_orig"=sci_name_guessed_by_tylar,
+    "individualCount"=ind_count,
+    "lifeStage"=lifestage,
+    "decimalLatitude"=lat_in,
+    "decimalLongitude"=lon_in,
+)
+
+eventID <- "jaime_protocol_observation"
+datasetID <- "MBON_zooplankton_microscopy_from_jaime"
+
+```
+
+```{r construct occurrence table}
+names(dat)
+# map col names into dwc
+occur <-
+    dat %>%
+    # left_join(event, 
+    #           by = c("cruise_id", 
+    #                  "site" = "locationID", 
+    #                  "mesh" #, 
+    #                  # "recordedBy", 
+    #                  #"recordedByID", "basisOfRecord"
+    #                  )
+    #           ) %>%
+    dplyr::transmute(
+        decimalLatitude,
+        decimalLongitude,
+        # eventID, 
+        # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+        # changed to taxa_orig to make sure occur ID is unique
+        occurrenceID             = glue("{eventID}:{taxa_orig}:{lifeStage}"),
+        occurrenceID = str_replace_all(occurrenceID, " ", "_"),
+        # taxa names
+        scientificName,
+        # across(kingdom:genus),
+        # taxonRank = rank,
+        # taxonID = taxon_rank_id,
+         
+        # recorded by
+        # recordedBy,
+        # recordedByID,
+        # dateIdentified           = date_analyzed,
+        
+        # counts of organisms?
+        # IDk which of these is accurate
+        # individualCount          = number_ind_sample,
+        # add each aliquot as a total count per sample event
+        individualCount,
+        # organismQuantity         = ind_m3,
+        # organismQuantityType     = "Individuals per cubic metre",
+        # or
+        # measurementType          = "Number per cubic metre",
+        # MOF? should also include ind/sample?
+        # measurementUnitID        = 
+        # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+        # MOF?
+        
+        # TODO: check this information ----
+        lifeStage,
+        # establishmentMeans       = "native | uncertain",
+        occurrenceStatus         = "present",
+        preparations             = "formalin before analysis | ethanol after analysis",
+        scientificNameID,
+        # like urn:lsid:ipni.org:names:37829-1:1.3
+        basisOfRecord = "humanObservation",
+        datasetID = {datasetID},
+        eventDate                = glue("{date}T{local_time_est}ET"),
+        identificationReferences = "WoRMS",
+        verbatimIdentification   = taxa_orig,
+        # georeferenceVerificationStatusProperty = "verified by contributor",
+        georeferenceVerificationStatus = "verified by contributor",
+        dispostion = "in collection",
+    )
+
+occur <- filter(occur, !is.na(scientificNameID))
+
+readr::write_csv(occur, here("occurrences.csv"))
+```
