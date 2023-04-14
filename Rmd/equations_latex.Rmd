@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 $$
 D = \frac {(N \times V_S)}{N_A \times V \times P_s} \\ 
 \begin{align}
+& D = \text{number of individuals per volume} \\
 & N = \text{total number of organisms for all aliquots} \\
 & V_S = \text {vol of split from which aliquots were removed in mL (i.e. dilution factor)} \\ 
 & N_A = \text {number of aliquots examined} \\
@@ -46,6 +47,7 @@ then,~\frac {N_{split}^{-1}} {2}
 $$
 
 ```{r}
+# === examples
 n_ali = 74 # sum of counts for all aliquots
 folson = 1 # mL of the pipette
 splt = 2 # number of splits, i.e. how many times was sample split before counts
