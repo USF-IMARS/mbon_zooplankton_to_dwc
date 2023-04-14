@@ -2,7 +2,7 @@
 knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
-    forcats, lubridate, glue, fs, magrittr, here, cli
+    forcats, lubridate, glue, fs, magrittr, here, cli, naniar
     # broom # optional
     
     # additional
@@ -42,7 +42,7 @@ dat <- select(species_map, 1:2, 4)  %>%  # select 1st 2 columns
   )  # join on classification columns. `.` is where it gets piped into
     
 # get aphiaID from WoRMS
-source("../scripts/taxa_list_check.R")
+# source("../scripts/taxa_list_check.R")
 
 # set location for aphiaID list and the base of the file name
 file_exprs <- file_expr(
@@ -70,7 +70,20 @@ dat <- select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
 # round individual count. we don't know why there are fractional counts. 
 dat <- mutate(
     dat,
-    ind_count = round(ind_count)
+    ind_count = round(ind_count),
+    # hardcode missing lat lon using averages in water-samples
+    lon_in = case_when(
+        is.na(lon_in) & str_detect(stn, "LK") ~ -81.41464542,
+        is.na(lon_in) & str_detect(stn, "WS") ~ -81.71532752,
+        is.na(lon_in) & str_detect(stn, "MR") ~ -80.37953386,
+        TRUE ~ lon_in
+    ),
+    lat_in = case_when(
+        is.na(lat_in) & str_detect(stn, "LK") ~ 24.53862793,
+        is.na(lat_in) & str_detect(stn, "WS") ~ 24.47605506,
+        is.na(lat_in) & str_detect(stn, "MR") ~ 25.00607727,
+        TRUE ~ lat_in
+    )
 )
 
 # === set up to align with next chunk var names
@@ -152,6 +165,6 @@ occur <-
     )
 
 occur <- filter(occur, !is.na(scientificNameID))
-
+naniar::vis_miss(occur)
 readr::write_csv(occur, here("occurrences.csv"))
 ```
