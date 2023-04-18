@@ -4,16 +4,11 @@ librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here, cli, naniar, Hmisc
     # broom # optional
-    
-    # additional
-    
 )
 
 library("conflicted")
-
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
-
 ```
 
 ```{r load csv data}
@@ -24,6 +19,22 @@ dat <- readr::read_csv(
     guess_max=10000,
     name_repair = janitor::make_clean_names
 )
+
+# construct unique identifier for each row (used for occurrenceID later)
+dat <-
+    dat %>%
+    dplyr::mutate(
+        orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifeStage}"),
+    )
+
+# validate: rows in file must be unique
+# janitor::get_dupes(<dataframe name>, <column names to group together>) 
+dupes <- janitor::get_dupes(dat, orig_data_row_ID)
+# TODO: how to throw an error and not continue running if dupes exist?
+#       pseudocode:
+# if(len(dupes) > 0){
+#     raise AssertionError(f"duplicate rows found:\n\t {dupes}")
+# }
 
 # read manually created verbatim name map `sp.csv`
 species_map <- readr::read_csv(
