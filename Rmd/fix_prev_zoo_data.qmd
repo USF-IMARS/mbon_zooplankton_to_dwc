@@ -4,6 +4,42 @@ author: "Sebastian Di Geronimo"
 date: "2023-04-09"
 format: html
 ---
+
+# desc
+Inputs the raw older (Jaime's) files, outputs a `.csv` file with all data & metadata in one table.
+
+## old file notes
+The methodology allows you to ignore common species and focus on the uncommmon species.
+The protocol is to count the common species `N_(A=1)` and assume that the same number are in later counts.
+Rarer species are counted in each aliquot.
+
+* `Total Ind. Sample` is the calculated amount of individuals in the total sample from the net.
+* actual counted individuals under the microsocope is the number of individuals in the 1mL taken and diluted 
+* column B is the manual counted number of individuals
+* column C is column B * `Counted aliquot` (`F7`)
+    * WS03165002 sheet does not follow this rule
+    * column C is meant to total be the total number of individuals 
+        * sometimes it is fractional; that makes no sense.
+            * eg `LK111564`
+        
+## new file notes
+
+* `total_ind_sample` *should* be the number of individuals of that species which were identified. This is *actually* the density of individuals per milliliter.
+* `n_ind_m3` 
+* `ind_count` is the number of individuals identified under the microscope. This is what is used as the count for OBIS.
+
+The output file should have everything we need but some cruises are missing sample details information such as:
+* vol_filtered_m3
+
+Additional columns are there too.
+
+* no_ind_aliquot
+
+Jaime counted a certain number of a species, if it reached a certain amount:
+* counted_aliquot : this is multipled by number of aliquots sometimes to get the total individual count
+* 
+
+
 # Load Libraries
 ```{r setup}
 librarian::shelf(
@@ -20,6 +56,7 @@ library("conflicted")
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
 ```
+
 ```{r create-folder}
 base_dir <- here("data", "zoo_pre_2018")
 
@@ -32,7 +69,7 @@ two files needed:
 compiled_zoo_taxonomy_Jaimie_31JAN2018 (1).xlsx
 sample-details.csv
 
-Download these and put in the origins folder
+Download these and put in the orig folder
 https://docs.google.com/spreadsheets/d/1GmebUJ35rlVF07b2GNWZXLj91RlDc5lW/edit#gid=1910593077
 https://drive.google.com/drive/folders/17f5gOJuU6wBuoNvkpoc7fkW4-8Ql6B3e
 

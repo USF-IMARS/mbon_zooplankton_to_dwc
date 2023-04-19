@@ -1,7 +1,7 @@
 # MBON South Florida Zooplankton
 This repository is used to setup a pipeline to convert zooplankton data collected in South Florida into DarwinCore to be added to OBIS.
 
-Link to method: [Zooplankton Methodology, Collection & Identification - a field manual](https://drs.nio.org/drs/handle/2264/95)
+Link to data collection method: [Zooplankton Methodology, Collection & Identification - a field manual](https://drs.nio.org/drs/handle/2264/95)
 
 # 3 Main tasks
 ### ***1. Ingest zooplankton counts***
