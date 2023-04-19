@@ -1,50 +1,147 @@
+---
+title: "Fix and Convert Previous Zooplankton Data"
+author: "Tylar Murray"
+date: "2023-04-14"
+format: html
+---
+
+# 1.0 ---- Setup ----
+## 1.1 Load Libraries
 ```{r setup}
 knitr::opts_chunk$set(echo = TRUE)
+if (!nzchar(system.file(package = "librarian"))) 
+    install.packages("librarian")
+
 librarian::shelf(
     librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
-    forcats, lubridate, glue, fs, magrittr, here, cli, naniar, Hmisc
+    forcats, lubridate, glue, fs, magrittr, here, conflicted,
     # broom # optional
+    
+    # additional
+    cli, naniar, Hmisc
 )
 
-library("conflicted")
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
+# shelf(conflicted) # may be needed if won't allow loading of certain packages
+
+conflicts_prefer(
+    dplyr::filter(), 
+    dplyr::select()
+    )
 ```
 
-```{r load csv data}
+# 1.1 Make sure location of files is correct
+From fix_prev_zoo_data.qmd
+- create folders
+  - place original data
+  - place processed file to load here 
+  
+In case, you don't have these folder, creates them here
+```{r create-folder}
+base_dir <- here::here("data", "zoo_pre_2018")
+
+fs::dir_create(here::here(base_dir, "processed"))
+fs::dir_create(here::here(base_dir, "orig"))
+
+```
+
+## 1.2 Get File Paths
+sp.csv from:
+<https://drive.google.com/drive/folders/1IKBqpgOR6-bhJnm3wHwZAzvSYAA24Bsx>
+put in "~/data/zoo_pre_2018"
+
+```{r get-data-path}
+# get file path to processed data
+file_path <-
+  here::here(base_dir, "processed") %>%
+  fs::dir_ls(
+    regexp  = "zoo_compiled_with_meta",
+    recurse = TRUE
+  ) %>%
+  # function to check more recent made file to use
+  last_mod() 
+
 # read `.csv` file created by `fix_prev_zoo_data.Rmd`
-dat <- readr::read_csv(
-    "../zoo_compiled_with_meta_20230411.csv", 
-    show_col_types=FALSE,
-    guess_max=10000,
+dat <-
+  file_path %>%
+  # "../zoo_compiled_with_meta_20230411.csv" %>%
+  
+    readr::read_csv(
+    file        = .,
+    show_col_types = FALSE,
+    guess_max   = 10000,
     name_repair = janitor::make_clean_names
-)
+  )
+
+species_path <-
+    here::here(base_dir) %>%
+    fs::dir_ls(regexp = "sp\\.csv")
 
 # read manually created verbatim name map `sp.csv`
-species_map <- readr::read_csv(
-    "../sp.csv",
-    show_col_types=FALSE,
-    name_repair = janitor::make_clean_names
-)
+species_map <-
+  species_path %>%
+  # "../sp.csv" %>%
+  
+  readr::read_csv(
+    file = .,
+    show_col_types = FALSE,
+    name_repair    = janitor::make_clean_names,
+    na = c("", "NA", stringi::stri_dup("?", 1:5)) # ignore `?` 1 to 5 times
+  )
+```
 
+### 1.2.2 Add Column if Needed
+
+I don't remember how you modified `sp.csv` so I add the column if doesn't exist
+```{r}
+species_map <-
+  species_map %>%
+  {
+    if (!"jaimes_taxa_info" %in% names(.)) {
+      mutate(.,
+        jaimes_taxa_info = classification,
+        .after = classification
+      )
+    } else {
+      .
+    }
+  }
+```
+
+# 2.0 ---- Merge Taxa Info ----
+## 2.1 Merge Species Info with Raw Data
+```{r load-csv-data}
 # map Jaime's species names to WoRMS-readable using `sp.csv`
-dat <- select(species_map, 1:2, 4)  %>%  # select 1st 2 columns
-  left_join(
-      dat,
-      .,
-      by=c("clasification"="jaimes_taxa_info")
-  )  # join on classification columns. `.` is where it gets piped into
-    
-# construct unique identifier for each row (used for occurrenceID later)
-dat <-
-    dat %>%
-    dplyr::mutate(
-        orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifestage}"),
-    )
+dat_merg <-
+  # dplyr::select(species_map, 1:2, 4) %>% # select 1st 2 columns
+  dplyr::select(species_map,
+                classification,
+                jaimes_taxa_info,
+                sci_name,
+                lifestage) %>% # select 1st 2 columns
 
+  # join on classification columns. `.` is where it gets piped into
+  dplyr::left_join(
+    dat,
+    .,
+    by = c("clasification" = "jaimes_taxa_info")
+  ) %>%
+  # construct unique identifier for each row (used for occurrenceID later)
+  dplyr::mutate(
+    orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifestage}"),
+  )
+```
+
+## 2.2 Check Duplicates for Unique IDs
+```{r check-duplicates}
 # validate: rows in file must be unique
 # janitor::get_dupes(<dataframe name>, <column names to group together>) 
-dupes <- janitor::get_dupes(dat, orig_data_row_ID)
+
+dupes <- janitor::get_dupes(dat_merg, orig_data_row_ID)
+# dupes <- 
+    janitor::get_dupes(dat, sheet_nm, clasification)
+dupes
+unique(dupes$sheet_nm)
+unique(dat_merg$clasification)
 # TODO: how to throw an error and not continue running if dupes exist?
 #       pseudocode:
 # if(len(dupes) > 0){
@@ -52,17 +149,41 @@ dupes <- janitor::get_dupes(dat, orig_data_row_ID)
 # }
 
 # drop duplicate rows
-dat2 <- unique(dat)
+
+dat2 <- unique(dat_merg)
 dupes2 <- janitor::get_dupes(dat2, orig_data_row_ID)
+
 # TODO: some duplicates still exist. 
 # only flowmeter data differs and one looks unrealistically large.
 
-# get aphiaID from WoRMS using `merge_taxa()`
+dat2 <- 
+    dat2 %>%
+    {
+    if (!"sci_name_guessed_by_tylar" %in% names(.)) {
+      mutate(.,
+        sci_name_guessed_by_tylar = classification,
+        .after = classification
+      )
+    } else {
+      .
+    }
+  }
+
+```
+
+# 3.0 ---- Get AphiaID from WoRMS ----
+Using `merge_taxa()` 
+check = if want to check unmatched names
+viewer = if want to see unmatched taxa using View()
+```{r aphia-id}
 # set location for aphiaID list and the base of the file name
-file_exprs <- file_expr(
-    loc       = here::here("data", "metadata", "aphia_id"), 
+file_exprs <- 
+    file_expr(
+    # loc       = here::here("data", "metadata", "aphia_id"), 
+    loc       = here::here(base_dir), 
     file_base = "aphia_taxa_jaime"
     )
+
 taxa <-
     dat2 %>%
     select("sci_name_guessed_by_tylar") %>%
@@ -70,15 +191,17 @@ taxa <-
     merge_taxa(., 
                .file_expr = file_exprs, 
                check      = FALSE, 
+               use_cloud = FALSE
                # viewer     = TRUE, 
-               # .recurse   = TRUE
                )
 
-dat2 <- select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
+dat2 <- 
+    # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
+    select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
   right_join(
       dat2,
       .,
-      by=c("sci_name_guessed_by_tylar"="taxa_orig")
+      by = c("sci_name_guessed_by_tylar" = "taxa_orig")
   )  # join on classification columns. `.` is where it gets piped into
 
 # round individual count. we don't know why there are fractional counts. 
@@ -101,25 +224,27 @@ dat2 <- mutate(
 )
 
 # === set up to align with next chunk var names
-dat2 <- rename( 
+dat2 <-
+  rename(
     dat2,
-    "taxa_orig"=sci_name_guessed_by_tylar,
-    "individualCount"=ind_count,
-    "lifeStage"=lifestage,
-    "decimalLatitude"=lat_in,
-    "decimalLongitude"=lon_in,
-)
+    "taxa_orig"        = sci_name_guessed_by_tylar,
+    "individualCount"  = ind_count,
+    "lifeStage"        = lifestage,
+    "decimalLatitude"  = lat_in,
+    "decimalLongitude" = lon_in,
+  )
 
-eventID <- "jaime_protocol_observation"
+eventID   <- "jaime_protocol_observation"
 datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 
 ```
+
 
 ```{r construct occurrence table}
 names(dat2)
 # map col names into dwc
 occur <-
-    dat %>%
+    dat2 %>%
     # left_join(event, 
     #           by = c("cruise_id", 
     #                  "site" = "locationID", 
@@ -129,10 +254,21 @@ occur <-
     #                  )
     #           ) %>%
     dplyr::transmute(
+    # this method is prefered to maintainers instead of transmute
+    # dplyr::mutate(
+        # .keep = "used",
+        # ---
+        
         decimalLatitude,
         decimalLongitude,
         # eventID, 
-        eventDate                = glue("{date}T{local_time_est}ET"),
+        # eventDate                = glue("{date}T{local_time_est}ET"),
+        # make datetime and convert to utc 
+        eventDate = lubridate::ymd_hms(stringr::str_c(date, local_time_est),  
+                                       tz = "EST"),
+        eventDate = lubridate::format_ISO8601(eventDate, usetz = "Z"),
+        
+        
         # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
         # changed to taxa_orig to make sure occur ID is unique
         occurrenceID             = glue("{eventDate}:{eventID}:{taxa_orig}:{lifeStage}"),
@@ -184,5 +320,8 @@ occur <-
 occur <- filter(occur, !is.na(scientificNameID))
 naniar::vis_miss(occur)
 Hmisc::describe(occur)
-readr::write_csv(occur, here("occurrences.csv"))
+
+
+if (!file.exists(here(base_dir, "occurrences.csv")))
+    readr::write_csv(occur, here::here(base_dir, "processed", "occurrences.csv"))
 ```
