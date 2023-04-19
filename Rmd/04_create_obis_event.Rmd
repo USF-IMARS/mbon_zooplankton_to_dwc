@@ -272,11 +272,12 @@ taxa_matched_merg <-
         #                            "{max(year(date_time), na.rm = TRUE)})"),
         # update to remove years
         datasetName         = paste(
-                                "MBON Florida Keys National Marine Sanctuary",
+                                "MBON/USF-IMaRS Florida Keys National Marine Sanctuary",
                                 "Zooplankton Net Tows"),
         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
         # informationWithheld = "collector identities withheld because changed frequently",
         # recordedBy          = nlf,
+        recordedBy          = "NOAA AOML",
         # recordedByID        = orcid_nat,
         # Abbey B. recommends this change, updated March 21, 2023
         identifiedBy        = nlf, 
@@ -319,9 +320,12 @@ event <-
         month              = month(date_time),
         day                = day(date_time),
         # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
+        # 
+        # 
+        # TODO: add plankton split name
         samplingProtocol   = glue(
             "{mesh} mesh size (um) - ",
-            "bongo nets | http://drs.nio.org/drs/handle/2264/95"
+            "bongo nets | <ADD HERE> | http://drs.nio.org/drs/handle/2264/95"
         ),
         
         # TODO: habitat NERC vocab
@@ -358,7 +362,12 @@ location <-
         countryCode       = "US",
         stateProvince     = "Florida",
         geodeticDatum     = "EPSG:4326",
-        georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith"
+        georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
+        
+        # TODO: add min/max depth, uncertainty 
+        # min = 0, 
+        # max = noaa max
+        
     ) %>%
     distinct()
 
@@ -388,22 +397,29 @@ occur <-
         
         # taxa names
         scientificName,
-        across(kingdom:genus),
+        across(kingdom:genus), # TODO: check if species column exists
         taxonRank = rank,
         # taxonID = taxon_rank_id,
          
         # recorded by
-        recordedBy,
-        recordedByID,
+        identifiedBy
+        identifiedById,
+        # TODO: add back if add in event core
+        # recordedBy,
+        # recordedByID,
         dateIdentified           = date_analyzed,
         
         # counts of organisms?
         # IDk which of these is accurate
         # individualCount          = number_ind_sample,
         # add each aliquot as a total count per sample event
-        individualCount,
-        organismQuantity         = ind_m3,
-        organismQuantityType     = "Individuals per cubic metre",
+        # update on April 17, 2023 
+        # individualCount,
+        # organismQuantity         = ind_m3,
+        # organismQuantityType     = "Individuals per cubic metre",
+        organismQuantity         = individualCount,
+        organismQuantityType     = "Summation of 3 5mL Aliquots",
+        
         # or
         # measurementType          = "Number per cubic metre",
         # MOF? should also include ind/sample?
