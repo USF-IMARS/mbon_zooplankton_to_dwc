@@ -69,7 +69,7 @@ two files needed:
 compiled_zoo_taxonomy_Jaimie_31JAN2018 (1).xlsx
 sample-details.csv
 
-Download these and put in the origins folder
+Download these and put in the orig folder
 https://docs.google.com/spreadsheets/d/1GmebUJ35rlVF07b2GNWZXLj91RlDc5lW/edit#gid=1910593077
 https://drive.google.com/drive/folders/17f5gOJuU6wBuoNvkpoc7fkW4-8Ql6B3e
 
