@@ -76,6 +76,7 @@ taxa <-
     merge_taxa(., 
                .file_expr = file_exprs, 
                check      = FALSE, 
+               use_cloud  = TRUE,
                # viewer     = TRUE, 
                # .recurse   = TRUE
                )
