@@ -20,22 +20,6 @@ dat <- readr::read_csv(
     name_repair = janitor::make_clean_names
 )
 
-# construct unique identifier for each row (used for occurrenceID later)
-dat <-
-    dat %>%
-    dplyr::mutate(
-        orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifeStage}"),
-    )
-
-# validate: rows in file must be unique
-# janitor::get_dupes(<dataframe name>, <column names to group together>) 
-dupes <- janitor::get_dupes(dat, orig_data_row_ID)
-# TODO: how to throw an error and not continue running if dupes exist?
-#       pseudocode:
-# if(len(dupes) > 0){
-#     raise AssertionError(f"duplicate rows found:\n\t {dupes}")
-# }
-
 # read manually created verbatim name map `sp.csv`
 species_map <- readr::read_csv(
     "../sp.csv",
@@ -51,16 +35,36 @@ dat <- select(species_map, 1:2, 4)  %>%  # select 1st 2 columns
       by=c("clasification"="jaimes_taxa_info")
   )  # join on classification columns. `.` is where it gets piped into
     
-# get aphiaID from WoRMS
-# source("../scripts/taxa_list_check.R")
+# construct unique identifier for each row (used for occurrenceID later)
+dat <-
+    dat %>%
+    dplyr::mutate(
+        orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifestage}"),
+    )
 
+# validate: rows in file must be unique
+# janitor::get_dupes(<dataframe name>, <column names to group together>) 
+dupes <- janitor::get_dupes(dat, orig_data_row_ID)
+# TODO: how to throw an error and not continue running if dupes exist?
+#       pseudocode:
+# if(len(dupes) > 0){
+#     raise AssertionError(f"duplicate rows found:\n\t {dupes}")
+# }
+
+# drop duplicate rows
+dat2 <- unique(dat)
+dupes2 <- janitor::get_dupes(dat2, orig_data_row_ID)
+# TODO: some duplicates still exist. 
+# only flowmeter data differs and one looks unrealistically large.
+
+# get aphiaID from WoRMS using `merge_taxa()`
 # set location for aphiaID list and the base of the file name
 file_exprs <- file_expr(
     loc       = here::here("data", "metadata", "aphia_id"), 
     file_base = "aphia_taxa_jaime"
     )
 taxa <-
-    dat %>%
+    dat2 %>%
     select("sci_name_guessed_by_tylar") %>%
     distinct() %>%
     merge_taxa(., 
@@ -70,16 +74,16 @@ taxa <-
                # .recurse   = TRUE
                )
 
-dat <- select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
+dat2 <- select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
   right_join(
-      dat,
+      dat2,
       .,
       by=c("sci_name_guessed_by_tylar"="taxa_orig")
   )  # join on classification columns. `.` is where it gets piped into
 
 # round individual count. we don't know why there are fractional counts. 
-dat <- mutate(
-    dat,
+dat2 <- mutate(
+    dat2,
     ind_count = round(ind_count),
     # hardcode missing lat lon using averages in water-samples
     lon_in = case_when(
@@ -97,8 +101,8 @@ dat <- mutate(
 )
 
 # === set up to align with next chunk var names
-dat <- rename( 
-    dat,
+dat2 <- rename( 
+    dat2,
     "taxa_orig"=sci_name_guessed_by_tylar,
     "individualCount"=ind_count,
     "lifeStage"=lifestage,
@@ -112,7 +116,7 @@ datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 ```
 
 ```{r construct occurrence table}
-names(dat)
+names(dat2)
 # map col names into dwc
 occur <-
     dat %>%
