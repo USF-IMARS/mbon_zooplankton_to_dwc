@@ -294,7 +294,8 @@ rm(nlf, orcid_nat)
 ```{r event}
 event <-
     taxa_matched_merg  %>%
-    transmute(
+    mutate(
+        .keep = "none",
         cruise_id, mesh, parentEventID, type, modified, license, 
         institutionCode, datasetName, 
         # basisOfRecord,  informationWithheld,
@@ -347,7 +348,8 @@ event <-
 location <-
     taxa_matched_merg %>%
     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
-    dplyr::transmute(
+    dplyr::mutate(
+        .keep = "none",
         eventID,
         decimalLatitude   = lat_in,
         decimalLongitude  = lon_in,
@@ -389,7 +391,8 @@ occur <-
                      #"recordedByID", "basisOfRecord"
                      )
               ) %>%
-    dplyr::transmute(
+    dplyr::mutate(
+        .keep = "none",
         eventID, 
         # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
         # changed to taxa_orig to make sure occur ID is unique
@@ -618,7 +621,8 @@ reduce(list(event, location, occur, MoF), left_join) %>%
 taxa_matched_merg %>%
     select(scientificName, aphiaID) %>%
     slice_head(n = 10) %>%
-    transmute(
+    mutate(
+        .keep = "none",
         scientificName,
     info = map(aphiaID, ~ worrms::wm_record(.x))
 ) %>%
