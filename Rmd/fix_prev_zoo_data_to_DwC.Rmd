@@ -171,7 +171,7 @@ taxa <-
                           as.numeric(.),
         info = map(aphiaID, 
                    ~ tryCatch({
-                       cat("\n", .x,)
+                       cat("\n", .x)
                        worrms::wm_record(.x)
                        }, error = function(e) {
                            return(NULL)
