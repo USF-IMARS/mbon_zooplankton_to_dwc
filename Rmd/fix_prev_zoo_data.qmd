@@ -369,11 +369,6 @@ species3 <-
 ```
 
 
-```{r}
-closest()
-```
-
-
 # Save Files
 ```{r save-files}
 if (FALSE) {
