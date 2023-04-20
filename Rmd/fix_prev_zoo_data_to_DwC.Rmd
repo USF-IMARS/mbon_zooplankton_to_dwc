@@ -503,9 +503,12 @@ occur <-
         dispostion = "in collection"
     ) %>%
       relocate(eventID, occurrenceID, 
-               .before = 1)
+               .before = 1) %>%
+    
+    # removes row where couldn't get accurate aphia ID
+    filter(!is.na(scientificNameID))
 
-
+naniar::vis_miss(occur)
 ```
 
 # 3.0 Examples to save
@@ -526,7 +529,7 @@ left_join(event, location) %>%
     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
     # write_csv(file = path[1], na = "")
 
-occur# %>%
+occur 
 
     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
     #write_csv(file = path[2], na = "")
