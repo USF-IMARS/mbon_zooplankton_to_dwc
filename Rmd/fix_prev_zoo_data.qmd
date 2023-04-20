@@ -314,9 +314,10 @@ meta_samples <-
   )
     # get_dupes(stn, date, mesh_size_um)
     # distinct(stn, Date, `mesh size (um)`, .keep_all = TRUE)
+```
 
 
-
+```{r}
 # merge metadata with zoo data
 # this combines month, year, station and mesh 
 species1 <-
@@ -355,8 +356,23 @@ species3 <-
     relocate(contains("clasific"):n_ind_m3, 
              .after = last_col()) %>%
  relocate(day, date, local_time_est, station, 
-          .after = month)              
+          .after = month)  %>%
+    mutate(
+        new_vol = abs(vol_filtered_m_3 - vol_filtered_m3)
+    ) %>%
+    filter(
+        .by = sheet_nm,
+        new_vol == min(new_vol) |
+        is.na(new_vol)   
+    ) %>%
+     select(-new_vol)
 ```
+
+
+```{r}
+closest()
+```
+
 
 # Save Files
 ```{r save-files}

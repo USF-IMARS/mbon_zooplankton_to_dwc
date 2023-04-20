@@ -284,6 +284,7 @@ taxa_list_check <- function(loc             = here::here(),
                             # file_base       = NULL, 
                             .file_expr      = file_expr(),
                             check           = FALSE,
+                            use_cloud       = FALSE,
                             ...) {
 
     # load file most recent taxa with aphiaID
@@ -301,7 +302,7 @@ taxa_list_check <- function(loc             = here::here(),
     # ---- search cloud directory for master aphia ID list
     # if no file exists, will look in root of cloud directory
     # copy it to data/metadata/aphia_id directory
-    if (is_empty(taxa_file) & exists("cloud_dir")) {
+    if (is_empty(taxa_file) & exists("cloud_dir") & use_cloud) {
         try(
             # * function call: master_taxa_list ----
             master_taxa_list(.cloud_dir = cloud_dir, 
