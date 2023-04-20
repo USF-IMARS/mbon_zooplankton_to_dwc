@@ -128,7 +128,8 @@ dat_merg <-
   # construct unique identifier for each row (used for occurrenceID later)
   dplyr::mutate(
     orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifestage}"),
-  )
+  ) %>%
+    distinct()
 ```
 
 ## 2.2 Check Duplicates for Unique IDs
