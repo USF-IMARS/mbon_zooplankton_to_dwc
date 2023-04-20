@@ -163,16 +163,47 @@ taxa <-
                check      = FALSE, 
                use_cloud = FALSE
                # viewer     = TRUE, 
-               )
+               ) %>%
+    mutate(
+        aphiaID = if_else(!is.na(scientificNameID), 
+                          str_split(scientificNameID, ":", 
+                                    simplify = TRUE)[, 5],
+                          NA_character_) %>%
+                          as.numeric(.),
+        info = map(aphiaID, 
+                   ~ tryCatch({
+                       cat(.x)
+                       worrms::wm_record(.x)
+                       }, error = function(e) {
+                           return(NULL)
+                           }))
+    ) %>%
+    unnest(info, names_repair = janitor::make_clean_names) %>%
+    select(-lifestage) %>% 
+    rename("scientificName" = scientific_name,
+           "scientificNameID" = scientific_name_id)
+    
+# taxa %<>% rename("scientificNameID" = scientific_name_id)
+# names(taxa)[!names(taxa) %in%
+# (taxa %>%
+#     select(!contains("_2"), -c(2:6)) %>%
+#     names())]
+```
 
+
+```{r aphia-id}
 dat_merg_tx <- 
     # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
-    select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
+    # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
   left_join(
       dat_merg,
-      .,
+      taxa,
       by = c("sci_name_guessed_by_tylar" = "taxa_orig")
   )  # join on classification columns. `.` is where it gets piped into
+
+dat_merg_tx %>%
+    select(contains("lifest")) %>%
+    filter(!is.na(lifestage))
 
 # round individual count. we don't know why there are fractional counts. 
 dat_merg_tx <- 
@@ -321,4 +352,188 @@ if (FALSE)
         glue("occurrences", 
     "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"))
 )
+```
+
+# 3.0 ---- Add More Cores ----
+Quick first test.
+TODO: update as needed
+
+## 3.1 Record Level
+```{r rcd-lvl}
+taxa_matched_merg <-
+  dat_merg_tx %>%
+  mutate(
+    type = "Event",
+    modified = Sys.Date(),
+    language = "en",
+    license = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+    # institutionCode     = "USF_IMaRS",
+    institutionCode = "USF",
+    # parentEventID       = "IMaRS_MBON_zooplankton",
+    datasetID = "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018",
+    datasetName = paste(
+      "MBON/USF-IMaRS Florida Keys National Marine Sanctuary",
+      "Zooplankton Net Tows (2015 - 2017)"
+    ),
+    basisOfRecord = "PreservedSpecimen", # "HumanObservation",
+    # informationWithheld = "collector identities withheld because changed frequently",
+    # recordedBy          = nlf,
+    recordedBy = "NOAA AOML",
+    # recordedByID        = orcid_nat,
+    # Abbey B. recommends this change, updated March 21, 2023
+    identifiedBy = "Jamie <TODO>",
+    tow_time = case_when(
+      str_detect(tow_time_min, ":") ~ str_extract(tow_time_min, "(\\d+):", 1),
+      .default = tow_time_min
+    ),
+    tow_time = parse_number(tow_time),
+    tow_time = round(tow_time, 2)
+  )
+
+rcd_lvl <- taxa_matched_merg %>%
+    distinct()
+```
+
+## 3.2 Event Level Info
+```{r event}
+event <-
+    taxa_matched_merg  %>%
+    mutate(
+        .keep = "none",
+        # cruise_id, 
+        sheet_nm,
+        mesh, datasetID, type, modified, license, 
+        institutionCode, datasetName, 
+        language,
+        locationID         = station,
+        eventDate          = lubridate::ymd_hms(
+            stringr::str_c(date, local_time_est),
+            tz = "EST"),
+        eventDate          = lubridate::format_ISO8601(eventDate, usetz = "Z"),
+        eventDate          = if_else(is.na(eventDate), as.character(date), eventDate),
+        eventID            = glue("{datasetID}:{sheet_nm}"),
+        year               = year(date),
+        month              = month(date),
+        day                = day(date),
+        samplingProtocol   = glue(
+            "{mesh} mesh size (um) - ",
+            "bongo nets | folson splitter | http://drs.nio.org/drs/handle/2264/95"
+        ),
+        
+        # TODO: habitat NERC vocab
+        habitat            = "near reef",
+        sampleSizeValue    = vol_filtered_m_3,
+        sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
+        samplingEffort     = str_c(tow_time, "minutes", sep = " ")
+    ) %>%
+    distinct() %>%
+    mutate(
+        # TODO: save for the end when combining all same sizes together
+        catalogNumber   = row_number(),
+        .before = everything()
+     ) 
+```
+
+## 3.3 Location Level Info:
+```{r location}
+location <-
+    taxa_matched_merg %>%
+    left_join(event, 
+              by = join_by("sheet_nm", "station" == "locationID", "mesh")) %>%
+    dplyr::mutate(
+        .keep = "none",
+        eventID,
+        decimalLatitude, 
+        decimalLongitude,
+        higherGeographyID = case_when(
+            str_detect(stn, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
+            str_detect(stn, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+            TRUE ~ "Not Found"
+        ),
+        higherGeography   = "North America | United States | Florida",
+        continent         = "North America",
+        country           = "United States",
+        countryCode       = "US",
+        stateProvince     = "Florida",
+        geodeticDatum     = "EPSG:4326",
+        georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
+        coordinateUncertaintyInMeters = 500,
+        minimumDepthInMeters = 0,
+        maximumDepthInMeters
+    ) %>%
+    distinct()
+
+left_join(
+    event, location
+) 
+```
+
+## 3.4 Ocurrence Level Info:
+```{r occurence}
+occur <-
+  taxa_matched_merg %>%
+  left_join(event,
+    by = join_by(
+      "sheet_nm",
+      "station" == "locationID",
+      "mesh"
+    )
+  ) %>%
+    dplyr::mutate(
+        .keep = "none",
+        eventID, 
+        occurrenceID             = glue("{eventID}:{clasification}"),
+        
+        # taxa names
+        scientificName,
+        across(kingdom:genus), # TODO: check if species column exists
+        taxonRank = rank,
+        organismQuantity         = individualCount,
+        organismQuantityType     = "Summation of 1 mL Aliquots",
+        
+
+        lifeStage,
+        occurrenceStatus         = "present",
+        preparations             = "formalin before analysis | ethanol after analysis",
+        scientificNameID,
+        basisOfRecord,
+        identificationReferences = "WoRMS",
+        verbatimIdentification   = clasification,
+        georeferenceVerificationStatus = "verified by contributor",
+        dispostion = "in collection"
+    ) %>%
+      relocate(eventID, occurrenceID, 
+               .before = 1)
+
+
+```
+
+# 3.0 Examples to save
+```{r save}
+set.seed(1234)
+dir_sv <- here(base_dir, "obis")
+path <-
+    here(dir_sv, 
+         glue("{c('event', 'occur', 'mof')}",
+              "_example_update_{Sys.Date()}.csv"))
+path
+
+dir_create(dir_sv)
+
+left_join(event, location) %>%
+    select(-sheet_nm, -datasetID, -catalogNumber, -mesh) #%>%
+
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    # write_csv(file = path[1], na = "")
+
+occur# %>%
+
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    #write_csv(file = path[2], na = "")
+
+# MoF %>%
+# 
+#     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+#     write_csv(file = path[3], na = "")
+
 ```
