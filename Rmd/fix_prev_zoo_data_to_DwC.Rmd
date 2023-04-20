@@ -153,7 +153,6 @@ max_depth <-
     WS = 23
   )
 
-
 taxa <-
     dat_merg %>%
     select("sci_name_guessed_by_tylar") %>%
@@ -172,7 +171,7 @@ taxa <-
                           as.numeric(.),
         info = map(aphiaID, 
                    ~ tryCatch({
-                       cat(.x)
+                       cat("\n", .x,)
                        worrms::wm_record(.x)
                        }, error = function(e) {
                            return(NULL)
@@ -182,12 +181,6 @@ taxa <-
     select(-lifestage) %>% 
     rename("scientificName" = scientific_name,
            "scientificNameID" = scientific_name_id)
-    
-# taxa %<>% rename("scientificNameID" = scientific_name_id)
-# names(taxa)[!names(taxa) %in%
-# (taxa %>%
-#     select(!contains("_2"), -c(2:6)) %>%
-#     names())]
 ```
 
 
@@ -250,8 +243,6 @@ datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 # 4.0 ---- Construct Occurence ID ----
 ```{r construct-occurrence-table}
 names(dat2)
-
-
 
 # map col names into dwc
 occur <-
@@ -354,11 +345,11 @@ if (FALSE)
 )
 ```
 
-# 3.0 ---- Add More Cores ----
+# 5.0 ---- Add More Cores ----
 Quick first test.
 TODO: update as needed
 
-## 3.1 Record Level
+## 5.1 Record Level
 ```{r rcd-lvl}
 taxa_matched_merg <-
   dat_merg_tx %>%
@@ -394,7 +385,7 @@ rcd_lvl <- taxa_matched_merg %>%
     distinct()
 ```
 
-## 3.2 Event Level Info
+## 5.2 Event Level Info
 ```{r event}
 event <-
     taxa_matched_merg  %>%
@@ -434,7 +425,7 @@ event <-
      ) 
 ```
 
-## 3.3 Location Level Info:
+## 5.3 Location Level Info:
 ```{r location}
 location <-
     taxa_matched_merg %>%
@@ -468,7 +459,7 @@ left_join(
 ) 
 ```
 
-## 3.4 Ocurrence Level Info:
+## 5.4 Ocurrence Level Info:
 ```{r occurence}
 occur <-
   taxa_matched_merg %>%
@@ -508,35 +499,48 @@ occur <-
     # removes row where couldn't get accurate aphia ID
     filter(!is.na(scientificNameID))
 
-naniar::vis_miss(occur)
+
 ```
 
-# 3.0 Examples to save
+# 5.5 Examples to save
+```{r final-to-core}
+event_final <- 
+    left_join(event, location) %>%
+    select(-sheet_nm, -datasetID, -catalogNumber, -mesh) 
+
+# visualize missing    
+naniar::vis_miss(event_final)
+naniar::vis_miss(occur)
+
+# how to merge event and occur
+full_join(event_final, occur, by = "eventID") %>%
+    naniar::vis_miss()
+
+# check duplicates
+stopifnot(nrow(get_dupes(event_final, eventID)) == 0)
+stopifnot(nrow(get_dupes(occur, occurrenceID)) == 0) 
+```
+
+
 ```{r save}
-set.seed(1234)
-dir_sv <- here(base_dir, "obis")
-path <-
-    here(dir_sv, 
-         glue("{c('event', 'occur', 'mof')}",
-              "_example_update_{Sys.Date()}.csv"))
-path
+if (FALSE) {
+  dir_sv <- here(base_dir, "obis")
+  path <-
+    here(
+      dir_sv,
+      glue(
+        "{c('event', 'occur', 'mof')}",
+        "_example_update_{Sys.Date()}.csv"
+      )
+    )
+  path
 
-dir_create(dir_sv)
+  dir_create(dir_sv)
 
-left_join(event, location) %>%
-    select(-sheet_nm, -datasetID, -catalogNumber, -mesh) #%>%
+  event_final %>%
+    write_csv(file = path[1], na = "")
 
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    # write_csv(file = path[1], na = "")
-
-occur 
-
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    #write_csv(file = path[2], na = "")
-
-# MoF %>%
-# 
-#     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-#     write_csv(file = path[3], na = "")
-
+  occur %>%
+    write_csv(file = path[2], na = "")
+}
 ```
