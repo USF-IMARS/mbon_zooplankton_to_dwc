@@ -171,8 +171,10 @@ taxa <-
                           as.numeric(.),
         info = map(aphiaID, 
                    ~ tryCatch({
-                       cat("\n", .x)
-                       worrms::wm_record(.x)
+                       cat("\n", .x, ": ")
+                       x <- worrms::wm_record(.x)
+                       cat(x$scientificname)
+                       return(x)
                        }, error = function(e) {
                            return(NULL)
                            }))
@@ -184,7 +186,7 @@ taxa <-
 ```
 
 
-```{r aphia-id}
+```{r aphia-id-merge}
 dat_merg_tx <- 
     # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
     # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
@@ -331,7 +333,7 @@ Hmisc::describe(occur)
 ```
 
 
-```{r}
+```{r check-dupes}
 get_dupes(occur, occurrenceID)
 ```
 
