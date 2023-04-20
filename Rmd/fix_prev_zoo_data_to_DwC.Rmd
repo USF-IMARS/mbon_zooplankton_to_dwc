@@ -89,24 +89,6 @@ species_map <-
   )
 ```
 
-### 1.2.2 Add Column if Needed
-
-I don't remember how you modified `sp.csv` so I add the column if doesn't exist
-```{r}
-species_map <-
-  species_map %>%
-  {
-    if (!"jaimes_taxa_info" %in% names(.)) {
-      mutate(.,
-        jaimes_taxa_info = classification,
-        .after = classification
-      )
-    } else {
-      .
-    }
-  }
-```
-
 # 2.0 ---- Merge Taxa Info ----
 ## 2.1 Merge Species Info with Raw Data
 ```{r load-csv-data}
@@ -114,9 +96,8 @@ species_map <-
 dat_merg <-
   # dplyr::select(species_map, 1:2, 4) %>% # select 1st 2 columns
   dplyr::select(species_map,
-                classification,
                 jaimes_taxa_info,
-                sci_name,
+                contains("sci_name"),
                 lifestage) %>% # select 1st 2 columns
 
   # join on classification columns. `.` is where it gets piped into
@@ -138,38 +119,18 @@ dat_merg <-
 # janitor::get_dupes(<dataframe name>, <column names to group together>) 
 
 dupes <- janitor::get_dupes(dat_merg, orig_data_row_ID)
-# dupes <- 
-    janitor::get_dupes(dat, sheet_nm, clasification)
-dupes
-unique(dupes$sheet_nm)
-unique(dat_merg$clasification)
-# TODO: how to throw an error and not continue running if dupes exist?
-#       pseudocode:
-# if(len(dupes) > 0){
-#     raise AssertionError(f"duplicate rows found:\n\t {dupes}")
-# }
 
-# drop duplicate rows
+# Check if duplicated rows
+if (nrow(dupes) > 0) {
+    stop(
+        glue("There are duplicated rows in merged data! ",
+             "(n = {nrow(dupes)})")
+        )
+} else {
+    message("No duplicated `orig_data_row_ID`.")
+}
 
-dat2 <- unique(dat_merg)
-dupes2 <- janitor::get_dupes(dat2, orig_data_row_ID)
-
-# TODO: some duplicates still exist. 
 # only flowmeter data differs and one looks unrealistically large.
-
-dat2 <- 
-    dat2 %>%
-    {
-    if (!"sci_name_guessed_by_tylar" %in% names(.)) {
-      mutate(.,
-        sci_name_guessed_by_tylar = classification,
-        .after = classification
-      )
-    } else {
-      .
-    }
-  }
-
 ```
 
 # 3.0 ---- Get AphiaID from WoRMS ----
@@ -185,8 +146,16 @@ file_exprs <-
     file_base = "aphia_taxa_jaime"
     )
 
+max_depth <-
+  list(
+    MR = 36.5,
+    LK = 40.5,
+    WS = 23
+  )
+
+
 taxa <-
-    dat2 %>%
+    dat_merg %>%
     select("sci_name_guessed_by_tylar") %>%
     distinct() %>%
     merge_taxa(., 
@@ -196,18 +165,21 @@ taxa <-
                # viewer     = TRUE, 
                )
 
-dat2 <- 
+dat_merg_tx <- 
     # select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
     select(taxa, 1, 4, 5)  %>%  # select 1st 2 columns
-  right_join(
-      dat2,
+  left_join(
+      dat_merg,
       .,
       by = c("sci_name_guessed_by_tylar" = "taxa_orig")
   )  # join on classification columns. `.` is where it gets piped into
 
 # round individual count. we don't know why there are fractional counts. 
-dat2 <- mutate(
-    dat2,
+dat_merg_tx <- 
+    dat_merg_tx %>%
+    
+    mutate(
+    
     ind_count = round(ind_count),
     # hardcode missing lat lon using averages in water-samples
     lon_in = case_when(
@@ -221,13 +193,17 @@ dat2 <- mutate(
         is.na(lat_in) & str_detect(stn, "WS") ~ 24.47605506,
         is.na(lat_in) & str_detect(stn, "MR") ~ 25.00607727,
         TRUE ~ lat_in
+    ),
+    maximumDepthInMeters = case_when(
+        str_detect(stn, "MR") ~ max_depth$MR,
+        str_detect(stn, "LK") ~ max_depth$LK,
+        str_detect(stn, "WS") ~ max_depth$WS
     )
-)
-
-# === set up to align with next chunk var names
-dat2 <-
+) %>%
+  
+  # === set up to align with next chunk var names
   rename(
-    dat2,
+    
     "taxa_orig"        = sci_name_guessed_by_tylar,
     "individualCount"  = ind_count,
     "lifeStage"        = lifestage,
@@ -235,17 +211,20 @@ dat2 <-
     "decimalLongitude" = lon_in,
   )
 
-eventID   <- "jaime_protocol_observation"
+# eventID   <- "jaime_protocol_observation"
 datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 
 ```
 
-
-```{r construct occurrence table}
+# 4.0 ---- Construct Occurence ID ----
+```{r construct-occurrence-table}
 names(dat2)
+
+
+
 # map col names into dwc
 occur <-
-    dat2 %>%
+    dat_merg_tx %>%
     # left_join(event, 
     #           by = c("cruise_id", 
     #                  "site" = "locationID", 
@@ -254,10 +233,10 @@ occur <-
     #                  #"recordedByID", "basisOfRecord"
     #                  )
     #           ) %>%
-    dplyr::transmute(
+    # dplyr::transmute(
     # this method is prefered to maintainers instead of transmute
-    # dplyr::mutate(
-        # .keep = "used",
+    dplyr::mutate(
+    .keep = "none",
         # ---
         
         decimalLatitude,
@@ -268,11 +247,12 @@ occur <-
         eventDate = lubridate::ymd_hms(stringr::str_c(date, local_time_est),  
                                        tz = "EST"),
         eventDate = lubridate::format_ISO8601(eventDate, usetz = "Z"),
-        
-        
+        eventDate = if_else(is.na(eventDate), as.character(date), eventDate),
+    
         # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
         # changed to taxa_orig to make sure occur ID is unique
-        occurrenceID             = glue("{eventDate}:{eventID}:{taxa_orig}:{lifeStage}"),
+        # occurrenceID             = glue("{eventDate}:{eventID}:{taxa_orig}:{lifeStage}"),
+        occurrenceID             = glue("{datasetID}:{sheet_nm}:{clasification}"),
         occurrenceID = str_replace_all(occurrenceID, " ", "_"),
         # taxa names
         scientificName,
@@ -306,23 +286,39 @@ occur <-
         preparations             = "formalin before analysis | ethanol after analysis",
         scientificNameID,
         # like urn:lsid:ipni.org:names:37829-1:1.3
-        basisOfRecord = "humanObservation",
+        basisOfRecord = "PreservedSpecimen", #"humanObservation",
         datasetID = {datasetID},
         identificationReferences = "WoRMS",
-        verbatimIdentification   = taxa_orig,
+        verbatimIdentification   = clasification,
         # georeferenceVerificationStatusProperty = "verified by contributor",
         georeferenceVerificationStatus = "verified by contributor",
         dispostion = "in collection",
-        coordinateUncertaintyInMeters = 5,
+        coordinateUncertaintyInMeters = 500,
         minimumDepthInMeters = 0,
-        maximumDepthInMeters = 2,
+        maximumDepthInMeters,
+        # identifiedBy = "Jamie"
     )
+
+
 
 occur <- filter(occur, !is.na(scientificNameID))
 naniar::vis_miss(occur)
+# naniar::vis_miss(dat_merg_tx)
+# naniar::vis_miss(dat_merg)
 Hmisc::describe(occur)
+```
 
 
-if (!file.exists(here(base_dir, "occurrences.csv")))
-    readr::write_csv(occur, here::here(base_dir, "processed", "occurrences.csv"))
+```{r}
+get_dupes(occur, occurrenceID)
+```
+
+```{r construct-occurrence-table}
+if (FALSE)
+    readr::write_csv(
+        occur, 
+        here::here(base_dir, "processed", 
+        glue("occurrences", 
+    "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"))
+)
 ```
