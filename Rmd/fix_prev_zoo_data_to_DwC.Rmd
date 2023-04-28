@@ -246,7 +246,7 @@ taxa_full <-
 
 
 if (FALSE) {
-  write_csv(
+  write_excel_csv(
     taxa_full,
     here::here(
       base_dir,
@@ -425,7 +425,7 @@ janitor::get_dupes(occur, occurrenceID)
 
 ```{r construct-occurrence-table}
 if (FALSE)
-    readr::write_csv(
+    readr::write_excel_csv(
         occur, 
         here::here(base_dir, "processed", 
         glue("occurrences", 
