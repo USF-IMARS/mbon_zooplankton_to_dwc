@@ -27,6 +27,12 @@ func_attach <- function() {
         # loading check for taxa 
         source(here::here("scripts", "taxa_list_check.R"), local = my_funcs)
         
+        # load function to get taxa names from WoRMS
+        source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
+        
+        # load misc functions
+        source(here::here("scripts", "misc_functions.R"), local = my_funcs)
+        
         attach(my_funcs)
     } else {
         cli::cli_alert_info(c("Skipping attach,{.var my_funcs} is already ", 
