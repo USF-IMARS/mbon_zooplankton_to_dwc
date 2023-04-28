@@ -12,20 +12,22 @@
 ####      Base File Name and File Name Expression       ####
 #                                                          #
 ##%######################################################%##
+#' Base File Name and File Name Expression
+#'
+#' This function take a location to save aphiaID file and a base name to 
+#' search for in either locally or the cloud
+#'
+#' @param loc Location to save aphia ID file
+#' @param file_base Base name to search for
+#'
+#' @return Returns a list of two, file_base and file_expr.
+#' @examples
+#' # ADD_EXAMPLES_HERE
+#' 
 file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"), 
                       file_base = "aphia_taxa",
                       exts      = "csv") {
-    #' List of Base File Name and File Name Expression
-    #'
-    #' This function take a location to save aphiaID file and a base name to 
-    #' search for in either locally or the cloud
-    #'
-    #' @param loc Location to save aphia ID file
-    #' @param file_base Base name to search for
-    #'
-    #' @return Returns a list of two, file_base and file_expr.
-    #' @examples
-    #' # ADD_EXAMPLES_HERE
+    
     file_expr <-
     expr(here::here(
         !!loc,
@@ -40,14 +42,20 @@ file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
 
 
 # ---- larval stages ----
-lifestage <- 
-    paste0("copepodite|nauplii|larvae|larva$|juvenile|",
-           "eggs|egg|zoea|protozoea|cypris|megalopa")  
-
-# load function to get taxa names from WoRMS
-source(here::here("scripts", "match_taxa_fix.R"), local = my_funcs)
-source(here::here("scripts", "misc_functions.R"), local = my_funcs)
-
+lifestage <-
+    str_c("copepodite",
+          "nauplii",
+          "larvae",
+          "larva$",
+          "juvenile",
+           "eggs",
+          "egg",
+          "zoea",
+          "protozoea",
+          "cypris",
+          "megalopa",
+          sep = "|")  
+   
 ##%######################################################%##
 #                                                          #
 ####               ---- 1. Load data ----               ####
@@ -110,6 +118,31 @@ load_data <- function(file.taxa, verbose = TRUE) {
 ####      ---- 2. Merge taxa with taxa list -----       ####
 #                                                          #
 ##%######################################################%##
+#' Merge OBIS Taxonomic Information with List of Taxonomic Names
+#'
+#' @description 
+#' This function requires a vector of taxonomic names. This will then try to 
+#' look for any previous `aphia_taxa` list locally. It there are none, then
+#' it will look within the `cloud` directory. If there still are none, then
+#' it will create a list and search the OBIS database using a modified 
+#' verion of `obistools::match_taxa()` to ask for input if doesn't match.
+#' 
+#' There are options to check previously unmatched taxa using `check = TRUE`.
+#'
+#' @param taxa_list A one column tibble or vector of only verbatim taxonomic 
+#' names. Further, these names will separate lifestages and be searched 
+#' within OBIS
+#' @param file_base The base name that will be used to search for previous 
+#' taxonomic lists. 
+#' @param .file_expr Used when checking file names, allows to save
+#' @param regex_lifestage A list of lifestage name used to parse out of 
+#' taxonomic names. This allows for better search within OBIS. 
+#' @param check Whether to check any unmatched names.
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
+#' 
 merge_taxa <- function(taxa_list, 
                        # file_base       = "aphia_taxa", 
                        # .file_expr      = file_expr, 
@@ -117,30 +150,7 @@ merge_taxa <- function(taxa_list,
                        regex_lifestage = lifestage, 
                        check           = FALSE,
                        ...) {
-    #' Merge OBIS Taxonomic Information with List of Taxonomic Names
-    #'
-    #' @description 
-    #' This function requires a vector of taxonomic names. This will then try to 
-    #' look for any previous `aphia_taxa` list locally. It there are none, then
-    #' it will look within the `cloud` directory. If there still are none, then
-    #' it will create a list and search the OBIS database using a modified 
-    #' verion of `obistools::match_taxa()` to ask for input if doesn't match.
-    #' 
-    #' There are options to check previously unmatched taxa using `check = TRUE`.
-    #'
-    #' @param taxa_list A one column tibble or vector of only verbatim taxonomic 
-    #' names. Further, these names will separate lifestages and be searched 
-    #' within OBIS
-    #' @param file_base The base name that will be used to search for previous 
-    #' taxonomic lists. 
-    #' @param .file_expr Used when checking file names, allows to save
-    #' @param regex_lifestage A list of lifestage name used to parse out of 
-    #' taxonomic names. This allows for better search within OBIS. 
-    #' @param check Whether to check any unmatched names.
-    #'
-    #' @return RETURN_DESCRIPTION
-    #' @examples
-    #' # ADD_EXAMPLES_HERE
+   
     
     if (!check) cli::cli_alert_warning(
         c("Will {col_red('NOT')} be checking for {.emph unmatched names} in ",
@@ -188,7 +198,8 @@ merge_taxa <- function(taxa_list,
     # taxa_matched_merg <-
         taxa_aphia <-
         # * function call: taxa_unmatch ----
-        taxa_unmatch(taxa_matched_merg, 
+        taxa_unmatch(
+            taxa_aphia, # taxa_matched_merg, 
                      regex_lifestage = regex_lifestage,
                      # .file_expr      = .file_expr,
                      .file_expr      = .file_expr,
@@ -343,7 +354,9 @@ taxa_list_check <- function(loc             = here::here(),
         taxa_matched <- tryCatch({
             # ---- run taxa matching with WoRMS database
             taxa_matched <- 
-                match_taxa_fix(taxa_name$taxa, fuzzy = TRUE, ask = TRUE)  %>%
+                match_taxa_fix(taxa_name$taxa, fuzzy = TRUE, ask = TRUE)  
+            
+            taxa_matched <- taxa_matched %>%
                 bind_cols(taxa_name, .) %>%
                 arrange(taxa_orig, scientificName) %>%
                 distinct(taxa_orig, .keep_all = TRUE)
@@ -484,7 +497,7 @@ taxa_unmatch <- function(taxa_matched    = NULL,
                 arrange(taxa_orig, scientificName) %>%
                 distinct(taxa_orig, .keep_all = TRUE)
             
-            return(taxa_matched)
+            # return(taxa_matched)
             
             }, interrupt = function(e){
                 cli::cli_alert_danger("An {.emph interrupt} was detected")
@@ -494,7 +507,7 @@ taxa_unmatch <- function(taxa_matched    = NULL,
                 # stop from saving file if interrupt
                 save_file <<- FALSE
                 
-                return(taxa_matched)
+                # return(taxa_matched)
         })
     } else {
         cli::cli_alert_info("No NAs found\n")
@@ -700,35 +713,36 @@ skip_file <- function(file.taxa,
 #### ---- 8. Push/Pull Master List to Cloud/Local ----  ####
 #                                                          #
 ##%######################################################%##
+#' Push/Pull Master Taxonomic List to Cloud/Local
+#'
+#' @description 
+#' This function will either pull master taxa list from cloud, or push from
+#' a local taxa list into the cloud. This will depend on the direction that 
+#' is set in the `where_to` input ("local" or "cloud"). The `file_base` can 
+#' changed if you choose to have it name someting else. The `file_expr` is 
+#' an expression to save the file name. 
+#' 
+#' By default, it's "aphia_taxa_<yyyymmddd_hhmmss>.csv".
+#'
+#' @param taxa_list List of taxa to save
+#' @param .cloud_dir Location of cloud directory
+#' @param file_base The base of the file to search for
+#' @param where_to Location to either pull or push \cr
+#' `cloud` = push taxa sheet to cloud from local \cr
+#' `local` = pull taxa sheet from cloud to local
+#' @param .file_expr a filename expression to save the taxa file list. 
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
+#' 
 master_taxa_list <- function(taxa_list  = NULL, 
                              .cloud_dir,
                              # file_base  = "aphia_taxa",
                              where_to   = NULL, 
                              save       = FALSE,
                              .file_expr = file_expr()) {
-    #' Push/Pull Master Taxonomic List to Cloud/Local
-    #'
-    #' @description 
-    #' This function will either pull master taxa list from cloud, or push from
-    #' a local taxa list into the cloud. This will depend on the direction that 
-    #' is set in the `where_to` input ("local" or "cloud"). The `file_base` can 
-    #' changed if you choose to have it name someting else. The `file_expr` is 
-    #' an expression to save the file name. 
-    #' 
-    #' By default, it's "aphia_taxa_<yyyymmddd_hhmmss>.csv".
-    #'
-    #' @param taxa_list List of taxa to save
-    #' @param .cloud_dir Location of cloud directory
-    #' @param file_base The base of the file to search for
-    #' @param where_to Location to either pull or push \cr
-    #' `cloud` = push taxa sheet to cloud from local \cr
-    #' `local` = pull taxa sheet from cloud to local
-    #' @param .file_expr a filename expression to save the taxa file list. 
-    #'
-    #' @return RETURN_DESCRIPTION
-    #' @examples
-    #' # ADD_EXAMPLES_HERE
-    
+   
     assertthat::assert_that(
         !rlang::is_null(where_to),
         msg = glue("Need to set `where_to` to ",
@@ -750,7 +764,7 @@ master_taxa_list <- function(taxa_list  = NULL,
         
         return(invisible(NULL))
     }
-    
+
     # pull from cloud
     if (str_detect(where_to, "local") & !save) {
         
@@ -758,6 +772,14 @@ master_taxa_list <- function(taxa_list  = NULL,
             here::here(.cloud_dir) %>%
             fs::dir_ls(regexp = .file_expr[[1]])
         
+        # if more than 1 file if found, choose one
+        if (length(file_location > 1)) {
+            cli::cli_alert_info(c("There was more than one file found. ", 
+                                "Choose one:"))
+            file_location <- 
+                file_location[menu(basename(file_location))]
+        }
+
         assertthat::assert_that(fs::file_exists(file_location),
                                 msg = glue("`{.file_expr[[1]]}.csv` does not exists ",
                                 "in {.cloud_dir}"))
