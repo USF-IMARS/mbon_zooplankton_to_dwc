@@ -185,59 +185,79 @@ taxa_base <-
     check = FALSE,
     # check      = TRUE,
     use_cloud = FALSE,
-    viewer     = TRUE,
+    viewer = TRUE,
   )
 
 taxa_full <-
-    taxa_base %>%
-    mutate(
-        aphia_id = if_else(!is.na(scientificNameID), 
-                          str_split(scientificNameID, ":", 
-                                    simplify = TRUE)[, 5],
-                          NA_character_) %>%
-                          as.numeric(.),
-        row = row_number(),
-        info = pmap(
-            list(aphia_id,
-                   taxa_orig,
-                 row),
-                   # .progress = TRUE,
-                  .f =  
-                (\(.x, .y, .z) 
-                tryCatch({
-                    if (.z == 1) cat(sprintf("\n%-4s | %-6s | names\n%s",
-                                            "Row", "aphia", 
-                                            stringi::stri_dup("-", 37)))
-                        cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
-                       x <- worrms::wm_record(.x)
-                       cat(x$scientificname)
-                       return(x)
-                       }, error = function(e) {
-                           return(NULL)
-                           })))
+  taxa_base %>%
+  mutate(
+    aphia_id = if_else(!is.na(scientificNameID),
+      str_split(scientificNameID, ":",
+        simplify = TRUE
+      )[, 5],
+      NA_character_
     ) %>%
-    unnest(info, names_repair = janitor::make_clean_names,
-           keep_empty = TRUE) %>%
-    rename(
-        "scientificName"   = valid_name,
-        "scientificNameID" = lsid
-        ) %>%
-   mutate(
-       scientificNameID = str_replace(scientificNameID, ":(\\d+)", 
-                                       glue(":{valid_aphia_id}"))
-   )  %>%
-     relocate(scientificName, scientificNameID, .after = lifestage)
+      as.numeric(.),
+    row = row_number(),
+    info = pmap(
+      list(
+        aphia_id,
+        taxa_orig,
+        row
+      ),
+      # .progress = TRUE,
+      .f =
+        (\(.x, .y, .z)
+        tryCatch(
+          {
+            if (.z == 1) {
+              cat(sprintf(
+                "\n%-4s | %-6s | names\n%s",
+                "Row", "aphia",
+                stringi::stri_dup("-", 37)
+              ))
+            }
+            cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
+            x <- worrms::wm_record(.x)
+            cat(x$scientificname)
+            return(x)
+          },
+          error = function(e) {
+            return(NULL)
+          }
+        ))
+    )
+  ) %>%
+  unnest(info,
+    names_repair = janitor::make_clean_names,
+    keep_empty = TRUE
+  ) %>%
+  rename(
+    "scientificName"   = valid_name,
+    "scientificNameID" = lsid
+  ) %>%
+  mutate(
+    scientificNameID = str_replace(
+      scientificNameID, ":(\\d+)",
+      glue(":{valid_aphia_id}")
+    )
+  ) %>%
+  relocate(scientificName, scientificNameID, .after = lifestage)
 
 
 if (FALSE) {
-    write_csv(
-        taxa_full,
-        here::here(base_dir,
-                   glue("taxa_worms_info",
-                        format(Sys.Date(), "_%Y%m%d"),
-                        ".csv")),
-        na = ""
-    )
+  write_csv(
+    taxa_full,
+    here::here(
+      base_dir,
+      glue(
+        "taxa_worms_info",
+        format(Sys.Date(), "_%Y%m%d"),
+        ".csv"
+      )
+    ),
+    na = ""
+  )
 }
 
 ```
