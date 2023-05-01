@@ -290,11 +290,19 @@ if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
 
 
 ```{r aphia-id-merge}
+# filter out taxa names not needed
+taxa_full_filt <- 
+    taxa_full %>%
+     filter(
+         (str_detect(notes, "remove", negate = TRUE) | is.na(notes)) 
+         & !is.na(scientificNameID))  
+  
+
 dat_merg_tx <- 
   # join on classification columns. `.` is where it gets piped into
     left_join(
       dat_merg,
-      taxa_full,
+      taxa_full_filt,
       by = c("taxa_to_search" = "taxa_orig")
   )  %>%
    mutate(
@@ -432,16 +440,14 @@ occur <-
   )
 
 
-filter(occur, is.na(scientificNameID)) %>%
+filter(occur, is.na(scientificName)) %>%
  count(verbatimIdentification) 
 
-occur <- filter(occur, !is.na(scientificNameID))
+occur <- filter(occur, !is.na(scientificName))
 naniar::vis_miss(occur)
 # naniar::vis_miss(dat_merg_tx)
 # naniar::vis_miss(dat_merg)
 Hmisc::describe(occur)
-
-
 ```
 
 
