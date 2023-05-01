@@ -242,13 +242,21 @@ taxa_full <-
       glue(":{valid_aphia_id}")
     )
   ) %>%
-  relocate(scientificName, scientificNameID, .after = lifestage)
+  relocate(scientificName, scientificNameID, valid_aphia_id, .after = lifestage)
 
 
+taxa_full 
+
+# save updated version of base taxa and full taxa as .csv
 if (FALSE) {
   write_excel_csv(
-    taxa_full,
-    here::here(
+    x = taxa_base,
+    file =  eval(file_exprs[[2]]),
+    na = ""
+  )
+  write_excel_csv(
+    x = taxa_full,
+    file = here::here(
       base_dir,
       glue(
         "taxa_worms_info",
@@ -260,6 +268,24 @@ if (FALSE) {
   )
 }
 
+# update cloud service directory if have connection through explorer/Finder
+if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
+  master_taxa_list(
+    taxa_list  = taxa_base,
+    .cloud_dir = here(cloud_dir, "old_jaime_data"),
+    where_to   = "cloud",
+    save       = TRUE,
+    .file_expr = file_exprs
+  )
+  master_taxa_list(
+    taxa_list  = taxa_full,
+    .cloud_dir = here(cloud_dir, "old_jaime_data"),
+    where_to   = "cloud",
+    save       = TRUE,
+    .file_expr = "taxa_worms_info",
+    sheet_name = "Full Taxonomic Info"
+  )
+}
 ```
 
 
@@ -424,13 +450,32 @@ janitor::get_dupes(occur, occurrenceID)
 ```
 
 ```{r construct-occurrence-table}
-if (FALSE)
-    readr::write_excel_csv(
-        occur, 
-        here::here(base_dir, "processed", 
-        glue("occurrences", 
-    "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"))
-)
+# save locally
+if (FALSE) {
+  readr::write_excel_csv(
+    occur,
+    here::here(
+      base_dir, "processed",
+      glue(
+        "occurrences",
+        "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"
+      )
+    )
+  )
+}
+
+
+# save to cloud if connection exists
+if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
+  master_taxa_list(
+    taxa_list  = occur,
+    .cloud_dir = here(cloud_dir, "old_jaime_data"),
+    where_to   = "cloud",
+    save       = TRUE,
+    .file_expr = "occurrences",
+    sheet_name = "Simplified Occurence Core"
+  )
+}
 ```
 
 # 5.0 ---- Add More Cores ----
@@ -612,6 +657,7 @@ stopifnot(nrow(janitor::get_dupes(occur, occurrenceID)) == 0)
 
 
 ```{r save}
+# save obis cores locally
 if (FALSE) {
   dir_sv <- here(base_dir, "obis")
   path <-
@@ -631,5 +677,26 @@ if (FALSE) {
 
   occur %>%
     write_excel_csv(file = path[2], na = "")
+}
+
+# save obis cores to cloud if connection exists
+if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
+
+    master_taxa_list(
+    taxa_list  = event_final,
+    .cloud_dir = here(cloud_dir, "old_jaime_data", "obis_cores"),
+    where_to   = "cloud",
+    save       = TRUE,
+    .file_expr = "event_example",
+    sheet_name = "Event Core"
+  )   
+    master_taxa_list(
+    taxa_list  = occur,
+    .cloud_dir = here(cloud_dir, "old_jaime_data", "obis_cores"),
+    where_to   = "cloud",
+    save       = TRUE,
+    .file_expr = "occur_example",
+    sheet_name = "Occurence Core"
+  )   
 }
 ```
