@@ -741,13 +741,14 @@ master_taxa_list <- function(taxa_list  = NULL,
                              # file_base  = "aphia_taxa",
                              where_to   = NULL, 
                              save       = FALSE,
-                             .file_expr = file_expr()) {
+                             .file_expr = file_expr(),
+                             sheet_name = "Master Taxa Sheet") {
    
     assertthat::assert_that(
         !rlang::is_null(where_to),
         msg = glue("Need to set `where_to` to ",
-                  "\n`cloud` if want to save Master Taxa Sheet to cloud ",
-                  "\nor \n`local` to pull Master Taxa Sheet from cloud")
+                  "\n`cloud` if want to save `{sheet_name}` to cloud ",
+                  "\nor \n`local` to pull `{sheet_name}` from cloud")
         )
     
     # file_location <- here(.cloud_dir, glue("{file_base}.csv"))
@@ -756,10 +757,10 @@ master_taxa_list <- function(taxa_list  = NULL,
     # push to cloud
     if (str_detect(where_to, "cloud") & !is.null(taxa_list) & save) {
         file_location %>%
-            write_csv(taxa_list, ., na = "")
+            write_excel_csv(taxa_list, ., na = "")
         
         cli::cli_alert_success(c("Pushing ",
-                         "{.strong {col_green('Master Taxa Sheet')}} ",
+                         "{.strong {col_green(sheet_name)}} ",
                          "to {.path {cloud_dir}}"))
         
         return(invisible(NULL))
@@ -789,7 +790,7 @@ master_taxa_list <- function(taxa_list  = NULL,
             fs::file_copy(., eval(.file_expr[[2]]))
         
         cli::cli_alert_success(c("Copying ",
-                                 "{.strong {col_green('Master Taxa Sheet')}} ",
+                                 "{.strong {col_green(sheet_name)}} ",
                                  # "to {.path {here('data', 'aphia_id')}}"))
                                  "to {.path {dirname(eval(.file_expr[[2]]))}}"))
         
@@ -801,7 +802,7 @@ master_taxa_list <- function(taxa_list  = NULL,
         file_location <- eval(.file_expr[[2]])
         
         cli::cli_alert_success(c("Saving ",
-                                 "{.strong {col_green('Master Taxa Sheet')}} ",
+                                 "{.strong {col_green(sheet_name)}} ",
                                  "to {.path {dirname(file_location)}}"))
         write_csv(taxa_list, 
                   file = file_location,
