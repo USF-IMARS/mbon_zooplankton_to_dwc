@@ -264,6 +264,8 @@ load_taxa_list <- function(loc             = here::here(),
                    "to your local directory.", 
                    .sep = " "))
     
+    cli::cli_alert_info("Reading: {taxa_file}")
+    
     taxa_matched <-  
         readr::read_csv(taxa_file, 
                         show_col_types = FALSE)
@@ -296,8 +298,10 @@ taxa_list_check <- function(loc             = here::here(),
                             .file_expr      = file_expr(),
                             check           = FALSE,
                             use_cloud       = FALSE,
+                            file_verbat     = NULL,
                             ...) {
 
+    if (is.null(file_verbat)) {
     # load file most recent taxa with aphiaID
     taxa_file_expr <-  
         expression(
@@ -309,6 +313,12 @@ taxa_list_check <- function(loc             = here::here(),
             )
     
     taxa_file <- eval(taxa_file_expr)
+    
+    } else if (is_file(file_verbat) & file_exists(file_verbat)) {
+        cli_alert_info("A file was given. Using {file_verbat}")
+        taxa_file <- file_verbat
+        
+    }
     
     # ---- search cloud directory for master aphia ID list
     # if no file exists, will look in root of cloud directory
