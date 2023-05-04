@@ -405,7 +405,7 @@ occur <-
         # taxonID = taxon_rank_id,
          
         # recorded by
-        identifiedBy
+        identifiedBy,
         identifiedById,
         # TODO: add back if add in event core
         # recordedBy,
@@ -421,7 +421,7 @@ occur <-
         # organismQuantity         = ind_m3,
         # organismQuantityType     = "Individuals per cubic metre",
         organismQuantity         = individualCount,
-        organismQuantityType     = "Summation of 3 5mL Aliquots",
+        organismQuantityType     = "Summation of 3x 5mL Aliquots",
         
         # or
         # measurementType          = "Number per cubic metre",
