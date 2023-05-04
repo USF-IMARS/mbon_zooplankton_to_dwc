@@ -161,13 +161,33 @@ file_exprs <-
     file_base = "aphia_taxa_jaime"
     )
 
-# master_taxa_list(
-#     taxa_list  = NULL, 
-#     .cloud_dir = here(cloud_dir, "old_jaime_data"),
-#     # file_base  = "aphia_taxa",
-#     where_to   = "local", 
-#     save       = FALSE,
-#     .file_expr = file_exprs)
+# if need to check updates to taxa sheet
+# check_taxa <- 
+#     here::here(cloud_dir, "old_jaime_data") %>%
+#     # dir_ls(regexp = glue("{file_exprs[1]}.*\\.csv$"))
+# load_taxa_list(
+#     .,
+#     file_exprs
+#     ) %>%
+#     filter(!is.na(notes) & str_detect(notes, "added sp")) %T>% 
+#     print()
+# check_taxa %$% 
+#     merge_taxa(taxa,
+#                .file_expr =  file_expr(
+#     loc       = here::here(base_dir), 
+#     file_base = "aphia_taxa_jaime_test2"
+#     ), .recurse = FALSE)     
+
+# update local master taxa sheet
+if (FALSE) {
+    master_taxa_list(
+        taxa_list  = NULL,
+        .cloud_dir = here(cloud_dir, "old_jaime_data"),
+        # file_base  = "aphia_taxa",
+        where_to   = "local",
+        save       = FALSE,
+        .file_expr = file_exprs)
+}
 
 max_depth <-
   list(
@@ -186,7 +206,9 @@ taxa_base <-
     # check      = TRUE,
     use_cloud = FALSE,
     viewer = TRUE,
+    file_verbat = here(base_dir, "aphia_taxa_jaime_20230504_154723.csv")
   )
+
 
 taxa_full <-
   taxa_base %>%
@@ -233,6 +255,9 @@ taxa_full <-
     keep_empty = TRUE
   ) %>%
   rename(
+    # might be need to go back to old way
+    # "scientificName"   = scientific_name
+    # "scientificNameID" = scientific_name_id
     "scientificName"   = valid_name,
     "scientificNameID" = lsid
   ) %>%
