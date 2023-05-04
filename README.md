@@ -56,7 +56,14 @@ file_expr(
 ### 2. [taxa_match_up_WoRMs.Rmd](https://github.com/sebastiandig/obis_zooplankton_setup/blob/main/Rmd/01_taxa_match_up_WoRMs.Rmd)
 - Create master taxa sheet if one doesn't exist in `~/data/metadata/aphia_id`
 - Take new files and match taxa, reformat for later use
-- Ability to fix non-matched taxa
+- Ability to manually fix non-matched taxa. Workflow:
+    1. don't edit verbatim column
+    2. edit the aphia_id directly (format must match)
+    3. taxa_to_search column can also be changed, but it will not affect the aphia_id
+    4. lifeStage column can also be edited (don't add unless noted in verbatim column)
+    4. make a note in the column like "changed taxa ___ to ___"	
+    5. save the `.xlsx` file AND export to `.csv`
+        * box.com will maintain versioning information
 - Save all reformatted files as individuals and one fully merged
 - Save a log of files ran to skip next time
  
