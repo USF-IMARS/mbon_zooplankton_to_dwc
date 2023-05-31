@@ -279,7 +279,7 @@ taxa_original <-
 ```
 
 
-# 2.0 Start OBIS Conversion
+# 2.0 DarwinCore/OBIS Conversion
 ## 2.1 Ex: Occurrence Bare Minimum example
 set to `TRUE` if want to run
 ```{r obis-file}
@@ -300,7 +300,7 @@ set to `TRUE` if want to run
 
 ## 2.2 Add DarwinCore Columns
 ```{r dwc-cols}
-test <-
+dwc_info <-
   taxa_original %>%
  
 # ============================================================================ #
@@ -342,7 +342,7 @@ test <-
       "{mesh} mesh size (um) - bongo nets",
       "folson splitter",
       "http://drs.nio.org/drs/handle/2264/95",
-      .sep           = " | "
+      .sep = " | "
     ),
 
     # TODO: habitat NERC vocab
@@ -419,7 +419,7 @@ test <-
   print() %>%
     
 # ============================================================================ #
-# ---- 2.2. Measurement or Fact Additional Terms ----
+# ---- 2.2.5 Measurement or Fact Additional Terms ----
 # ============================================================================ #    
   mutate(
     Net_Type   = "bongo nets",
@@ -436,12 +436,12 @@ test <-
     # MOF?
 ```
 
-## 2.3 Extract "Cores"
+# 3.0 Extract "Cores"
 
-### 2.3.1 EventCore
-```{r event}
-event2 <-
-  test %>%
+## 3.1 EventCore
+```{r event-extract}
+event_core <-
+  dwc_info %>%
   select(
     cruise_id,
     mesh,
@@ -482,44 +482,44 @@ event2 <-
   print()
 ```
 
-### 2.3.2 Occurence Core
-```{r occur}
-occur2 <- 
-    test %>%
-     dplyr::mutate(
-        .keep = "none",
-        eventID,
-        occurrenceID,
-        
-        # taxa names
-        scientificName,
-        across(kingdom:genus), # TODO: check if species column exists
-        taxonRank,
-        # recorded by
-        identifiedBy,
-        identifiedByID,
-        dateIdentified,
-        organismQuantity,
-        organismQuantityType,
-        lifeStage,
-        occurrenceStatus,
-        preparations,
-        scientificNameID,
-        basisOfRecord,
-        identificationReferences,
-        verbatimIdentification,
-        georeferenceVerificationStatus,
-        dispostion
-     ) %T>% 
-    print()
+## 3.2 Occurence Core
+```{r occur-extract}
+occur_core <-
+  dwc_info %>%
+  mutate(
+    .keep = "none",
+    eventID,
+    occurrenceID,
+
+    # taxa names
+    scientificName,
+    across(kingdom:genus), # TODO: check if species column exists
+    taxonRank,
+    # recorded by
+    identifiedBy,
+    identifiedByID,
+    dateIdentified,
+    organismQuantity,
+    organismQuantityType,
+    lifeStage,
+    occurrenceStatus,
+    preparations,
+    scientificNameID,
+    basisOfRecord,
+    identificationReferences,
+    verbatimIdentification,
+    georeferenceVerificationStatus,
+    dispostion
+  ) %T>%
+  print()
 ```
 
-### 2.3.3 Measurement or Fact Core (MoF)
-#### 2.3.3.1 MoF Base Info
+## 3.3 Measurement or Fact Core (MoF)
+### 3.3.1 MoF Base Info
 
 URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
 
-```{r MoF-base}
+```{r mof-base}
 # TODO: edit MoF for more information
 # result of script is MoF1 variable
 source(here("scripts", "mof_base_create_table.R"))
@@ -546,103 +546,93 @@ MoF1 <-
 MoF1
 ```
 
-#### 2.3.3.2 Extract MoF
-```{r mof}
-test %>%
-    distinct(eventID, .keep_all = TRUE) %>%
-    select(-c(aphiaID:identifiedByID)) %>%
-    pivot_longer(
-                 cols = MoF1$orig_term,
-                 names_to = "orig_term",
-                 values_to = "measurementValue",
-        values_transform = list(measurementValue = as.character)
-    ) %>%
-    select(# datasetID, 
-           eventID, orig_term, measurementValue) %>%
-    left_join(MoF1, by = c("orig_term")) %>%
-    filter(event_occur == "event")
+### 3.3.2 Convert MoF
+```{r mof-extract}
+# ============================================================================ #
+# ---- MoF Event Info ----
+# ============================================================================ #    
+mof_event <-
+  dwc_info %>%
+  distinct(eventID, .keep_all = TRUE) %>%
+  select(
+    eventID,
+    filter(MoF1, str_detect(event_occur, "event"))$orig_term
+  ) %>%
+  pivot_longer(
+    cols      = -eventID,
+    names_to  = "orig_term",
+    values_to = "measurementValue",
+    values_transform = list(measurementValue = as.character)
+  ) %>%
+  left_join(MoF1, by = "orig_term")
 
-    
-test_mof_event <- 
-test %>%
-    distinct(eventID, .keep_all = TRUE) %>%
-    select(eventID,
-          filter(MoF1, str_detect(event_occur, "event"))$orig_term
-           ) %>%
-     pivot_longer(
-                 cols = -eventID,
-                 names_to = "orig_term",
-                 values_to = "measurementValue",
-        values_transform = list(measurementValue = as.character)
-    ) %>%
-    left_join(MoF1, by = "orig_term")
+# ============================================================================ #
+# ---- MoF Occurrence Info ----
+# ============================================================================ #    
+mof_occur <-
+  dwc_info %>%
+  distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
+  select(
+    eventID, occurrenceID,
+    filter(MoF1, str_detect(event_occur, "occur"))$orig_term
+  ) %>%
+  pivot_longer(
+    cols      = -c(eventID, occurrenceID),
+    names_to  = "orig_term",
+    values_to = "measurementValue",
+    values_transform = list(measurementValue = as.character)
+  ) %>%
+  left_join(MoF1, by = "orig_term")
 
-
-test_mof_occur <- 
-test %>%
-    distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
-    select(eventID, occurrenceID,
-          filter(MoF1, str_detect(event_occur, "occur"))$orig_term
-           ) %>%
-     pivot_longer(
-                 cols = -c(eventID, occurrenceID),
-                 names_to = "orig_term",
-                 values_to = "measurementValue",
-        values_transform = list(measurementValue = as.character)
-    ) %>%
-    left_join(MoF1, by = "orig_term") %T>% print()
-
-test_mof <- 
-bind_rows(
-    test_mof_occur,
-    test_mof_event
-    
-)
+mof_core <-
+  bind_rows(
+    mof_occur,
+    mof_event
+  )
 
 
 ```
 
 
 
-# 3.0 Examples to save
+# 4.0 Examples to save
 ```{r save}
-set.seed(1234)
-dir <- here("data", "processed", "obis_example")
-path <-
-    here(dir, 
-         glue("{c('event', 'occur', 'mof')}",
-              "_example_update_{Sys.Date()}.csv"))
-path
+if (FALSE) {
+  set.seed(1234)
+  dir_out <- here("data", "processed", "obis_example")
+  path_out <-
+    here(
+      dir_out,
+      glue(
+        "{c('event', 'occur', 'mof')}",
+        "_example_update_{Sys.Date()}.csv"
+      )
+    )
+  path_out
 
-dir_create(dir)
+  dir_create(dir)
 
-events <- sample(unique(event$eventID), 5)
+  events <- sample(unique(event_core$eventID), 5)
 
-left_join(event, location) %>%
-    select(-cruise_id, -parentEventID, -rowNumber, -mesh) %>%
-    # group_by(eventID) %>%
-    filter(eventID %in% events) %>% 
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[1], na = "")
-
-occur %>%
-    # group_by(eventID) %>%
+  event_core %>%
+    select(-cruise_id, -parentEventID, -mesh) %>%
     filter(eventID %in% events) %>%
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[2], na = "")
+    write_csv(file = path_out[1], na = "")
 
-MoF %>%
-    # group_by(eventID) %>%
-    filter(eventID %in% events | str_detect(occurrenceID, paste(events, collapse = "|"))) %>%
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[3], na = "")
+  occur_core %>%
+    filter(eventID %in% events) %>%
+    write_csv(file = path_out[2], na = "")
 
+  mof_core %>%
+    filter(eventID %in% events) %>%
+    write_csv(file = path_out[3], na = "")
+}
 ```
 
 
 # TEST
 ```{r}
-reduce(list(event, location, occur, MoF), left_join) %>%
+reduce(list(event_core, location, occur_core, mof_core), left_join) %>%
     obistools::check_depth(.)
 
 taxa_matched_merg %>%
@@ -654,7 +644,7 @@ taxa_matched_merg %>%
     info = map(aphiaID, ~ worrms::wm_record(.x))
 ) %>%
   unnest(info)
-reduce(list(event, location, occur), left_join) %>%
+reduce(list(event_core, location, occur_core), left_join) %>%
     names() 
 
 obistools::report %>%
