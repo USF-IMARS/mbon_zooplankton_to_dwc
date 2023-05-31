@@ -38,7 +38,7 @@ mof_read <- function() {
     }
     
     mof_file <- dir_ls(here(), 
-                       regexp = "mof_sheet", 
+                       regexp = "mof_sheet.*\\.csv", 
                        recurse = TRUE) %>%
                 last_mod(.)
 
