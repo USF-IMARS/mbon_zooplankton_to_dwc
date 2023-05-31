@@ -8,6 +8,8 @@ editor_options:
     wrap: 72
 ---
 TODO: check how to save UTF-8 encoding on csv files 
+TODO: station depth and uncertainty
+TODO: 
 
 # 1.0 Load
 ## 1.1 Libraries and Calculations
@@ -41,6 +43,18 @@ library("geosphere")
 # ---- recorded by info
 nlf       <- "Natalia Lopez Figueroa"
 orcid_nat <- "https://orcid.org/0000-0002-7527-0481"
+
+# ---- max depth per site
+max_depth <-
+  list(
+    "MR" = 36.5,
+    "LK" = 40.5,
+    "WS" = 23,
+    "54" = 3,
+    "57" = 5,
+    "9B" = 31
+  )
+
 
 # ---- set variables for calculation
 inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
@@ -118,26 +132,39 @@ constant distnace tow speed formalin vol filtered
 
 ## 1.4 Load data for OBIS conversion
 ```{r load-data}
-# ---- load aphia id
-aphia_id <-
-    fs::dir_ls(path = here::here("data", "metadata", "aphia_id"),
-               regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
+# ---- load aphia id if hasn't previously been
+# TODO: load file from `03_...` for aphia IDs
+if (!exists("aphia_id")) {
+  aphia_id <-
+    fs::dir_ls(
+      path = here::here("data", "metadata", "aphia_id"),
+      regexp = "^[^~]*(aphia)+.*\\.csv$"
+    ) %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
     mutate(
-        aphiaID = if_else(!is.na(scientificNameID), 
-                          str_split(scientificNameID, ":", 
-                                    simplify = TRUE)[, 5],
-                          NA_character_) %>%
-                          as.numeric(.),
-        info = map(aphiaID, 
-                   ~ tryCatch({worrms::wm_record(.x)
-                       }, error = function(e) {
-                           return(NULL)
-                           }))
+      aphiaID = if_else(!is.na(scientificNameID),
+        str_split(scientificNameID, ":",
+          simplify = TRUE
+        )[, 5],
+        NA_character_
+      ) %>%
+        as.numeric(.),
+      info = map(
+        aphiaID,
+        ~ tryCatch(
+          {
+            worrms::wm_record(.x)
+          },
+          error = function(e) {
+            return(NULL)
+          }
+        )
+      )
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
     select(!contains("_2"), -c(2:6))
+}
 
 # ---- load metadata
 meta_df <-
@@ -201,34 +228,54 @@ taxa_files <-
       .before = aliquot_1
   ) %>%
   ungroup()
-
 # ---- merge metadata and taxa data
-taxa_matched_merg <-
-    taxa_files %>%
-    left_join(meta_df, 
-              by = c("cruise_id", 
-                     "site" = "locationID", 
-                     "mesh" = "mesh_size_um")) %>%
-    mutate(
-        # split_amount = 0.5, # splits from cruise
-        splits_analyzed   = case_when(
-            is.na(splits_analyzed) ~ 0,
-            TRUE ~ splits_analyzed
-            ),
-        number_ind_sample = eval(equation_zoo),
-        ind_m3            = number_ind_sample / volume_filt_cubic_m,
-        
-        # get aphia ID from end of scientificNameID
-        aphiaID           = if_else(!is.na(scientificNameID),
-                                    str_split(scientificNameID, ":", 
-                                              simplify = T)[, 5],
-                                    NA_character_) %>%
-                          as.numeric(.)
-        ) %>%
-    left_join(., 
-              aphia_id,
-              by = c("taxa_orig" = "taxa_orig", 
-                     "aphiaID"   = "aphia_id")) 
+taxa_original <-
+  taxa_files %>%
+  left_join(
+    meta_df,
+    by = c(
+      "cruise_id",
+      "site" = "locationID",
+      "mesh" = "mesh_size_um"
+    )
+  ) %>%
+  mutate(
+    # split_amount = 0.5, # splits from cruise
+    splits_analyzed = if_else(
+      is.na(splits_analyzed), 
+      0,
+      splits_analyzed
+    ),
+    number_ind_sample = eval(equation_zoo),
+    ind_m3 = number_ind_sample / volume_filt_cubic_m,
+
+    # get aphia ID from end of scientificNameID
+    aphiaID = if_else(
+      !is.na(scientificNameID),
+      str_split(scientificNameID, ":",
+        simplify = TRUE
+      )[, 5],
+      NA_character_
+    ) %>%
+      as.numeric(.),
+    maximumDepthInMeters = case_when(
+      str_detect(site, "MR") ~ max_depth$MR,
+      str_detect(site, "LK") ~ max_depth$LK,
+      str_detect(site, "WS") ~ max_depth$WS,
+      str_detect(site, "57") ~ max_depth$`57`,
+      str_detect(site, "54") ~ max_depth$`54`,
+      str_detect(site, "9B") ~ max_depth$`9B`
+    ),
+    minimumDepthInMeters = 0,
+    coordinateUncertaintyInMeters = 500
+  ) %>%
+  left_join(.,
+    aphia_id,
+    by = c(
+      "taxa_orig" = "taxa_orig",
+      "aphiaID"   = "aphia_id"
+    )
+  )
 ```
 
 
@@ -251,203 +298,573 @@ set to `TRUE` if want to run
 # }
 ```
 
+## 2.2 Add DarwinCore Columns
+```{r dwc-cols}
+test <-
+  taxa_original %>%
+ 
+# ============================================================================ #
+# ---- 2.2.1 Record Level ----
+# ============================================================================ #
+  mutate(
+    type                   = "Event",
+    modified               = Sys.Date(),
+    language               = "en",
+    license                = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+    institutionCode        = "USF | NOAA", # include NOAA
+    # ownerInstitutionCode = "USF",
+    colletionCode          = "SEUS-MBON-Zooplankton",
+    parentEventID          = "IMaRS_MBON_zooplankton",
+    datasetName            = paste(
+      "MBON/USF-IMaRS/NOAA AOML Florida Keys National",
+      "Marine Sanctuary Zooplankton Net Tows"
+    ),
+    basisOfRecord          = "PreservedSpecimen", # "HumanObservation",
+    recordedBy             = "NOAA AOML",
+    identifiedBy           = nlf,
+    identifiedByID         = orcid_nat,
+  ) %T>%
+  print() %>%
+    
+# ============================================================================ #
+# ---- 2.2.2 Event Level ----
+# ============================================================================ #    
+  mutate(
+    locationID       = site,
+    eventDate        = format_ISO8601(date_time, usetz = "Z"),
+    eventID          = glue("{cruise_id}:stn{locationID}:{mesh}um:{date}"),
+    fieldNumber      = glue("{cruise_id}-{station}-{mesh}"),
+    year             = year(date_time),
+    month            = month(date_time),
+    day              = day(date_time),
+    # TODO: add plankton split name
+    samplingProtocol = glue(
+      "{mesh} mesh size (um) - bongo nets",
+      "folson splitter",
+      "http://drs.nio.org/drs/handle/2264/95",
+      .sep           = " | "
+    ),
+
+    # TODO: habitat NERC vocab
+    habitat          = "near reef",
+    sampleSizeValue  = volume_filt_cubic_m,
+    sampleSizeUnit   = "Volume per cubic metre of filtered seawater",
+    samplingEffort   = str_c(tow_time_min, "minutes", sep = " "),
+  ) %>%
+  mutate(
+    # TODO: save for the end when combining all same sizes together
+    # catalogNumber   = row_number(),
+    rowNumber = row_number(),
+    .before   = everything()
+  ) %T>%
+  print() %>%
+
+# ============================================================================ #
+# ---- 2.2.3 Location Level ----
+# ============================================================================ #        
+  mutate(
+    decimalLatitude   = lat_in,
+    decimalLongitude  = lon_in,
+    higherGeographyID = case_when(
+      str_detect(site, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
+      str_detect(site, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+      .default = "Not Found"
+    ),
+    higherGeography   = "North America | United States | Florida",
+    continent         = "North America",
+    country           = "United States",
+    countryCode       = "US",
+    stateProvince     = "Florida",
+    geodeticDatum     = "EPSG:4326",
+    georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith"
+  ) %T>%
+  print() %>%
+    
+# ============================================================================ #
+# ---- 2.2.4 Occurence Level ----
+# ============================================================================ #    
+  mutate(
+    occurrenceID         = glue("{eventID}:{taxa_orig}:{lifeStage}"),
+
+    # taxa names
+    scientificName,
+    across(kingdom:genus), # TODO: check if species column exists
+    taxonRank            = rank,
+    
+    # recorded by
+    identifiedBy,
+    identifiedByID,
+    dateIdentified       = date_analyzed,
+     # counts of organisms?
+    # IDk which of these is accurate
+    # individualCount          = number_ind_sample,
+    # add each aliquot as a total count per sample event
+    # update on April 17, 2023
+    # individualCount,
+    # organismQuantity         = ind_m3,
+    # organismQuantityType     = "Individuals per cubic metre",
+    organismQuantity     = individualCount,
+    organismQuantityType = "Summation of 3x 5mL Aliquots",
+    lifeStage,
+    occurrenceStatus     = "present",
+    preparations         = str_c("10% formalin before analysis",
+      "70% ethanol after analysis",
+      sep = " | "
+    ),
+    identificationReferences = "WoRMS",
+    verbatimIdentification = taxa_orig,
+    georeferenceVerificationStatus = "verified by contributor",
+    dispostion = "in collection"
+  ) %T>%
+  print() %>%
+    
+# ============================================================================ #
+# ---- 2.2. Measurement or Fact Additional Terms ----
+# ============================================================================ #    
+  mutate(
+    Net_Type   = "bongo nets",
+    microscopy = "microscopy"
+  )
+
+   
+    # 
+    #     # or
+    # measurementType          = "Number per cubic metre",
+    # MOF? should also include ind/sample?
+    # measurementUnitID        =
+    # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+    # MOF?
+```
+
+## 2.3 Extract "Cores"
+
+### 2.3.1 EventCore
+```{r event}
+event2 <-
+  test %>%
+  select(
+    cruise_id,
+    mesh,
+    parentEventID,
+    type,
+    modified,
+    license,
+    institutionCode,
+    datasetName,
+    language,
+    locationID,
+    eventDate,
+    eventID,
+    fieldNumber,
+    year,
+    month,
+    day,
+    samplingProtocol,
+    habitat,
+    sampleSizeValue,
+    sampleSizeUnit,
+    samplingEffort,
+    decimalLatitude,
+    decimalLongitude,
+    higherGeographyID,
+    higherGeography,
+    continent,
+    country,
+    countryCode,
+    stateProvince,
+    geodeticDatum,
+    georeferencedBy,
+    coordinateUncertaintyInMeters,
+    minimumDepthInMeters,
+    maximumDepthInMeters
+  ) %>%
+  distinct() %T>% 
+  print()
+```
+
+### 2.3.2 Occurence Core
+```{r occur}
+occur2 <- 
+    test %>%
+     dplyr::mutate(
+        .keep = "none",
+        eventID,
+        occurrenceID,
+        
+        # taxa names
+        scientificName,
+        across(kingdom:genus), # TODO: check if species column exists
+        taxonRank,
+        # recorded by
+        identifiedBy,
+        identifiedByID,
+        dateIdentified,
+        organismQuantity,
+        organismQuantityType,
+        lifeStage,
+        occurrenceStatus,
+        preparations,
+        scientificNameID,
+        basisOfRecord,
+        identificationReferences,
+        verbatimIdentification,
+        georeferenceVerificationStatus,
+        dispostion
+     ) %T>% 
+    print()
+```
+
+### 2.3.3 Measurement or Fact Core (MoF)
+#### 2.3.3.1 MoF Base Info
+
+URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
+
+```{r MoF-base}
+# TODO: edit MoF for more information
+# result of script is MoF1 variable
+source(here("scripts", "mof_base_create_table.R"))
+MoF1 <- mof_read()
+
+def_web <- "http://vocab.nerc.ac.uk/collection/"
+
+MoF1 <-
+    MoF1 %>%
+    mutate(
+        measurementTypeID = case_when(
+            !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~
+                str_c(def_web, measurementType_uri),
+            TRUE ~ ""
+        ),
+        measurementUnitID = case_when(
+            !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~
+                str_c(def_web, measurementUnit_uri),
+            TRUE ~ ""
+        )
+    )  %>%
+    select(-measurementValue & !ends_with("_uri"))
+
+MoF1
+```
+
+#### 2.3.3.2 Extract MoF
+```{r mof}
+test %>%
+    distinct(eventID, .keep_all = TRUE) %>%
+    select(-c(aphiaID:identifiedByID)) %>%
+    pivot_longer(
+                 cols = MoF1$orig_term,
+                 names_to = "orig_term",
+                 values_to = "measurementValue",
+        values_transform = list(measurementValue = as.character)
+    ) %>%
+    select(# datasetID, 
+           eventID, orig_term, measurementValue) %>%
+    left_join(MoF1, by = c("orig_term")) %>%
+    filter(event_occur == "event")
+
+    
+test_mof_event <- 
+test %>%
+    distinct(eventID, .keep_all = TRUE) %>%
+    select(eventID,
+          filter(MoF1, str_detect(event_occur, "event"))$orig_term
+           ) %>%
+     pivot_longer(
+                 cols = -eventID,
+                 names_to = "orig_term",
+                 values_to = "measurementValue",
+        values_transform = list(measurementValue = as.character)
+    ) %>%
+    left_join(MoF1, by = "orig_term")
+
+
+test_mof_occur <- 
+test %>%
+    distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
+    select(eventID, occurrenceID,
+          filter(MoF1, str_detect(event_occur, "occur"))$orig_term
+           ) %>%
+     pivot_longer(
+                 cols = -c(eventID, occurrenceID),
+                 names_to = "orig_term",
+                 values_to = "measurementValue",
+        values_transform = list(measurementValue = as.character)
+    ) %>%
+    left_join(MoF1, by = "orig_term") %T>% print()
+
+test_mof <- 
+bind_rows(
+    test_mof_occur,
+    test_mof_event
+    
+)
+
+
+```
+
+
+
+# 3.0 Examples to save
+```{r save}
+set.seed(1234)
+dir <- here("data", "processed", "obis_example")
+path <-
+    here(dir, 
+         glue("{c('event', 'occur', 'mof')}",
+              "_example_update_{Sys.Date()}.csv"))
+path
+
+dir_create(dir)
+
+events <- sample(unique(event$eventID), 5)
+
+left_join(event, location) %>%
+    select(-cruise_id, -parentEventID, -rowNumber, -mesh) %>%
+    # group_by(eventID) %>%
+    filter(eventID %in% events) %>% 
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[1], na = "")
+
+occur %>%
+    # group_by(eventID) %>%
+    filter(eventID %in% events) %>%
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[2], na = "")
+
+MoF %>%
+    # group_by(eventID) %>%
+    filter(eventID %in% events | str_detect(occurrenceID, paste(events, collapse = "|"))) %>%
+    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+    write_csv(file = path[3], na = "")
+
+```
+
+
+# TEST
+```{r}
+reduce(list(event, location, occur, MoF), left_join) %>%
+    obistools::check_depth(.)
+
+taxa_matched_merg %>%
+    select(scientificName, aphiaID) %>%
+    slice_head(n = 10) %>%
+    mutate(
+        .keep = "none",
+        scientificName,
+    info = map(aphiaID, ~ worrms::wm_record(.x))
+) %>%
+  unnest(info)
+reduce(list(event, location, occur), left_join) %>%
+    names() 
+
+obistools::report %>%
+    View()
+
+```
+
+# ---- REMOVING ----
 
 ## 2.2 Record Level Info
 ```{r record-level}
-taxa_original <- taxa_matched_merg
-taxa_matched_merg <-
-    taxa_original  %>%
-    mutate(
-        type                = "Event",
-        modified            = Sys.Date(),
-        language            = "en",
-        license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
-        # institutionCode     = "USF_IMaRS",
-        institutionCode     = "USF",
-        parentEventID       = "IMaRS_MBON_zooplankton",
-        # datasetName         = "MBON Florida Keys National Marine Sanctuary",
-        # datasetName         = glue("MBON Florida Keys National Marine Sanctuary", 
-        #                            "Zooplankton Net Tows (",
-        #                            "{min(year(date_time), na.rm = TRUE)} - ",
-        #                            "{max(year(date_time), na.rm = TRUE)})"),
-        # update to remove years
-        datasetName         = paste(
-                                "MBON/USF-IMaRS Florida Keys National Marine Sanctuary",
-                                "Zooplankton Net Tows"),
-        basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
-        # informationWithheld = "collector identities withheld because changed frequently",
-        # recordedBy          = nlf,
-        recordedBy          = "NOAA AOML",
-        # recordedByID        = orcid_nat,
-        # Abbey B. recommends this change, updated March 21, 2023
-        identifiedBy        = nlf, 
-        identifiedByID      = orcid_nat,
-    )
-
-rcd_lvl <- taxa_matched_merg %>%
-    distinct()
-
-rm(nlf, orcid_nat)
+# taxa_matched_merg <-
+#     taxa_original  %>%
+#     mutate(
+#         type                = "Event",
+#         modified            = Sys.Date(),
+#         language            = "en",
+#         license             = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+#         # institutionCode     = "USF_IMaRS",
+#         institutionCode     = "USF | NOAA", # include NOAA
+#         # ownerInstitutionCode = "USF",
+#         colletionCode       = "SEUS-MBON-Zooplankton",
+#         parentEventID       = "IMaRS_MBON_zooplankton",
+#         # datasetName         = "MBON Florida Keys National Marine Sanctuary",
+#         # datasetName         = glue("MBON Florida Keys National Marine Sanctuary", 
+#         #                            "Zooplankton Net Tows (",
+#         #                            "{min(year(date_time), na.rm = TRUE)} - ",
+#         #                            "{max(year(date_time), na.rm = TRUE)})"),
+#         # update to remove years
+#         datasetName         = paste(
+#                                 "MBON/USF-IMaRS/NOAA AOML Florida Keys National",
+#                                 "Marine Sanctuary Zooplankton Net Tows"),
+#         basisOfRecord       = "PreservedSpecimen", # "HumanObservation",
+#         # informationWithheld = "collector identities withheld because changed frequently",
+#         # recordedBy          = nlf,
+#         recordedBy          = "NOAA AOML",
+#         # recordedByID        = orcid_nat,
+#         # Abbey B. recommends this change, updated March 21, 2023
+#         identifiedBy        = nlf, 
+#         identifiedByID      = orcid_nat,
+#     )
+# 
+# rcd_lvl <- taxa_matched_merg %>%
+#     distinct()
+# 
+# # rm(nlf, orcid_nat)
 ```
 
 ## 2.3 Event Level Info
 ```{r event}
-event <-
-    taxa_matched_merg  %>%
-    mutate(
-        .keep = "none",
-        cruise_id, mesh, parentEventID, type, modified, license, 
-        institutionCode, datasetName, 
-        # basisOfRecord,  informationWithheld,
-        #recordedBy, recordedByID, 
-        language,
-        # catalogNumber   = row_number(),
-        locationID = site,
-        # parentEventID      = "IMaRS_MBON_zooplankton",
-        # datasetID          = glue("{parentEventID}:{cruise_id}"),
-        # datasetID          = glue("{cruise_id}"),
-        # eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
-        eventDate          = format_ISO8601(date_time, usetz = "Z"),
-        # eventID - something like cruiseID:stationID:meshsize
-        # {{mbon} : cruise} : stn : mesh : date_time
-        eventID            = glue(
-                        # "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
-                        "{cruise_id}:stn{locationID}:{mesh}um:{eventDate}"
-        )  %>% str_remove("\\+0000"),
-        fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
-        # eventDate          = date(date_time), 
-        # eventTime          = format(date_time, "%H:%m:%S%z"),
-        year               = year(date_time),
-        month              = month(date_time),
-        day                = day(date_time),
-        # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
-        # 
-        # 
-        # TODO: add plankton split name
-        samplingProtocol   = glue(
-            "{mesh} mesh size (um) - ",
-            "bongo nets | <ADD HERE> | http://drs.nio.org/drs/handle/2264/95"
-        ),
-        
-        # TODO: habitat NERC vocab
-        habitat            = "near reef",
-        sampleSizeValue    = volume_filt_cubic_m,
-        sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
-        samplingEffort     = str_c(tow_time_min, "minutes", sep = " ")
-    ) %>%
-    distinct() %>%
-    mutate(
-        # TODO: save for the end when combining all same sizes together
-        catalogNumber   = row_number(),
-        .before = everything()
-     ) 
+# event <-
+#     taxa_matched_merg  %>%
+#     mutate(
+#         .keep = "none",
+#         cruise_id, mesh, parentEventID, type, modified, license, 
+#         institutionCode, datasetName, 
+#         # basisOfRecord,  informationWithheld,
+#         #recordedBy, recordedByID, 
+#         language,
+#         locationID = site,
+#         # parentEventID      = "IMaRS_MBON_zooplankton",
+#         # datasetID          = glue("{parentEventID}:{cruise_id}"),
+#         # datasetID          = glue("{cruise_id}"),
+#         # eventDateTime      = format(date_time, "%Y-%m-%dT%H:%m:%S%z"),
+#         eventDate          = format_ISO8601(date_time, usetz = "Z"),
+#         # eventID - something like cruiseID:stationID:meshsize
+#         # {{mbon} : cruise} : stn : mesh : date_time
+#         eventID            = glue(
+#                         # "{datasetID}:stn{locationID}:{mesh}um:{eventDateTime}"
+#                         "{cruise_id}:stn{locationID}:{mesh}um:{date}"
+#         )  %>% str_remove("\\+0000"),
+#         fieldNumber        = glue("{cruise_id}-{station}-{mesh}"),
+#         # eventDate          = date(date_time), 
+#         # eventTime          = format(date_time, "%H:%m:%S%z"),
+#         year               = year(date_time),
+#         month              = month(date_time),
+#         day                = day(date_time),
+#         # samplingProtocol = paste(mesh_size_um, "mesh size (um)"),
+#         # 
+#         # 
+#         # TODO: add plankton split name
+#         samplingProtocol   = glue(
+#             "{mesh} mesh size (um) - bongo nets", 
+#             "folson splitter",
+#             "http://drs.nio.org/drs/handle/2264/95",
+#             .sep = " | "
+#         ),
+#         
+#         # TODO: habitat NERC vocab
+#         habitat            = "near reef",
+#         sampleSizeValue    = volume_filt_cubic_m,
+#         sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
+#         samplingEffort     = str_c(tow_time_min, "minutes", sep = " "),
+#         
+#     ) %>%
+#     distinct() %>%
+#     mutate(
+#         # TODO: save for the end when combining all same sizes together
+#         # catalogNumber   = row_number(),
+#         rowNumber   = row_number(),
+#         .before = everything()
+#      ) 
 ```
 
 ## 2.4 Location Level Info:
 ```{r location}
-location <-
-    taxa_matched_merg %>%
-    left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
-    dplyr::mutate(
-        .keep = "none",
-        eventID,
-        decimalLatitude   = lat_in,
-        decimalLongitude  = lon_in,
-        higherGeographyID = case_when(
-            str_detect(site, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
-            str_detect(site, "5") ~ "http://vocab.getty.edu/tgn/1101513",
-            TRUE ~ "Not Found"
-        ),
-        higherGeography   = "North America | United States | Florida",
-        continent         = "North America",
-        country           = "United States",
-        countryCode       = "US",
-        stateProvince     = "Florida",
-        geodeticDatum     = "EPSG:4326",
-        georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
-        
-        # TODO: add min/max depth, uncertainty 
-        # min = 0, 
-        # max = noaa max
-        
-    ) %>%
-    distinct()
-
-left_join(
-    event, location
-)
+# location <-
+#     taxa_matched_merg %>%
+#     left_join(event, by = c("cruise_id", "site" = "locationID", "mesh")) %>%
+#     dplyr::mutate(
+#         .keep = "none",
+#         eventID,
+#         decimalLatitude   = lat_in,
+#         decimalLongitude  = lon_in,
+#         higherGeographyID = case_when(
+#             str_detect(site, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
+#             str_detect(site, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+#             TRUE ~ "Not Found"
+#         ),
+#         higherGeography   = "North America | United States | Florida",
+#         continent         = "North America",
+#         country           = "United States",
+#         countryCode       = "US",
+#         stateProvince     = "Florida",
+#         geodeticDatum     = "EPSG:4326",
+#         georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
+#         
+#         # min/max depth, uncertainty 
+#         coordinateUncertaintyInMeters,
+#         minimumDepthInMeters,
+#         maximumDepthInMeters
+#         
+#     ) %>%
+#     distinct()
+# 
+# left_join(
+#     event, location
+# )
 
 ```
 
 ## 2.5 Ocurrence Level Info:
 ```{r occurence}
-occur <-
-    taxa_matched_merg %>%
-    left_join(event, 
-              by = c("cruise_id", 
-                     "site" = "locationID", 
-                     "mesh" #, 
-                     # "recordedBy", 
-                     #"recordedByID", "basisOfRecord"
-                     )
-              ) %>%
-    dplyr::mutate(
-        .keep = "none",
-        eventID, 
-        # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-        # changed to taxa_orig to make sure occur ID is unique
-        occurrenceID             = glue("{eventID}:{taxa_orig}:{lifeStage}"),
-        
-        # taxa names
-        scientificName,
-        across(kingdom:genus), # TODO: check if species column exists
-        taxonRank = rank,
-        # taxonID = taxon_rank_id,
-         
-        # recorded by
-        identifiedBy,
-        identifiedById,
-        # TODO: add back if add in event core
-        # recordedBy,
-        # recordedByID,
-        dateIdentified           = date_analyzed,
-        
-        # counts of organisms?
-        # IDk which of these is accurate
-        # individualCount          = number_ind_sample,
-        # add each aliquot as a total count per sample event
-        # update on April 17, 2023 
-        # individualCount,
-        # organismQuantity         = ind_m3,
-        # organismQuantityType     = "Individuals per cubic metre",
-        organismQuantity         = individualCount,
-        organismQuantityType     = "Summation of 3x 5mL Aliquots",
-        
-        # or
-        # measurementType          = "Number per cubic metre",
-        # MOF? should also include ind/sample?
-        # measurementUnitID        = 
-        # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
-        # MOF?
-        
-        # TODO: check this information ----
-        lifeStage,
-        # establishmentMeans       = "native | uncertain",
-        occurrenceStatus         = "present",
-        preparations             = "formalin before analysis | ethanol after analysis",
-        scientificNameID,
-        # like urn:lsid:ipni.org:names:37829-1:1.3
-        basisOfRecord,
-        # datasetID,
-        # eventDate                = date(date_time),
-        identificationReferences = "WoRMS",
-        verbatimIdentification   = taxa_orig,
-        # georeferenceVerificationStatusProperty = "verified by contributor",
-        georeferenceVerificationStatus = "verified by contributor",
-        dispostion = "in collection"
-    )
-
-
+# occur <-
+#     taxa_matched_merg %>%
+#     left_join(event, 
+#               by = c("cruise_id", 
+#                      "site" = "locationID", 
+#                      "mesh" #, 
+#                      # "recordedBy", 
+#                      #"recordedByID", "basisOfRecord"
+#                      )
+#               ) %>%
+#     dplyr::mutate(
+#         .keep = "none",
+#         eventID, 
+#         # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
+#         # changed to taxa_orig to make sure occur ID is unique
+#         occurrenceID             = glue("{eventID}:{taxa_orig}:{lifeStage}"),
+#         
+#         # taxa names
+#         scientificName,
+#         across(kingdom:genus), # TODO: check if species column exists
+#         taxonRank = rank,
+#         # taxonID = taxon_rank_id,
+#          
+#         # recorded by
+#         identifiedBy,
+#         identifiedByID,
+#         # TODO: add back if add in event core
+#         # recordedBy,
+#         # recordedByID,
+#         dateIdentified           = date_analyzed,
+#         
+#         # counts of organisms?
+#         # IDk which of these is accurate
+#         # individualCount          = number_ind_sample,
+#         # add each aliquot as a total count per sample event
+#         # update on April 17, 2023 
+#         # individualCount,
+#         # organismQuantity         = ind_m3,
+#         # organismQuantityType     = "Individuals per cubic metre",
+#         organismQuantity         = individualCount,
+#         organismQuantityType     = "Summation of 3x 5mL Aliquots",
+#         
+#         # or
+#         # measurementType          = "Number per cubic metre",
+#         # MOF? should also include ind/sample?
+#         # measurementUnitID        = 
+#         # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
+#         # MOF?
+#         
+#         # TODO: check this information ----
+#         lifeStage,
+#         # establishmentMeans       = "native | uncertain",
+#         occurrenceStatus         = "present",
+#         preparations             = str_c("10% formalin before analysis", 
+#                                          "70% ethanol after analysis", 
+#                                          sep = " | "),
+#         scientificNameID,
+#         # like urn:lsid:ipni.org:names:37829-1:1.3
+#         basisOfRecord,
+#         # datasetID,
+#         # eventDate                = date(date_time),
+#         identificationReferences = "WoRMS",
+#         verbatimIdentification   = taxa_orig,
+#         # georeferenceVerificationStatusProperty = "verified by contributor",
+#         georeferenceVerificationStatus = "verified by contributor",
+#         dispostion = "in collection"
+#     )
 ```
 ## 2.6 MoF
 ### 2.6.1 Ex: Mearuement or Fact
@@ -494,144 +911,162 @@ MoF https://github.com/ioos/bio_data_guide/blob/main/datasets/WBTS_MBON/IOOS%20D
 ### 2.6.2 Meaurement or Fact Level Info
 URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
 ```{r MoF-base}
-# TODO: edit MoF for more information
-# result of script is MoF1 variable
-source("../scripts/mof_base_create_table.R")
-MoF1 <- mof_read()
-# need:
-# measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
-def_web <- "http://vocab.nerc.ac.uk/collection/"
-
-MoF1 <-
-    MoF1 %>%
-    mutate(
-        measurementTypeID = case_when(
-            !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~
-                str_c(def_web, measurementType_uri),
-            TRUE ~ ""
-        ),
-        measurementUnitID = case_when(
-            !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~
-                str_c(def_web, measurementUnit_uri),
-            TRUE ~ ""
-        )
-    )  %>%
-    select(-measurementValue & !ends_with("_uri"))
-
-MoF1
+# # TODO: edit MoF for more information
+# # result of script is MoF1 variable
+# source(here("scripts", "mof_base_create_table.R"))
+# MoF1 <- mof_read()
+# # need:
+# # measurementType, measurementTypeID, measurementValue, measurementUnit, measurementAccuracy, measurementDeterminedBy, measurementMethod, measurementRemarks
+# def_web <- "http://vocab.nerc.ac.uk/collection/"
+# 
+# MoF1 <-
+#     MoF1 %>%
+#     mutate(
+#         measurementTypeID = case_when(
+#             !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~
+#                 str_c(def_web, measurementType_uri),
+#             TRUE ~ ""
+#         ),
+#         measurementUnitID = case_when(
+#             !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~
+#                 str_c(def_web, measurementUnit_uri),
+#             TRUE ~ ""
+#         )
+#     )  %>%
+#     select(-measurementValue & !ends_with("_uri"))
+# 
+# MoF1
 ```
 
 ```{r MoF}
-# # ---- Event MoF
-MoF_event  <-
-    taxa_matched_merg %>%
-     left_join(event, 
-              by = c("cruise_id", 
-                     "site" = "locationID", 
-                     "mesh"#, 
-                     # "recordedBy", 
-                     # "recordedByID", 
-                     # "basisOfRecord"
-                     )
-              ) %>%
-    distinct(eventID, .keep_all = TRUE) %>%
-    select(-c(aphiaID:recordedByID)) %>%
-    mutate(
-        Net_type = "bongo nets",
-        microscopy = "microscopy"
-    ) %>%
-    
-    pivot_longer(
-                 cols = MoF1$orig_term[-1],
-        # cols = c("split_amount", "mesh", "ind_m3"),
-                 names_to = "orig_term",
-                 values_to = "measurementValue",
-        values_transform = list(measurementValue = as.character)
-    ) %>%
-    select(# datasetID, 
-           eventID, orig_term, measurementValue) %>%
-    left_join(MoF1, by = c("orig_term")) %>%
-    filter(event_occur == "event")
-
-# ---- Occurence MoF
-MoF_occur  <-
-    occur %>%
-        select(eventID, occurrenceID, 
-               "number_ind_sample" = individualCount, 
-               "ind_m3" = organismQuantity,
-               verbatimIdentification, scientificName) %>%
-        
-        pivot_longer(
-                     cols = c(number_ind_sample, ind_m3),
-            # cols = c("split_amount", "mesh", "ind_m3"),
-                     names_to = "orig_term",
-                     values_to = "measurementValue",
-            values_transform = list(measurementValue = as.character)
-        ) %>%
-        select(occurrenceID, orig_term, measurementValue) %>%
-        left_join(MoF1, by = c("orig_term")) 
-        filter(event_occur == "event")
-
-MoF <- 
-    bind_rows(MoF_event, MoF_occur) %>%
-    relocate(occurrenceID, 1) %>%
-    select(-orig_term, -event_occur)
+# # # ---- Event MoF
+# MoF_event  <-
+#     taxa_matched_merg %>%
+#      left_join(event, 
+#               by = c("cruise_id", 
+#                      "site" = "locationID", 
+#                      "mesh"#, 
+#                      # "recordedBy", 
+#                      # "recordedByID", 
+#                      # "basisOfRecord"
+#                      )
+#               ) %>%
+#     distinct(eventID, .keep_all = TRUE) %>%
+#     select(-c(aphiaID:identifiedByID)) %>%
+#     mutate(
+#         Net_Type = "bongo nets",
+#         microscopy = "microscopy"
+#     ) %>%
+#     pivot_longer(
+#                  # cols = MoF1$orig_term[-1],
+#                  cols = MoF1$orig_term,
+#         # cols = c("split_amount", "mesh", "ind_m3"),
+#                  names_to = "orig_term",
+#                  values_to = "measurementValue",
+#         values_transform = list(measurementValue = as.character)
+#     ) %>%
+#     select(# datasetID, 
+#            eventID, orig_term, measurementValue) %>%
+#     left_join(MoF1, by = c("orig_term")) %>%
+#     filter(event_occur == "event")
+# 
+# # ---- Occurence MoF
+# # MoF_occur  <-
+#  left_join(
+#         event,
+#         occur, 
+#         by = "eventID"
+#     ) %>%
+#     left_join(taxa_matched_merg, .,
+#               by = c("cruise_id", 
+#                      "site" = "locationID", 
+#                      "mesh",
+#                      # "recordedBy", 
+#                      # "recordedByID", 
+#                      # "basisOfRecord"
+#                      )
+#               )# %>%
+#    
+#     occur %>%
+#         select(eventID, occurrenceID, 
+#                # "number_ind_sample" = individualCount, 
+#                # "ind_m3" = organismQuantity,
+#                "number_ind_sample" = organismQuantity, 
+#                # "ind_m3" = organismQuantity,
+#                verbatimIdentification, scientificName) %>%
+#         
+#         pivot_longer(
+#                      # cols = c(number_ind_sample, ind_m3),
+#                      cols = c(number_ind_sample),
+#             # cols = c("split_amount", "mesh", "ind_m3"),
+#                      names_to = "orig_term",
+#                      values_to = "measurementValue",
+#             values_transform = list(measurementValue = as.character)
+#         ) %>%
+#         select(occurrenceID, eventID, orig_term, measurementValue) %>%
+#         left_join(MoF1, by = c("orig_term")) 
+#         filter(event_occur == "event")
+# 
+# MoF <- 
+#     bind_rows(MoF_event, MoF_occur) %>%
+#     relocate(occurrenceID, 1) %>%
+#     select(-orig_term, -event_occur)
 
 ```
 
 # 3.0 Examples to save
 ```{r save}
-set.seed(1234)
-dir <- here("data", "processed", "obis_example")
-path <-
-    here(dir, 
-         glue("{c('event', 'occur', 'mof')}",
-              "_example_update_{Sys.Date()}.csv"))
-path
-
-dir_create(dir)
-
-events <- sample(unique(event$eventID), 5)
-
-left_join(event, location) %>%
-    select(-cruise_id, -parentEventID, -catalogNumber, -mesh) %>%
-    # group_by(eventID) %>%
-    filter(eventID %in% events) %>% 
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[1], na = "")
-
-occur %>%
-    # group_by(eventID) %>%
-    filter(eventID %in% events) %>%
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[2], na = "")
-
-MoF %>%
-    # group_by(eventID) %>%
-    filter(eventID %in% events | str_detect(occurrenceID, paste(events, collapse = "|"))) %>%
-    # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
-    write_csv(file = path[3], na = "")
+# set.seed(1234)
+# dir <- here("data", "processed", "obis_example")
+# path <-
+#     here(dir, 
+#          glue("{c('event', 'occur', 'mof')}",
+#               "_example_update_{Sys.Date()}.csv"))
+# path
+# 
+# dir_create(dir)
+# 
+# events <- sample(unique(event$eventID), 5)
+# 
+# left_join(event, location) %>%
+#     select(-cruise_id, -parentEventID, -rowNumber, -mesh) %>%
+#     # group_by(eventID) %>%
+#     filter(eventID %in% events) %>% 
+#     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+#     write_csv(file = path[1], na = "")
+# 
+# occur %>%
+#     # group_by(eventID) %>%
+#     filter(eventID %in% events) %>%
+#     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+#     write_csv(file = path[2], na = "")
+# 
+# MoF %>%
+#     # group_by(eventID) %>%
+#     filter(eventID %in% events | str_detect(occurrenceID, paste(events, collapse = "|"))) %>%
+#     # filter(eventID == "IMaRS_MBON_zooplankton:SV18067:stnLK:500um:2018-03-09T15:03:00") %>%
+#     write_csv(file = path[3], na = "")
 
 ```
 
 ```{r}
-reduce(list(event, location, occur, MoF), left_join) %>%
-    obistools::check_depth(.)
-
-taxa_matched_merg %>%
-    select(scientificName, aphiaID) %>%
-    slice_head(n = 10) %>%
-    mutate(
-        .keep = "none",
-        scientificName,
-    info = map(aphiaID, ~ worrms::wm_record(.x))
-) %>%
-  unnest(info)
-reduce(list(event, location, occur), left_join) %>%
-    names() 
-
-obistools::report %>%
-    View()
+# reduce(list(event, location, occur, MoF), left_join) %>%
+#     obistools::check_depth(.)
+# 
+# taxa_matched_merg %>%
+#     select(scientificName, aphiaID) %>%
+#     slice_head(n = 10) %>%
+#     mutate(
+#         .keep = "none",
+#         scientificName,
+#     info = map(aphiaID, ~ worrms::wm_record(.x))
+# ) %>%
+#   unnest(info)
+# reduce(list(event, location, occur), left_join) %>%
+#     names() 
+# 
+# obistools::report %>%
+#     View()
 
 ```
 
