@@ -26,26 +26,31 @@ librarian::shelf(
 
 library("conflicted")
 
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
+conflicts_prefer(dplyr::filter,
+                dplyr::select)
 
-library("readxl")
-library("hablar") # might be useful when needing to fix names
-library("worrms")
-library("geosphere")
+# library("readxl")
+# library("hablar") # might be useful when needing to fix names
+# library("worrms")
+# library("geosphere")
 
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
 # startup("log_edits")
 # log_add()
+```
+
+## 1.2 Other Variables Needed
+```{r other-vars}
+other_vars <- list()
 
 # ---- recorded by info
-nlf       <- "Natalia Lopez Figueroa"
-orcid_nat <- "https://orcid.org/0000-0002-7527-0481"
+other_vars$identifier       <- "Natalia Lopez Figueroa"
+other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
 
 # ---- max depth per site
-max_depth <-
+other_vars$max_depth <-
   list(
     "MR" = 36.5,
     "LK" = 40.5,
@@ -55,12 +60,10 @@ max_depth <-
     "9B" = 31
   )
 
-
 # ---- set variables for calculation
-inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
+other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # net_area <- pi * 0.5^2
 
-# TODO: check this equation ---------------------------------------------------
 # Note: jamie dillution / pippete_vol_m_l is the same as nat dillution_factor
 # 
 # total num individual (sum all aliquots)  * vol sample water (known vol) / counted aliquot * split size / folson (mL per aliquot)
@@ -70,7 +73,7 @@ inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # dilution factor = vol sample water / folson 
 # 
 which_one <- "nat"
-equation_zoo <- switch(
+other_vars$equation_zoo <- switch(
     which_one,
     "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
     "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
@@ -81,75 +84,48 @@ equation_zoo <- switch(
 rm(which_one)
 ```
 
-## 1.2 Load functions, if not already
+## 1.3 Load functions, if not already
 This will load the functions needed if not already contain in the search path.
 ```{r load-functions}
 source(here("scripts", "attach_funcs.R"))
 func_attach()
 rm(func_attach)
 ```
-## 1.3 Info on Workflow
+## 1.4 Info on Workflow
 Workflow:
 <https://github.com/ioos/bio_data_guide/tree/main/OBIS_data_tiers>
-Needed: 3 things 1. Event 2. Occurances 3. Measurement of Fact (MOF)
+3 "Cores": 
+   1. Event - where/when took place
+   2. Occurrence -  species info, presence/absence 
+   3. Measurement or Fact (MoF) - if any, other necessary and environmental 
+                                  quantities measured
 
-1.  Read and format metadata spreadsheets
-    -   convert to DarwinCore format
+Steps:
+1. Read in previous data
+2. Add additional taxonomic information using aphia ID
+3. Merge metadata and calculate densities
+4. Add columns to convert to DarwinCore
+5. Extract each core
+  - EventCore
+  - OccurenceCore
+  - MoFcore
 
-MOF = measurement of fact
 
-Event - where/when took place
-
-Occurrence - species info, presence/absence Occurrence MOF - quantity,
-other info to measure them
-
-MOF - environmental quantities measured
-
-# not finished yet
-
-occurrence       = institution_code = "USF_IMaRS" 
-collection_code  = "compiled_zoo_taxonomy_nlf" 
-catalog_number   = "20yy_mm_dd" 
-occurrenceID     = (unique identifier) 
-
-joining of <urn:catalog> institution code
-collection_code catalog_number row number 
-join by : 
-eventDate        = date_time 
-decimalLongitude = lon_in 
-decimalLatitude  = lat_in
-scientificName   = natalia spreadsheet 
-scientificNameID = "TODO: worms lookup", #taxonomy_df["classification"],
-
-occurence        = basisOfRecord = "HumanObservation", 
-collectionCode   = collection_code, 
-catalogNumber    = catalog_number, 
-occurrenceStatus = "present", 
-institutionCode  = institution_code
-
-extra-stuff mesh_size flowmeter in flowmeter out ship speed inpeller
-constant distnace tow speed formalin vol filtered
-
-## 1.4 Load data for OBIS conversion
+## 1.5 Load data for OBIS conversion
 ```{r load-data}
 # ---- load aphia id if hasn't previously been
 # TODO: load file from `03_...` for aphia IDs
 if (!exists("aphia_id")) {
   aphia_id <-
-    fs::dir_ls(
-      path = here::here("data", "metadata", "aphia_id"),
+    dir_ls(
+      path   = here("data", "metadata", "aphia_id"),
       regexp = "^[^~]*(aphia)+.*\\.csv$"
     ) %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
     mutate(
-      aphiaID = if_else(!is.na(scientificNameID),
-        str_split(scientificNameID, ":",
-          simplify = TRUE
-        )[, 5],
-        NA_character_
-      ) %>%
-        as.numeric(.),
+      aphiaID = str_extract(scientificNameID, "\\d+"),
+      aphiaID = as.numeric(aphiaID),
       info = map(
         aphiaID,
         ~ tryCatch(
@@ -168,8 +144,9 @@ if (!exists("aphia_id")) {
 
 # ---- load metadata
 meta_df <-
-    fs::dir_ls(path = here::here("data", "metadata", "cruise_logsheets"),
-               regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+    dir_ls(
+        path   = here("data", "metadata", "cruise_logsheets"),
+        regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
     
@@ -181,7 +158,7 @@ meta_df <-
                 str_detect(station, "Loo")  ~ "LK",
                 str_detect(station, "West") ~ "WS",
                 str_detect(station, "9B")   ~ "9B",
-                TRUE ~ station), 
+                .default = station), 
            .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
@@ -191,31 +168,36 @@ meta_df <-
         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
         # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
         volume_filt_cubic_m = net_area/4 * distance_m_2,
-        split_size          = map_dbl(split_size, function(x) {
+        split_size          = map_dbl(split_size, 
+                                      function(x) {
                                     out <- tryCatch({
                                     eval(parse(text = x))}, 
-                                    error = function(e) {NA_integer_})}) 
+                                    error = function(e) {NA_integer_})}
+                                    ) 
        ) 
 
 # ---- load zooplankton data
 taxa_files <-
-    fs::dir_ls(path = here::here("data", "processed"),
-               regexp = "all_merged_processed") %>%
+    dir_ls(
+        path = here("data", "processed"),
+        regexp = "all_merged_processed") %>%
     last_mod(.) %>%
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
     mutate(
-        # fix some cruise ID from data spreadsheets
+        # ONLY USED IF:
+        # need to fix info from a specific cruise ID
+        # - uncomment and replace "" with the cruise ID and new cruise ID
         # cruise_id = case_when(
         #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
-        #     TRUE ~ cruise_id
+        #     .default = cruise_id
         #     ),
         site      = str_replace(site, "MK", "MR"),
         lifeStage = case_when(
             is.na(lifeStage) ~ "adult",
-            TRUE ~ lifeStage),
+            .default = lifeStage),
         splits_analyzed = case_when(
             is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
-            TRUE ~ splits_analyzed
+            .default = splits_analyzed
         )
     ) %>%
   select(-mean_ind_dil_factor) %>%
@@ -228,6 +210,7 @@ taxa_files <-
       .before = aliquot_1
   ) %>%
   ungroup()
+
 # ---- merge metadata and taxa data
 taxa_original <-
   taxa_files %>%
@@ -246,25 +229,20 @@ taxa_original <-
       0,
       splits_analyzed
     ),
-    number_ind_sample = eval(equation_zoo),
+    number_ind_sample = eval(other_vars$equation_zoo),
     ind_m3 = number_ind_sample / volume_filt_cubic_m,
 
     # get aphia ID from end of scientificNameID
-    aphiaID = if_else(
-      !is.na(scientificNameID),
-      str_split(scientificNameID, ":",
-        simplify = TRUE
-      )[, 5],
-      NA_character_
-    ) %>%
-      as.numeric(.),
+    aphiaID = str_extract(scientificNameID, "\\d+"),
+    aphiaID = as.numeric(aphiaID),
+    
     maximumDepthInMeters = case_when(
-      str_detect(site, "MR") ~ max_depth$MR,
-      str_detect(site, "LK") ~ max_depth$LK,
-      str_detect(site, "WS") ~ max_depth$WS,
-      str_detect(site, "57") ~ max_depth$`57`,
-      str_detect(site, "54") ~ max_depth$`54`,
-      str_detect(site, "9B") ~ max_depth$`9B`
+      str_detect(site, "MR") ~ other_vars$max_depth$MR,
+      str_detect(site, "LK") ~ other_vars$max_depth$LK,
+      str_detect(site, "WS") ~ other_vars$max_depth$WS,
+      str_detect(site, "57") ~ other_vars$max_depth$`57`,
+      str_detect(site, "54") ~ other_vars$max_depth$`54`,
+      str_detect(site, "9B") ~ other_vars$max_depth$`9B`
     ),
     minimumDepthInMeters = 0,
     coordinateUncertaintyInMeters = 500
@@ -277,7 +255,6 @@ taxa_original <-
     )
   )
 ```
-
 
 # 2.0 DarwinCore/OBIS Conversion
 ## 2.1 Ex: Occurrence Bare Minimum example
@@ -301,7 +278,11 @@ set to `TRUE` if want to run
 ## 2.2 Add DarwinCore Columns
 ```{r dwc-cols}
 dwc_info <-
-  taxa_original %>%
+  taxa_original %>% 
+  mutate(
+    rowNumber = row_number(),
+    .before   = 1
+  ) %>%
  
 # ============================================================================ #
 # ---- 2.2.1 Record Level ----
@@ -321,8 +302,8 @@ dwc_info <-
     ),
     basisOfRecord          = "PreservedSpecimen", # "HumanObservation",
     recordedBy             = "NOAA AOML",
-    identifiedBy           = nlf,
-    identifiedByID         = orcid_nat,
+    identifiedBy           = other_vars$identifier  ,
+    identifiedByID         = other_vars$identifier_orcid,
   ) %T>%
   print() %>%
     
@@ -330,6 +311,7 @@ dwc_info <-
 # ---- 2.2.2 Event Level ----
 # ============================================================================ #    
   mutate(
+    # catalogNumber = # maybe add in the future
     locationID       = site,
     eventDate        = format_ISO8601(date_time, usetz = "Z"),
     eventID          = glue("{cruise_id}:stn{locationID}:{mesh}um:{date}"),
@@ -337,7 +319,6 @@ dwc_info <-
     year             = year(date_time),
     month            = month(date_time),
     day              = day(date_time),
-    # TODO: add plankton split name
     samplingProtocol = glue(
       "{mesh} mesh size (um) - bongo nets",
       "folson splitter",
@@ -350,12 +331,6 @@ dwc_info <-
     sampleSizeValue  = volume_filt_cubic_m,
     sampleSizeUnit   = "Volume per cubic metre of filtered seawater",
     samplingEffort   = str_c(tow_time_min, "minutes", sep = " "),
-  ) %>%
-  mutate(
-    # TODO: save for the end when combining all same sizes together
-    # catalogNumber   = row_number(),
-    rowNumber = row_number(),
-    .before   = everything()
   ) %T>%
   print() %>%
 
@@ -376,7 +351,8 @@ dwc_info <-
     countryCode       = "US",
     stateProvince     = "Florida",
     geodeticDatum     = "EPSG:4326",
-    georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith"
+    georeferencedBy   = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
+    georeferenceVerificationStatus = "verified by contributor"
   ) %T>%
   print() %>%
     
@@ -385,15 +361,7 @@ dwc_info <-
 # ============================================================================ #    
   mutate(
     occurrenceID         = glue("{eventID}:{taxa_orig}:{lifeStage}"),
-
-    # taxa names
-    scientificName,
-    across(kingdom:genus), # TODO: check if species column exists
     taxonRank            = rank,
-    
-    # recorded by
-    identifiedBy,
-    identifiedByID,
     dateIdentified       = date_analyzed,
      # counts of organisms?
     # IDk which of these is accurate
@@ -407,13 +375,13 @@ dwc_info <-
     organismQuantityType = "Summation of 3x 5mL Aliquots",
     lifeStage,
     occurrenceStatus     = "present",
-    preparations         = str_c("10% formalin before analysis",
+    preparations         = str_c(
+      "10% formalin before analysis",
       "70% ethanol after analysis",
       sep = " | "
     ),
     identificationReferences = "WoRMS",
-    verbatimIdentification = taxa_orig,
-    georeferenceVerificationStatus = "verified by contributor",
+    verbatimIdentification   = taxa_orig,
     dispostion = "in collection"
   ) %T>%
   print() %>%
@@ -422,7 +390,7 @@ dwc_info <-
 # ---- 2.2.5 Measurement or Fact Additional Terms ----
 # ============================================================================ #    
   mutate(
-    Net_Type   = "bongo nets",
+    net_type   = "bongo nets",
     microscopy = "microscopy"
   )
 
@@ -483,12 +451,9 @@ event_core <-
 ```{r occur-extract}
 occur_core <-
   dwc_info %>%
-  mutate(
-    .keep = "none",
+  select(
     eventID,
     occurrenceID,
-
-    # taxa names
     scientificName,
     across(kingdom:genus), # TODO: check if species column exists
     taxonRank,
@@ -518,30 +483,32 @@ URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
 
 ```{r mof-base}
 # TODO: edit MoF for more information
-# result of script is MoF1 variable
+# result of script is mof_base variable
 source(here("scripts", "mof_base_create_table.R"))
-MoF1 <- mof_read()
+mof_base <- mof_read()
 
 def_web <- "http://vocab.nerc.ac.uk/collection/"
 
-MoF1 <-
-    MoF1 %>%
-    mutate(
-        measurementTypeID = case_when(
-            !is.na(measurementType_uri) & str_length(measurementType_uri) > 1 ~
-                str_c(def_web, measurementType_uri),
-            TRUE ~ ""
-        ),
-        measurementUnitID = case_when(
-            !is.na(measurementUnit_uri) & str_length(measurementUnit_uri) > 0 ~
-                str_c(def_web, measurementUnit_uri),
-            TRUE ~ ""
-        )
-    )  %>%
-    select(-measurementValue & !ends_with("_uri"))
+mof_base <-
+  mof_base %>%
+  mutate(
+    across(contains("_uri"),
+      .fns = ~ if_else(
+        !is.na(.x),
+        str_c(def_web, .),
+        NA_character_
+      )
+    )
+  ) %>%
+  rename(
+    "measurementTypeID" = measurementType_uri,
+    "measurementUnitID" = measurementUnit_uri
+  ) %>%
+  select(-measurementValue)
 
-MoF1
+mof_base
 ```
+
 
 ### 3.3.2 Convert MoF
 ```{r mof-extract}
@@ -553,7 +520,7 @@ mof_event <-
   distinct(eventID, .keep_all = TRUE) %>%
   select(
     eventID,
-    filter(MoF1, str_detect(event_occur, "event"))$orig_term
+    filter(mof_base, str_detect(event_occur, "event"))$orig_term
   ) %>%
   pivot_longer(
     cols      = -eventID,
@@ -561,7 +528,7 @@ mof_event <-
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
   ) %>%
-  left_join(MoF1, by = "orig_term")
+  left_join(mof_base, by = "orig_term")
 
 # ============================================================================ #
 # ---- MoF Occurrence Info ----
@@ -571,7 +538,7 @@ mof_occur <-
   distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
   select(
     eventID, occurrenceID,
-    filter(MoF1, str_detect(event_occur, "occur"))$orig_term
+    filter(mof_base, str_detect(event_occur, "occur"))$orig_term
   ) %>%
   pivot_longer(
     cols      = -c(eventID, occurrenceID),
@@ -579,13 +546,14 @@ mof_occur <-
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
   ) %>%
-  left_join(MoF1, by = "orig_term")
+  left_join(mof_base, by = "orig_term")
 
 mof_core <-
   bind_rows(
     mof_occur,
     mof_event
-  )
+  ) %>%
+ select(-orig_term, -event_occur)
 ```
 
 
