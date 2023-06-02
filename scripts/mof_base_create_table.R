@@ -111,6 +111,29 @@ mof_read <- function() {
         mof_base <- readr::read_csv(mof_file, show_col_types = FALSE)
     }
     
+    
+    # ---- add website used for definitions
+    def_web <- "http://vocab.nerc.ac.uk/collection/"
+    
+    # ---- add mof_info
+    mof_base <-
+        mof_base %>%
+        mutate(
+            across(contains("_uri"),
+                   .fns = ~ if_else(
+                       !is.na(.x),
+                       str_c(def_web, .),
+                       NA_character_
+                   )
+            )
+        ) %>%
+        rename(
+            "measurementTypeID" = measurementType_uri,
+            "measurementUnitID" = measurementUnit_uri
+        ) %>%
+        select(-measurementValue)
+    
+    
     return(mof_base)
 }
 
