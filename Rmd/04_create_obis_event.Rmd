@@ -27,7 +27,7 @@ librarian::shelf(
 library("conflicted")
 
 conflicts_prefer(dplyr::filter,
-                dplyr::select)
+                 dplyr::select)
 
 # library("readxl")
 # library("hablar") # might be useful when needing to fix names
@@ -42,6 +42,8 @@ conflicts_prefer(dplyr::filter,
 ```
 
 ## 1.2 Other Variables Needed
+Only needed identifier. This may be updated for future samples and can filter 
+for specific samples.
 ```{r other-vars}
 other_vars <- list()
 
@@ -49,39 +51,6 @@ other_vars <- list()
 other_vars$identifier       <- "Natalia Lopez Figueroa"
 other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
 
-# ---- max depth per site
-other_vars$max_depth <-
-  list(
-    "MR" = 36.5,
-    "LK" = 40.5,
-    "WS" = 23,
-    "54" = 3,
-    "57" = 5,
-    "9B" = 31
-  )
-
-# ---- set variables for calculation
-other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
-# net_area <- pi * 0.5^2
-
-# Note: jamie dillution / pippete_vol_m_l is the same as nat dillution_factor
-# 
-# total num individual (sum all aliquots)  * vol sample water (known vol) / counted aliquot * split size / folson (mL per aliquot)
-# 
-# 
-# mean = total num / counted aliquots 
-# dilution factor = vol sample water / folson 
-# 
-which_one <- "nat"
-other_vars$equation_zoo <- switch(
-    which_one,
-    "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
-    "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
-    "nat3"   = expression(dillution_factor * mean * (splits_analyzed)^-1),
-    "jamie"  = expression((dillution / pipette_vol_m_l) * mean * splits_analyzed ),
-    "jamie2" = expression(dillution * mean)
-)
-rm(which_one)
 ```
 
 ## 1.3 Load functions, if not already
@@ -113,147 +82,194 @@ Steps:
 
 ## 1.5 Load data for OBIS conversion
 ```{r load-data}
-# ---- load aphia id if hasn't previously been
-# TODO: load file from `03_...` for aphia IDs
-if (!exists("aphia_id")) {
-  aphia_id <-
-    dir_ls(
-      path   = here("data", "metadata", "aphia_id"),
-      regexp = "^[^~]*(aphia)+.*\\.csv$"
-    ) %>%
-    last_mod(.) %>%
-    read_csv(show_col_types = FALSE) %>%
-    mutate(
-      aphiaID = str_extract(scientificNameID, "\\d+"),
-      aphiaID = as.numeric(aphiaID),
-      info = map(
-        aphiaID,
-        ~ tryCatch(
-          {
-            worrms::wm_record(.x)
-          },
-          error = function(e) {
-            return(NULL)
-          }
-        )
-      )
-    ) %>%
-    unnest(info, names_repair = janitor::make_clean_names) %>%
-    select(!contains("_2"), -c(2:6))
-}
+taxa_original <- 
+    here("data", "processed", "pre_obis")  %>%
+    dir_ls(regexp = "zoo_data_pre_obis") %>%
+    last_mod() %T>% 
+    print()
 
-# ---- load metadata
-meta_df <-
-    dir_ls(
-        path   = here("data", "metadata", "cruise_logsheets"),
-        regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-    last_mod(.) %>%
-    read_csv(show_col_types = FALSE) %>%
-    
-    # this is when Natalia LF started analysis
-    filter(date >= date("2017-06-18")) %>%
-    
-    mutate(locationID      = case_when(
-                str_detect(station, "Mol")  ~ "MR",
-                str_detect(station, "Loo")  ~ "LK",
-                str_detect(station, "West") ~ "WS",
-                str_detect(station, "9B")   ~ "9B",
-                .default = station), 
-           .after = station) %>%
-    mutate(
-        # Note: flowmeter is MF315
-        net_size            = 0.5,
-        net_area            = pi * 0.5^2,
-        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
-        tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
-        # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area/4 * distance_m_2,
-        split_size          = map_dbl(split_size, 
-                                      function(x) {
-                                    out <- tryCatch({
-                                    eval(parse(text = x))}, 
-                                    error = function(e) {NA_integer_})}
-                                    ) 
-       ) 
+taxa_original <- 
+    taxa_original %>%
+    read_csv(show_col_types = FALSE,
+             guess_max = 4000)
 
-# ---- load zooplankton data
-taxa_files <-
-    dir_ls(
-        path = here("data", "processed"),
-        regexp = "all_merged_processed") %>%
-    last_mod(.) %>%
-    map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
-    mutate(
-        # ONLY USED IF:
-        # need to fix info from a specific cruise ID
-        # - uncomment and replace "" with the cruise ID and new cruise ID
-        # cruise_id = case_when(
-        #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
-        #     .default = cruise_id
-        #     ),
-        site      = str_replace(site, "MK", "MR"),
-        lifeStage = case_when(
-            is.na(lifeStage) ~ "adult",
-            .default = lifeStage),
-        splits_analyzed = case_when(
-            is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
-            .default = splits_analyzed
-        )
-    ) %>%
-  select(-mean_ind_dil_factor) %>%
-  rowwise(aliquot_1:aliquot_3) %>%
-  mutate(
-      individualCount = sum(aliquot_1, 
-                            aliquot_2, 
-                            aliquot_3, 
-                            na.rm = TRUE),
-      .before = aliquot_1
-  ) %>%
-  ungroup()
-
-# ---- merge metadata and taxa data
-taxa_original <-
-  taxa_files %>%
-  left_join(
-    meta_df,
-    by = c(
-      "cruise_id",
-      "site" = "locationID",
-      "mesh" = "mesh_size_um"
-    )
-  ) %>%
-  mutate(
-    # split_amount = 0.5, # splits from cruise
-    splits_analyzed = if_else(
-      is.na(splits_analyzed), 
-      0,
-      splits_analyzed
-    ),
-    number_ind_sample = eval(other_vars$equation_zoo),
-    ind_m3 = number_ind_sample / volume_filt_cubic_m,
-
-    # get aphia ID from end of scientificNameID
-    aphiaID = str_extract(scientificNameID, "\\d+"),
-    aphiaID = as.numeric(aphiaID),
-    
-    maximumDepthInMeters = case_when(
-      str_detect(site, "MR") ~ other_vars$max_depth$MR,
-      str_detect(site, "LK") ~ other_vars$max_depth$LK,
-      str_detect(site, "WS") ~ other_vars$max_depth$WS,
-      str_detect(site, "57") ~ other_vars$max_depth$`57`,
-      str_detect(site, "54") ~ other_vars$max_depth$`54`,
-      str_detect(site, "9B") ~ other_vars$max_depth$`9B`
-    ),
-    minimumDepthInMeters = 0,
-    coordinateUncertaintyInMeters = 500
-  ) %>%
-  left_join(.,
-    aphia_id,
-    by = c(
-      "taxa_orig" = "taxa_orig",
-      "aphiaID"   = "aphia_id"
-    )
-  )
+# ---- ignore ----
+# # ---- load aphia id if hasn't previously been
+# # TODO: load file from `03_...` for aphia IDs
+# 
+# aphia_id <-
+#     here("data", "metadata") %>%
+#     dir_ls(regexp = "aphia_additional")
+# 
+# if (is_empty(aphia_id) | FALSE) {
+#   cli_alert_info("Creating a additional aphia ID file.")
+# 
+#   # ---- load aphia id
+#   aphia_id <-
+#     dir_ls(
+#       path = here("data", "metadata", "aphia_id"),
+#       regexp = "^[^~]*(aphia)+.*\\.csv$"
+#     ) %>%
+#     last_mod(.) %>%
+#     read_csv(show_col_types = FALSE) %>%
+#     mutate(
+#       aphiaID = str_extract(scientificNameID, "\\d+"),
+#       aphiaID = as.numeric(aphiaID),
+#       info = map(
+#         aphiaID,
+#         ~ tryCatch(
+#           {
+#             worrms::wm_record(.x)
+#           },
+#           error = function(e) {
+#             return(NULL)
+#           }
+#         )
+#       )
+#     ) %>%
+#     unnest(info, names_repair = janitor::make_clean_names) %>%
+#     select(!contains("_2"), -c(2:6))
+# 
+# 
+#   meta_file <-
+#     (file_expr(
+#       loc = here("data", "metadata"),
+#       file_base = "aphia_additional"
+#     ))[[2]] %>%
+#     eval()
+# 
+#   cli_alert_info("File name: {.file {basename(meta_file)}}")
+# 
+#   write_csv(aphia_id,
+#     file = meta_file,
+#     na   = ""
+#   )
+# } else {
+#   aphia_id <-
+#     aphia_id %>%
+#     last_mod()
+# 
+#   cli_alert_info("Loading file: {.file {basename(aphia_id)}}")
+# 
+#   aphia_id <-
+#       read_csv(
+#           aphia_id,
+#           show_col_types = FALSE
+#   )
+# }
+# 
+# # ---- load metadata
+# meta_df <-
+#     dir_ls(
+#         path   = here("data", "metadata", "cruise_logsheets"),
+#         regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+#     last_mod(.) %>%
+#     read_csv(show_col_types = FALSE) %>%
+# 
+#     # this is when Natalia LF started analysis
+#     filter(date >= date("2017-06-18")) %>%
+# 
+#     mutate(locationID      = case_when(
+#                 str_detect(station, "Mol")  ~ "MR",
+#                 str_detect(station, "Loo")  ~ "LK",
+#                 str_detect(station, "West") ~ "WS",
+#                 str_detect(station, "9B")   ~ "9B",
+#                 .default = station),
+#            .after = station) %>%
+#     mutate(
+#         # Note: flowmeter is MF315
+#         net_size            = 0.5,
+#         net_area            = pi * 0.5^2,
+#         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
+#         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
+#         # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
+#         volume_filt_cubic_m = net_area/4 * distance_m_2,
+#         split_size          = map_dbl(split_size,
+#                                       function(x) {
+#                                     out <- tryCatch({
+#                                     eval(parse(text = x))},
+#                                     error = function(e) {NA_integer_})}
+#                                     )
+#        )
+# 
+# # ---- load zooplankton data
+# taxa_files <-
+#     dir_ls(
+#         path = here("data", "processed"),
+#         regexp = "all_merged_processed") %>%
+#     last_mod(.) %>%
+#     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
+#     mutate(
+#         # ONLY USED IF:
+#         # need to fix info from a specific cruise ID
+#         # - uncomment and replace "" with the cruise ID and new cruise ID
+#         # cruise_id = case_when(
+#         #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
+#         #     .default = cruise_id
+#         #     ),
+#         site      = str_replace(site, "MK", "MR"),
+#         lifeStage = case_when(
+#             is.na(lifeStage) ~ "adult",
+#             .default = lifeStage),
+#         splits_analyzed = case_when(
+#             is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
+#             .default = splits_analyzed
+#         )
+#     ) %>%
+#   select(-mean_ind_dil_factor) %>%
+#   rowwise(aliquot_1:aliquot_3) %>%
+#   mutate(
+#       individualCount = sum(aliquot_1,
+#                             aliquot_2,
+#                             aliquot_3,
+#                             na.rm = TRUE),
+#       .before = aliquot_1
+#   ) %>%
+#   ungroup()
+# 
+# # ---- merge metadata and taxa data
+# taxa_original2 <-
+#   taxa_files %>%
+#   left_join(
+#     meta_df,
+#     by = c(
+#       "cruise_id",
+#       "site" = "locationID",
+#       "mesh" = "mesh_size_um"
+#     )
+#   ) %>%
+#   mutate(
+#     # split_amount = 0.5, # splits from cruise
+#     splits_analyzed = if_else(
+#       is.na(splits_analyzed),
+#       0,
+#       splits_analyzed
+#     ),
+#     number_ind_sample = eval(other_vars$equation_zoo),
+#     ind_m3 = number_ind_sample / volume_filt_cubic_m,
+# 
+#     # get aphia ID from end of scientificNameID
+#     aphiaID = str_extract(scientificNameID, "\\d+"),
+#     aphiaID = as.numeric(aphiaID),
+# 
+#     maximumDepthInMeters = case_when(
+#       str_detect(site, "MR") ~ other_vars$max_depth$MR,
+#       str_detect(site, "LK") ~ other_vars$max_depth$LK,
+#       str_detect(site, "WS") ~ other_vars$max_depth$WS,
+#       str_detect(site, "57") ~ other_vars$max_depth$`57`,
+#       str_detect(site, "54") ~ other_vars$max_depth$`54`,
+#       str_detect(site, "9B") ~ other_vars$max_depth$`9B`
+#     ),
+#     minimumDepthInMeters = 0,
+#     coordinateUncertaintyInMeters = 500
+#   ) %>%
+#   left_join(.,
+#     aphia_id,
+#     by = c(
+#       "taxa_orig" = "taxa_orig",
+#       "aphiaID"   = "aphia_id"
+#     )
+#   )
 ```
 
 # 2.0 DarwinCore/OBIS Conversion
@@ -455,7 +471,7 @@ occur_core <-
     eventID,
     occurrenceID,
     scientificName,
-    across(kingdom:genus), # TODO: check if species column exists
+    kingdom:genus, # TODO: check if species column exists
     taxonRank,
     # recorded by
     identifiedBy,
@@ -497,7 +513,7 @@ mof_info$mof_base <-
     across(contains("_uri"),
       .fns = ~ if_else(
         !is.na(.x),
-        str_c(def_web, .),
+        str_c(mof_info$def_web, .),
         NA_character_
       )
     )
@@ -508,7 +524,7 @@ mof_info$mof_base <-
   ) %>%
   select(-measurementValue)
 
-mof_base
+mof_info$mof_base
 ```
 
 
@@ -522,7 +538,7 @@ mof_info$mof_event <-
   distinct(eventID, .keep_all = TRUE) %>%
   select(
     eventID,
-    filter(mof_base, str_detect(event_occur, "event"))$orig_term
+    filter(mof_info$mof_base, str_detect(event_occur, "event"))$orig_term
   ) %>%
   pivot_longer(
     cols      = -eventID,
@@ -530,7 +546,7 @@ mof_info$mof_event <-
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
   ) %>%
-  left_join(mof_base, by = "orig_term")
+  left_join(mof_info$mof_base, by = "orig_term")
 
 # ============================================================================ #
 # ---- MoF Occurrence Info ----
@@ -540,7 +556,7 @@ mof_info$mof_occur <-
   distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
   select(
     eventID, occurrenceID,
-    filter(mof_base, str_detect(event_occur, "occur"))$orig_term
+    filter(mof_info$mof_base, str_detect(event_occur, "occur"))$orig_term
   ) %>%
   pivot_longer(
     cols      = -c(eventID, occurrenceID),
@@ -548,7 +564,7 @@ mof_info$mof_occur <-
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
   ) %>%
-  left_join(mof_base, by = "orig_term")
+  left_join(mof_info$mof_base, by = "orig_term")
 
 mof_info$mof_core <-
   bind_rows(
@@ -558,41 +574,27 @@ mof_info$mof_core <-
  select(-orig_term, -event_occur)
 
 slice_sample(mof_info$mof_core, n = 1, by = eventID)
+cli::cli_alert_info("Dimensions: {dim(mof_info$mof_core)}")
 ```
 
 
 
 # 4.0 Examples to save
 ```{r save}
-if (FALSE) {
-  set.seed(1234)
-  dir_out <- here("data", "processed", "obis_example")
-  path_out <-
-    here(
-      dir_out,
-      glue(
-        "{c('event', 'occur', 'mof')}",
-        "_example_update_{Sys.Date()}.csv"
-      )
+set.seed(1234)
+
+walk2(
+    .x = glue("{c('event', 'occur', 'mof')}_example_update"), 
+    .y = list(event_core, occur_core, mof_info$mof_core),
+    ~ save_csv(
+    .data         = .y,
+    save_location = here("data", "processed", "obis_example", Sys.Date()),
+    save_name     = .x,
+    overwrite     = FALSE,
+    verbose       = TRUE,
+    time_stamp_fmt = "%Y-%m-%d"
     )
-  path_out
-
-  dir_create(dir)
-
-  events <- sample(unique(event_core$eventID), 5)
-
-  event_core %>%
-    filter(eventID %in% events) %>%
-    write_csv(file = path_out[1], na = "")
-
-  occur_core %>%
-    filter(eventID %in% events) %>%
-    write_csv(file = path_out[2], na = "")
-
-  mof_core %>%
-    filter(eventID %in% events) %>%
-    write_csv(file = path_out[3], na = "")
-}
+)
 ```
 
 
