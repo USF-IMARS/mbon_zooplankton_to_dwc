@@ -482,15 +482,17 @@ occur_core <-
 URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
 
 ```{r mof-base}
+mof_info <- list()
+
 # TODO: edit MoF for more information
 # result of script is mof_base variable
 source(here("scripts", "mof_base_create_table.R"))
-mof_base <- mof_read()
+mof_info$mof_base <- mof_read()
 
-def_web <- "http://vocab.nerc.ac.uk/collection/"
+mof_info$def_web <- "http://vocab.nerc.ac.uk/collection/"
 
-mof_base <-
-  mof_base %>%
+mof_info$mof_base <-
+  mof_info$mof_base %>%
   mutate(
     across(contains("_uri"),
       .fns = ~ if_else(
@@ -515,7 +517,7 @@ mof_base
 # ============================================================================ #
 # ---- MoF Event Info ----
 # ============================================================================ #    
-mof_event <-
+mof_info$mof_event <-
   dwc_info %>%
   distinct(eventID, .keep_all = TRUE) %>%
   select(
@@ -533,7 +535,7 @@ mof_event <-
 # ============================================================================ #
 # ---- MoF Occurrence Info ----
 # ============================================================================ #    
-mof_occur <-
+mof_info$mof_occur <-
   dwc_info %>%
   distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
   select(
@@ -548,12 +550,14 @@ mof_occur <-
   ) %>%
   left_join(mof_base, by = "orig_term")
 
-mof_core <-
+mof_info$mof_core <-
   bind_rows(
-    mof_occur,
-    mof_event
+    mof_info$mof_occur,
+    mof_info$mof_event
   ) %>%
  select(-orig_term, -event_occur)
+
+slice_sample(mof_info$mof_core, n = 1, by = eventID)
 ```
 
 
