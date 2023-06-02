@@ -100,12 +100,12 @@ save_csv <- function(
         )
       )
     
-    print(head(.data))
-    
     if (verbose) {
         cli::cli_h1("{save_name}")
         cli::cli_alert_info(
             c("File Information:\n",
+              "Rows:      {nrow(.data)}\n",
+              "Columns:   {ncol(.data)}\n",
               "Location:  {.file {save_location}}\n",
               "File Name: {.file {basename(data_f)}}")
             )
