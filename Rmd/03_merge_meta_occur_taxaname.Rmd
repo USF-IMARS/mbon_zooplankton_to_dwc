@@ -14,30 +14,48 @@ librarian::shelf(
     # broom # optional
     
     # additional
-    
+    openxlsx
 )
 
 library("conflicted")
 
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
+conflicts_prefer(dplyr::filter,
+                 dplyr::select)
 
-library("readxl")
-library("hablar") # might be useful when needing to fix names
-library("worrms")
-library("geosphere")
+# library("readxl")
+# library("hablar") # might be useful when needing to fix names
+# library("worrms")
+# library("geosphere")
 
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
 # startup("log_edits")
 # log_add()
+```
+
+```{r other-vars}
+other_vars <- list()
+
+# ---- recorded by info
+other_vars$identifier       <- "Natalia Lopez Figueroa"
+other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
+
+# ---- max depth per site
+other_vars$max_depth <-
+  list(
+    "MR" = 36.5,
+    "LK" = 40.5,
+    "WS" = 23,
+    "54" = 3,
+    "57" = 5,
+    "9B" = 31
+  )
 
 # ---- set variables for calculation
-inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
+other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # net_area <- pi * 0.5^2
 
-# TODO: check this equation ---------------------------------------------------
 # Note: jamie dillution / pippete_vol_m_l is the same as nat dillution_factor
 # 
 # total num individual (sum all aliquots)  * vol sample water (known vol) / counted aliquot * split size / folson (mL per aliquot)
@@ -47,17 +65,17 @@ inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # dilution factor = vol sample water / folson 
 # 
 which_one <- "nat"
-equation_zoo <- switch(
+other_vars$equation_zoo <- switch(
     which_one,
-    "nat"    = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
-    "nat2"   = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
+    "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
+    "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
     "nat3"   = expression(dillution_factor * mean * (splits_analyzed)^-1),
     "jamie"  = expression((dillution / pipette_vol_m_l) * mean * splits_analyzed ),
     "jamie2" = expression(dillution * mean)
 )
-
 rm(which_one)
 ```
+
 
 # Load functions if not already
 This will load the functions needed if not already contain in the search path.
@@ -69,64 +87,74 @@ rm(func_attach)
 
 # Load data for OBIS conversion
 ```{r load-data}
-aphia_add <- 
+aphia_id <- 
     here("data", "metadata") %>%
     dir_ls(regexp = "aphia_additional")
 
-if (is_empty(aphia_add) | FALSE) {
+if (is_empty(aphia_id) | FALSE) {
+  cli_alert_info("Creating a additional aphia ID file.")
 
-    cli_alert_info("Creating a additional aphia ID file.")
+  # ---- load aphia id
+  aphia_id <-
+    dir_ls(
+      path = here("data", "metadata", "aphia_id"),
+      regexp = "^[^~]*(aphia)+.*\\.csv$"
+    ) %>%
+    last_mod(.) %>%
+    read_csv(show_col_types = FALSE) %>%
+    mutate(
+      aphiaID = str_extract(scientificNameID, "\\d+"),
+      aphiaID = as.numeric(aphiaID),
+      info = map(
+        aphiaID,
+        ~ tryCatch(
+          {
+            worrms::wm_record(.x)
+          },
+          error = function(e) {
+            return(NULL)
+          }
+        )
+      )
+    ) %>%
+    unnest(info, names_repair = janitor::make_clean_names) %>%
+    select(!contains("_2"), -c(2:6))
 
-    # ---- load aphia id
-    aphia_id <-
-        dir_ls(path   = here("data", "metadata", "aphia_id"),
-               regexp = "^[^~]*(aphia)+.*\\.csv$") %>%
-        last_mod(.) %>%
-        read_csv(show_col_types = FALSE) %>%
-        mutate(
-            aphiaID = if_else(!is.na(scientificNameID), 
-                              str_split(scientificNameID, ":", 
-                                        simplify = TRUE)[, 5],
-                              NA_character_) %>%
-                              as.numeric(.),
-            info = map(aphiaID, 
-                       ~ tryCatch({worrms::wm_record(.x)
-                           }, error = function(e) {
-                               return(NULL)
-                               }))
-        ) %>%
-        unnest(info, names_repair = janitor::make_clean_names) %>%
-        select(!contains("_2"), -c(2:6))
 
+  meta_file <-
+    (file_expr(
+      loc = here("data", "metadata"),
+      file_base = "aphia_additional"
+    ))[[2]] %>%
+    eval()
 
-    meta_file <- 
-        (file_expr(loc       = here("data", "metadata"), 
-                  file_base = "aphia_additional"))[[2]] %>%
-        eval()
-    
-    cli_alert_info("File name: {.file {basename(meta_file)}}")
-        
-    write_csv(aphia_id, 
-              file = meta_file,
-              na   = "")
-    
+  cli_alert_info("File name: {.file {basename(meta_file)}}")
+
+  write_csv(aphia_id,
+    file = meta_file,
+    na   = ""
+  )
 } else {
-    aphia_add <- 
-        aphia_add %>%
-        last_mod() 
-    
-    cli_alert_info("Loading file: {.file {basename(aphia_add)}}")
-    
-    aphia_id <- read_csv(aphia_add,
-                         show_col_types = FALSE)
+  aphia_id <-
+    aphia_id %>%
+    last_mod()
+
+  cli_alert_info("Loading file: {.file {basename(aphia_id)}}")
+
+  aphia_id <- 
+      read_csv(
+          aphia_id,
+          show_col_types = FALSE
+  )
 }
 ```
 
 ```{r load-data}
 # ---- load metadata
 meta_df <-
-    fs::dir_ls(path = here::here("data", "metadata", "cruise_logsheets"),
-               regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+    dir_ls(
+        path   = here("data", "metadata", "cruise_logsheets"),
+        regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
     
@@ -156,15 +184,18 @@ meta_df <-
 
 # ---- load zooplankton data
 taxa_files <-
-    fs::dir_ls(path = here::here("data", "processed"),
-               regexp = "all_merged_processed") %>%
+    dir_ls(
+        path = here("data", "processed"),
+        regexp = "all_merged_processed") %>%
     last_mod(.) %>%
     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
     mutate(
-        # fix some cruise ID from data spreadsheets
+        # ONLY USED IF:
+        # need to fix info from a specific cruise ID
+        # - uncomment and replace "" with the cruise ID and new cruise ID
         # cruise_id = case_when(
-        #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
-        #     TRUE ~ cruise_id
+        #     str_detect(cruise_id, "") ~ "", # incase other become problematic
+        #     .default = cruise_id
         #     ),
         site      = str_replace(site, "MK", "MR"),
         lifeStage = case_when(
@@ -187,42 +218,66 @@ taxa_files <-
   ungroup()
 
 # ---- merge metadata and taxa data
-taxa_matched_merg <-
-    taxa_files %>%
-    left_join(meta_df, 
-              by = c("cruise_id", 
-                     "site" = "locationID", 
-                     "mesh" = "mesh_size_um")) %>%
-    mutate(
-        # split_amount = 0.5, # splits from cruise
-        splits_analyzed   = case_when(
-            is.na(splits_analyzed) ~ 0,
-            TRUE ~ splits_analyzed
-            ),
-        number_ind_sample = eval(equation_zoo),
-        ind_m3            = number_ind_sample / volume_filt_cubic_m,
-        
-        # get aphia ID from end of scientificNameID
-        aphiaID           = if_else(!is.na(scientificNameID),
-                                    str_split(scientificNameID, ":", 
-                                              simplify = T)[, 5],
-                                    NA_character_) %>%
-                          as.numeric(.)
-        ) %>%
-    left_join(., 
-              aphia_id,
-              by = c("taxa_orig" = "taxa_orig", 
-                     "aphiaID"   = "aphia_id")) 
+taxa_original <-
+  taxa_files %>%
+  left_join(
+    meta_df,
+    by = c(
+      "cruise_id",
+      "site" = "locationID",
+      "mesh" = "mesh_size_um"
+    )
+  ) %>%
+  mutate(
+    # split_amount = 0.5, # splits from cruise
+    splits_analyzed = if_else(
+      is.na(splits_analyzed), 
+      0,
+      splits_analyzed
+    ),
+    number_ind_sample = eval(other_vars$equation_zoo),
+    ind_m3 = number_ind_sample / volume_filt_cubic_m,
+
+    # get aphia ID from end of scientificNameID
+    aphiaID = str_extract(scientificNameID, "\\d+"),
+    aphiaID = as.numeric(aphiaID),
+    
+    maximumDepthInMeters = case_when(
+      str_detect(site, "MR") ~ other_vars$max_depth$MR,
+      str_detect(site, "LK") ~ other_vars$max_depth$LK,
+      str_detect(site, "WS") ~ other_vars$max_depth$WS,
+      str_detect(site, "57") ~ other_vars$max_depth$`57`,
+      str_detect(site, "54") ~ other_vars$max_depth$`54`,
+      str_detect(site, "9B") ~ other_vars$max_depth$`9B`
+    ),
+    minimumDepthInMeters = 0,
+    coordinateUncertaintyInMeters = 500
+  ) %>%
+  left_join(.,
+    aphia_id,
+    by = c(
+      "taxa_orig" = "taxa_orig",
+      "aphiaID"   = "aphia_id"
+    )
+  )
+
+
+save_csv(
+    .data         = taxa_original,
+    save_location = here("data", "processed", "pre_obis"),
+    save_name     = "zoo_data_pre_obis_merg",
+    overwrite     = TRUE,
+    verbose       = TRUE
+)
 ```
 
 # Create data sheet for Enrique Montes
 ```{r}
-taxa_matched_merg %>%
+taxa_original %>%
     names()
 
-
 temp <-
-    taxa_matched_merg %>%
+    taxa_original %>%
     mutate(
         key = glue("{cruise_id}:{site}:{mesh}"),
         .before = 1
@@ -242,25 +297,36 @@ dat <-
 ```
 
 ```{r}
-shelf(openxlsx)
+
 wb <-
-    createWorkbook(creator = "Sebastian Di Geronimo",
-                   title = "South Florida Zooplankton Net Tows")
+  createWorkbook(
+    creator = "Sebastian Di Geronimo",
+    title   = "South Florida Zooplankton Net Tows"
+  )
 
 # add sheets
-addWorksheet(wb,
-             sheetName = "metadata")
+addWorksheet(
+  wb        = wb,
+  sheetName = "metadata"
+)
 
-addWorksheet(wb,
-             sheetName = "abundances")
+addWorksheet(
+  wb        = wb,
+  sheetName = "abundances"
+)
 
 # add data to sheets
-writeData(wb,
-          sheet = "metadata",
-          x     = meta)
-writeData(wb,
-          sheet = "abundances",
-          x     = dat)
+writeData(
+  wb    = wb,
+  sheet = "metadata",
+  x     = meta
+)
+
+writeData(
+  wb    = wb,
+  sheet = "abundances",
+  x     = dat
+)
 
 openXL(wb)
 ```
