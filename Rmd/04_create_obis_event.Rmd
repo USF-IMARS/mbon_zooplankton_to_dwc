@@ -82,194 +82,34 @@ Steps:
 
 ## 1.5 Load data for OBIS conversion
 ```{r load-data}
-taxa_original <- 
+# ---- search file
+dwc_info <- 
     here("data", "processed", "pre_obis")  %>%
     dir_ls(regexp = "zoo_data_pre_obis") %>%
     last_mod() %T>% 
     print()
 
-taxa_original <- 
+# ---- load file
+dwc_info <- 
     taxa_original %>%
     read_csv(show_col_types = FALSE,
-             guess_max = 4000)
+             guess_max      = 4000)
+```
 
-# ---- ignore ----
-# # ---- load aphia id if hasn't previously been
-# # TODO: load file from `03_...` for aphia IDs
-# 
-# aphia_id <-
-#     here("data", "metadata") %>%
-#     dir_ls(regexp = "aphia_additional")
-# 
-# if (is_empty(aphia_id) | FALSE) {
-#   cli_alert_info("Creating a additional aphia ID file.")
-# 
-#   # ---- load aphia id
-#   aphia_id <-
-#     dir_ls(
-#       path = here("data", "metadata", "aphia_id"),
-#       regexp = "^[^~]*(aphia)+.*\\.csv$"
-#     ) %>%
-#     last_mod(.) %>%
-#     read_csv(show_col_types = FALSE) %>%
-#     mutate(
-#       aphiaID = str_extract(scientificNameID, "\\d+"),
-#       aphiaID = as.numeric(aphiaID),
-#       info = map(
-#         aphiaID,
-#         ~ tryCatch(
-#           {
-#             worrms::wm_record(.x)
-#           },
-#           error = function(e) {
-#             return(NULL)
-#           }
-#         )
-#       )
-#     ) %>%
-#     unnest(info, names_repair = janitor::make_clean_names) %>%
-#     select(!contains("_2"), -c(2:6))
-# 
-# 
-#   meta_file <-
-#     (file_expr(
-#       loc = here("data", "metadata"),
-#       file_base = "aphia_additional"
-#     ))[[2]] %>%
-#     eval()
-# 
-#   cli_alert_info("File name: {.file {basename(meta_file)}}")
-# 
-#   write_csv(aphia_id,
-#     file = meta_file,
-#     na   = ""
-#   )
-# } else {
-#   aphia_id <-
-#     aphia_id %>%
-#     last_mod()
-# 
-#   cli_alert_info("Loading file: {.file {basename(aphia_id)}}")
-# 
-#   aphia_id <-
-#       read_csv(
-#           aphia_id,
-#           show_col_types = FALSE
-#   )
-# }
-# 
-# # ---- load metadata
-# meta_df <-
-#     dir_ls(
-#         path   = here("data", "metadata", "cruise_logsheets"),
-#         regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-#     last_mod(.) %>%
-#     read_csv(show_col_types = FALSE) %>%
-# 
-#     # this is when Natalia LF started analysis
-#     filter(date >= date("2017-06-18")) %>%
-# 
-#     mutate(locationID      = case_when(
-#                 str_detect(station, "Mol")  ~ "MR",
-#                 str_detect(station, "Loo")  ~ "LK",
-#                 str_detect(station, "West") ~ "WS",
-#                 str_detect(station, "9B")   ~ "9B",
-#                 .default = station),
-#            .after = station) %>%
-#     mutate(
-#         # Note: flowmeter is MF315
-#         net_size            = 0.5,
-#         net_area            = pi * 0.5^2,
-#         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
-#         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
-#         # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
-#         volume_filt_cubic_m = net_area/4 * distance_m_2,
-#         split_size          = map_dbl(split_size,
-#                                       function(x) {
-#                                     out <- tryCatch({
-#                                     eval(parse(text = x))},
-#                                     error = function(e) {NA_integer_})}
-#                                     )
-#        )
-# 
-# # ---- load zooplankton data
-# taxa_files <-
-#     dir_ls(
-#         path = here("data", "processed"),
-#         regexp = "all_merged_processed") %>%
-#     last_mod(.) %>%
-#     map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
-#     mutate(
-#         # ONLY USED IF:
-#         # need to fix info from a specific cruise ID
-#         # - uncomment and replace "" with the cruise ID and new cruise ID
-#         # cruise_id = case_when(
-#         #     # str_detect(cruise_id, "") ~ "", # incase other become problematic
-#         #     .default = cruise_id
-#         #     ),
-#         site      = str_replace(site, "MK", "MR"),
-#         lifeStage = case_when(
-#             is.na(lifeStage) ~ "adult",
-#             .default = lifeStage),
-#         splits_analyzed = case_when(
-#             is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
-#             .default = splits_analyzed
-#         )
-#     ) %>%
-#   select(-mean_ind_dil_factor) %>%
-#   rowwise(aliquot_1:aliquot_3) %>%
-#   mutate(
-#       individualCount = sum(aliquot_1,
-#                             aliquot_2,
-#                             aliquot_3,
-#                             na.rm = TRUE),
-#       .before = aliquot_1
-#   ) %>%
-#   ungroup()
-# 
-# # ---- merge metadata and taxa data
-# taxa_original2 <-
-#   taxa_files %>%
-#   left_join(
-#     meta_df,
-#     by = c(
-#       "cruise_id",
-#       "site" = "locationID",
-#       "mesh" = "mesh_size_um"
-#     )
-#   ) %>%
-#   mutate(
-#     # split_amount = 0.5, # splits from cruise
-#     splits_analyzed = if_else(
-#       is.na(splits_analyzed),
-#       0,
-#       splits_analyzed
-#     ),
-#     number_ind_sample = eval(other_vars$equation_zoo),
-#     ind_m3 = number_ind_sample / volume_filt_cubic_m,
-# 
-#     # get aphia ID from end of scientificNameID
-#     aphiaID = str_extract(scientificNameID, "\\d+"),
-#     aphiaID = as.numeric(aphiaID),
-# 
-#     maximumDepthInMeters = case_when(
-#       str_detect(site, "MR") ~ other_vars$max_depth$MR,
-#       str_detect(site, "LK") ~ other_vars$max_depth$LK,
-#       str_detect(site, "WS") ~ other_vars$max_depth$WS,
-#       str_detect(site, "57") ~ other_vars$max_depth$`57`,
-#       str_detect(site, "54") ~ other_vars$max_depth$`54`,
-#       str_detect(site, "9B") ~ other_vars$max_depth$`9B`
-#     ),
-#     minimumDepthInMeters = 0,
-#     coordinateUncertaintyInMeters = 500
-#   ) %>%
-#   left_join(.,
-#     aphia_id,
-#     by = c(
-#       "taxa_orig" = "taxa_orig",
-#       "aphiaID"   = "aphia_id"
-#     )
-#   )
+## 1.6 Load MoF Base Info
+URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
+
+```{r mof-base}
+# TODO: edit MoF for more information
+# source mof file
+source(here("scripts", "mof_base_create_table.R"))
+
+mof_info <- list()
+
+# ---- function to create/read base mof info
+mof_info$mof_base <- mof_read()
+
+mof_info$mof_base
 ```
 
 # 2.0 DarwinCore/OBIS Conversion
@@ -292,9 +132,13 @@ set to `TRUE` if want to run
 ```
 
 ## 2.2 Add DarwinCore Columns
+Here is where all the information to convert to DarwinCore format is created.
+Later the columns will be extracted for each `core`. 
+
+Spelling matters and can be check here: <https://dwc.tdwg.org/terms/>
 ```{r dwc-cols}
 dwc_info <-
-  taxa_original %>% 
+  dwc_info %>% 
   mutate(
     rowNumber = row_number(),
     .before   = 1
@@ -317,7 +161,7 @@ dwc_info <-
       "Marine Sanctuary Zooplankton Net Tows"
     ),
     basisOfRecord          = "PreservedSpecimen", # "HumanObservation",
-    recordedBy             = "NOAA AOML",
+    recordedBy             = "NOAA AOML | USF IMaRS",
     identifiedBy           = other_vars$identifier  ,
     identifiedByID         = other_vars$identifier_orcid,
   ) %T>%
@@ -343,7 +187,11 @@ dwc_info <-
     ),
 
     # TODO: habitat NERC vocab
-    habitat          = "near reef",
+    habitat          = case_match(
+        locationID,
+        c("MR", "LK", "WS", "9B") ~ "near coral reef",
+        c("57", "54") ~ "near river mouth", 
+        .default = NA),
     sampleSizeValue  = volume_filt_cubic_m,
     sampleSizeUnit   = "Volume per cubic metre of filtered seawater",
     samplingEffort   = str_c(tow_time_min, "minutes", sep = " "),
@@ -356,9 +204,10 @@ dwc_info <-
   mutate(
     decimalLatitude   = lat_in,
     decimalLongitude  = lon_in,
-    higherGeographyID = case_when(
-      str_detect(site, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
-      str_detect(site, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+    higherGeographyID = case_match(
+      site,
+      c("MR", "LK", "WS", "9B") ~ "http://vocab.getty.edu/tgn/7030258",
+      c("57", "54")             ~ "http://vocab.getty.edu/tgn/1101513",
       .default = "Not Found"
     ),
     higherGeography   = "North America | United States | Florida",
@@ -392,8 +241,8 @@ dwc_info <-
     lifeStage,
     occurrenceStatus     = "present",
     preparations         = str_c(
-      "10% formalin before analysis",
-      "70% ethanol after analysis",
+      "seawater and 10% formalin before analysis in cod ends",
+      "70% ethanol after analysis in vials",
       sep = " | "
     ),
     identificationReferences = "WoRMS",
@@ -421,6 +270,10 @@ dwc_info <-
 ```
 
 # 3.0 Extract "Cores"
+The information from each core will be extracted into it's individual `core` to 
+save. The actual column names need to match the ones from section `2.2`. This 
+section allows the `user` to add/subtract columns from a specific core as 
+needed.
 
 ## 3.1 EventCore
 ```{r event-extract}
@@ -431,6 +284,7 @@ event_core <-
     modified,
     license,
     institutionCode,
+    colletionCode,
     datasetName,
     language,
     locationID,
@@ -493,106 +347,106 @@ occur_core <-
 ```
 
 ## 3.3 Measurement or Fact Core (MoF)
-### 3.3.1 MoF Base Info
 
-URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
+### 3.3.1 Convert MoF
 
-```{r mof-base}
-mof_info <- list()
-
-# TODO: edit MoF for more information
-# result of script is mof_base variable
-source(here("scripts", "mof_base_create_table.R"))
-mof_info$mof_base <- mof_read()
-
-mof_info$def_web <- "http://vocab.nerc.ac.uk/collection/"
-
-mof_info$mof_base <-
-  mof_info$mof_base %>%
-  mutate(
-    across(contains("_uri"),
-      .fns = ~ if_else(
-        !is.na(.x),
-        str_c(mof_info$def_web, .),
-        NA_character_
-      )
-    )
-  ) %>%
-  rename(
-    "measurementTypeID" = measurementType_uri,
-    "measurementUnitID" = measurementUnit_uri
-  ) %>%
-  select(-measurementValue)
-
-mof_info$mof_base
-```
-
-
-### 3.3.2 Convert MoF
 ```{r mof-extract}
 # ============================================================================ #
-# ---- MoF Event Info ----
+# ---- Extract and Convert MoF Event Info ----
 # ============================================================================ #    
 mof_info$mof_event <-
   dwc_info %>%
+  
+  # ---- filter for unique eventIDs
   distinct(eventID, .keep_all = TRUE) %>%
+    
+  # ---- select `event` mof variables    
   select(
     eventID,
     filter(mof_info$mof_base, str_detect(event_occur, "event"))$orig_term
   ) %>%
+
+  # ---- convert to long format based on eventID
   pivot_longer(
     cols      = -eventID,
     names_to  = "orig_term",
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
-  ) %>%
-  left_join(mof_info$mof_base, by = "orig_term")
+  )
 
 # ============================================================================ #
-# ---- MoF Occurrence Info ----
+# ---- Extract and Convert MoF Occurrence Info ----
 # ============================================================================ #    
 mof_info$mof_occur <-
   dwc_info %>%
+  
+  # ---- filter for unique eventIDs and occurenceIDs
   distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
+    
+  # ---- select `occurence` mof variables     
   select(
     eventID, occurrenceID,
     filter(mof_info$mof_base, str_detect(event_occur, "occur"))$orig_term
   ) %>%
+
+  # ---- convert to long format based on eventID and occurenceID
   pivot_longer(
     cols      = -c(eventID, occurrenceID),
     names_to  = "orig_term",
     values_to = "measurementValue",
     values_transform = list(measurementValue = as.character)
-  ) %>%
-  left_join(mof_info$mof_base, by = "orig_term")
+  ) 
 
-mof_info$mof_core <-
+# ============================================================================ #
+# ---- Merge Event and Occurence MoF with MoF Base ----
+# ============================================================================ #    
+mof_core <-
   bind_rows(
     mof_info$mof_occur,
     mof_info$mof_event
   ) %>%
- select(-orig_term, -event_occur)
+ left_join(mof_info$mof_base, by = "orig_term") %>%
+ arrange(eventID, event_occur) %>%
+ select(-orig_term, -event_occur) %T>% print()
 
-slice_sample(mof_info$mof_core, n = 1, by = eventID)
-cli::cli_alert_info("Dimensions: {dim(mof_info$mof_core)}")
+
+slice_sample(mof_core, n = 1, by = eventID)
+cli::cli_alert_info("Dimensions: {dim(mof_core)}")
 ```
 
 
 
 # 4.0 Examples to save
 ```{r save}
-set.seed(1234)
+janitor::get_dupes(event_core)
+janitor::get_dupes(event_core, eventID)
+janitor::get_dupes(occur_core)
+janitor::get_dupes(occur_core, occurrenceID)
+janitor::get_dupes(mof_core) # splits_analyzed and split_size are different, but no definition
 
-walk2(
-    .x = glue("{c('event', 'occur', 'mof')}_example_update"), 
-    .y = list(event_core, occur_core, mof_info$mof_core),
-    ~ save_csv(
-    .data         = .y,
-    save_location = here("data", "processed", "obis_example", Sys.Date()),
-    save_name     = .x,
-    overwrite     = FALSE,
-    verbose       = TRUE,
-    time_stamp_fmt = "%Y-%m-%d"
+
+set.seed(1234)
+events <- sample(unique(event_core$eventID), 5)
+# events <- unique(event_core$eventID)
+
+pwalk(
+  list(
+    list(
+      filter(event_core, eventID %in% events),
+      filter(occur_core, eventID %in% events),
+      filter(mof_core, eventID %in% events)
+    ),
+    here("data", "processed", "obis_example", Sys.Date()),
+    glue("{c('event', 'occur', 'mof')}_example_update")
+  ),
+  \(data, loc, name_f)
+    save_csv(
+      .data          = data,
+      save_location  = loc,
+      save_name      = name_f,
+      overwrite      = FALSE,
+      verbose        = TRUE,
+      time_stamp_fmt = "%Y-%m-%d"
     )
 )
 ```
