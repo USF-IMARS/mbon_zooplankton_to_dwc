@@ -58,7 +58,7 @@ mof_read <- function() {
         mof_base <-
         tibble::tribble(
             ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
-            "Net_Type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
+            "net_type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
             "distance_m", "Length of sampling track", "P01/current/LENTRACK/",                NA,         "metres", "P06/current/ULAA/",                NA,
             "net_size", "Sampling device aperture diameter", "Q01/current/Q0100012/",         NA,         "metres", "P06/current/ULAA/",                NA,
             "net_area", "Sampling device aperture surface area", "Q01/current/Q0100017/", NA,   "per square metre", "P06/current/PMSQ/",                NA,
