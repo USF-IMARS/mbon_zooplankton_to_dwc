@@ -91,7 +91,7 @@ dwc_info <-
 
 # ---- load file
 dwc_info <- 
-    taxa_original %>%
+    dwc_info %>%
     read_csv(show_col_types = FALSE,
              guess_max      = 4000)
 ```
@@ -247,7 +247,7 @@ dwc_info <-
     ),
     identificationReferences = "WoRMS",
     verbatimIdentification   = taxa_orig,
-    dispostion = "in collection"
+    disposition = "in collection"
   ) %T>%
   print() %>%
     
@@ -341,7 +341,7 @@ occur_core <-
     identificationReferences,
     verbatimIdentification,
     georeferenceVerificationStatus,
-    dispostion
+    disposition
   ) %T>%
   print()
 ```
@@ -437,7 +437,7 @@ pwalk(
       filter(mof_core, eventID %in% events)
     ),
     here("data", "processed", "obis_example", Sys.Date()),
-    glue("{c('event', 'occur', 'mof')}_example_update")
+    glue("{c(\"event\", \"occur\", \"mof\")}_example_update")
   ),
   \(data, loc, name_f)
     save_csv(
@@ -452,28 +452,46 @@ pwalk(
 ```
 
 
-# TEST
+# ---- TEST ----
 ```{r test}
-reduce(list(event_core, occur_core, mof_core), left_join) %>%
-    obistools::check_depth(.)
+reduce(list(event_core, occur_core, mof_core), left_join) 
 
-dwc_info %>%
-    select(scientificName, aphiaID) %>%
-    slice_head(n = 10) %>%
-    mutate(
-        .keep = "none",
-        scientificName,
-    info = map(aphiaID, ~ worrms::wm_record(.x))
-) %>%
-  unnest(info)
-
-reduce(list(event_core, occur_core), left_join) %>%
-    # names() 
-
+left_join(dwc_info,
+        mof_core,
+        by = c(
+            "eventID",
+            "occurrenceID"
+        )
+        ) %>%
+          naniar::vis_miss()
+    
 obistools::report() %>%
     View()
 
+```
 
+```{r}
+check_extension_eventids(event_core, mof_core, field = "eventID")
+
+
+str_subset(obistools::occurrence_fields(), "verbatim")
+str_subset(obistools::event_fields(), "")
+
+str_sort(obistools::occurrence_fields())
+str_sort(obistools::event_fields())
 obistools::event_fields()
+obistools::abra %>%
+    obistools::report_summary(50)
+
+select(dwc_info, any_of(obistools::occurrence_fields()))
+
+names(rename(occur_core, "disposition" = dispostion)) %in% obistools::occurrence_fields()
+# verbatimIdentification
+
+
+str_subset(names(occur_core), str_c(obistools::occurrence_fields(), collapse = "|"),
+           negate = T)
+str_subset(names(event_core), str_c(obistools::event_fields(), collapse = "|"),
+           negate = T)
 ```
 
