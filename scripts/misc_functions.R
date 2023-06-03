@@ -116,6 +116,9 @@ file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
 #'                       - if want custom, `<custom_message>`
 #'
 #' @return NULL, save file
+#'
+#' @author Sebastian Di Geronimo (June 02, 2023)
+#'
 #' @examples
 #' # ADD_EXAMPLES_HERE
 save_csv <- function(
