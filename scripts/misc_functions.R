@@ -4,10 +4,10 @@
 
 ##%######################################################%##
 #                                                          #
-####              Most Recent Created File              ####
+####             Most Recently Created File             ####
 #                                                          #
 ##%######################################################%##
-#' Most Recent Created File
+#' Most Recently Created File
 #'
 #' This function should be used after an `fs::dir_ls` search with a specific 
 #' file that may have multiple versions. When there are multiple matches to 
@@ -20,6 +20,7 @@
 #' @return A vector of the most recent created file as `fs_path` object
 #' @examples
 #' # NA
+#' 
 last_mod <-  function(fpath, check = TRUE) {
 
     if (!check) return(fpath)
@@ -28,7 +29,71 @@ last_mod <-  function(fpath, check = TRUE) {
     
     return(fpath[which.max(ftime)]) 
     
-    # ---- end of function ----
+    # ---- end of function
+}
+
+##%######################################################%##
+#                                                          #
+####      Base File Name and File Name Expression       ####
+#                                                          #
+##%######################################################%##
+#' Base File Name and File Name Expression
+#'
+#' This function take a location to save aphiaID file and a base name to 
+#' search for in either locally or the cloud
+#'
+#' @param loc Location to save aphia ID file
+#' @param file_base Base name to search for
+#' @param exts Extension to save file.
+#' @param time_stamp_fmt Time stamp format as the suffix to the base file name. 
+#'                       - default = YYYYMMDD_HHMMSS (i.e "%Y%m%d_%H%M%S")
+#'                       - if no suffix, `NULL`
+#'                       - if want custom, `<custom_message>`
+#'
+#' @return Returns a list of two, file_base and file_expr.
+#' @examples
+#' # ADD_EXAMPLES_HERE
+#' 
+file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
+                      file_base = "aphia_taxa",
+                      exts = "csv",
+                      time_stamp_fmt = "%Y%m%d_%H%M%S") {
+    
+    # catch time stamp format if NULL  
+    time_stamp_fmt <-
+        tryCatch(
+            {
+                glue("_", format(Sys.time(), time_stamp_fmt))
+                expr(glue("_", format(Sys.time(), !!time_stamp_fmt)))
+            },
+            error = function(e) {
+                NULL
+            }
+        )
+    
+    # add period to extension
+    exts <- glue(".{exts}")
+    
+    file_expr <-
+        # create expression for the file name
+        expr(
+            here::here(
+                !!loc,
+                glue(
+                    !!file_base,
+                    !!time_stamp_fmt,
+                    !!exts,
+                    .null = ""
+                )
+            )
+        )
+    
+    list(
+        file_base = file_base,
+        file_expr = file_expr
+    )
+    
+    # ---- end of function
 }
 
 ##%######################################################%##
@@ -45,7 +110,7 @@ last_mod <-  function(fpath, check = TRUE) {
 #' @param save_name Prefix name of file. Will be saved with `_<timestamp>.csv`
 #' @param overwrite `TRUE` or `FALSE` to re-save file if exists, or keep current. 
 #' @param verbose `TRUE` or `FALSE` to print location in script.
-#' @param time_stamp_fmt Timestamp format. 
+#' @param time_stamp_fmt Time stamp format as the suffix to the base file name.
 #'                       - default = YYYYMMDD_HHMMSS (i.e "%Y%m%d_%H%M%S")
 #'                       - if no suffix, `NULL`
 #'                       - if want custom, `<custom_message>`
@@ -83,22 +148,16 @@ save_csv <- function(
               "{col_red(\"Stopping\")}"))
     }
 
-    time_stamp_fmt <- 
-        tryCatch({
-            glue("_", format(Sys.time(), time_stamp_fmt))
-            }, error = function(e) {NULL})
-    
     # ---- file name
-    data_f <-
-      here(
+    data_f <- 
+        file_expr(
         save_location,
-        glue(
-          "{save_name}",
-          time_stamp_fmt,
-          ".csv",
-          .null = ""
-        )
-      )
+        save_name,
+        exts = "csv",
+        time_stamp_fmt
+    )
+    
+    data_f <- eval(data_f$file_expr)
     
     if (verbose) {
         cli::cli_h1("{save_name}")
@@ -157,6 +216,6 @@ save_csv <- function(
     
     if (verbose) cli::cli_alert_success("Saved!\n\n")
 
-    # ---- end of function ----
+    # ---- end of function
 }
 
