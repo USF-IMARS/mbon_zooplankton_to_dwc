@@ -6,41 +6,6 @@
 #
 # ============================================================================ #
 
-
-##%######################################################%##
-#                                                          #
-####      Base File Name and File Name Expression       ####
-#                                                          #
-##%######################################################%##
-#' Base File Name and File Name Expression
-#'
-#' This function take a location to save aphiaID file and a base name to 
-#' search for in either locally or the cloud
-#'
-#' @param loc Location to save aphia ID file
-#' @param file_base Base name to search for
-#'
-#' @return Returns a list of two, file_base and file_expr.
-#' @examples
-#' # ADD_EXAMPLES_HERE
-#' 
-file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"), 
-                      file_base = "aphia_taxa",
-                      exts      = "csv") {
-    
-    file_expr <-
-    expr(here::here(
-        !!loc,
-        glue(!!file_base,
-             "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.",
-             !!exts)
-    ))
-    
-    list(file_base = file_base,
-         file_expr = file_expr)
-}
-
-
 # ---- larval stages ----
 lifestage <-
     str_c("copepodite",
