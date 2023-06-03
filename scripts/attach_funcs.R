@@ -1,15 +1,21 @@
 # ============================================================================ #
-# ---- Attach Functions ----
+# ---- Setup Functions ----
 # ============================================================================ #    
+
+##%######################################################%##
+#                                                          #
+####            Attach All Custom Functions             ####
+#                                                          #
+##%######################################################%##
+#' Attach All Custom Functions
+#'
+#' This will attach all the functions to the `searchpath` of `my_funcs` if 
+#' it is not already attached.
+#'
+#' @return Functions and scripts
+#' @examples
+#' func_attach()
 func_attach <- function() {
-    #' Attach All Custom Functions
-    #'
-    #' This will attach all the functions to the `searchpath` of `my_funcs` if 
-    #' it is not already attached.
-    #'
-    #' @return Functions and scripts
-    #' @examples
-    #' func_attach()
     if (!rlang::is_attached('my_funcs')) { 
         cli::cli_alert_info(
             c("Attaching project functions to the {.code searchpath} as ",
@@ -38,4 +44,6 @@ func_attach <- function() {
         cli::cli_alert_info(c("Skipping attach,{.var my_funcs} is already ", 
                               "attached to the searchpath."))
     }
+    
+    # ---- end of function
 }
