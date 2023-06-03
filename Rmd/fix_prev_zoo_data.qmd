@@ -100,6 +100,8 @@ sheets <-
     filter(!str_detect(sheet_nm, "Samples|PL")) %>%
     mutate(
         sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
+        # may need to change to this?
+        # sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
         sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)) %>%
     separate_wider_regex(
         sheet,
