@@ -166,7 +166,7 @@ meta_df <-
                 str_detect(station, "Loo")  ~ "LK",
                 str_detect(station, "West") ~ "WS",
                 str_detect(station, "9B")   ~ "9B",
-                TRUE ~ station), 
+                .default = station), 
            .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
@@ -198,12 +198,12 @@ taxa_files <-
         #     .default = cruise_id
         #     ),
         site      = str_replace(site, "MK", "MR"),
-        lifeStage = case_when(
-            is.na(lifeStage) ~ "adult",
-            TRUE ~ lifeStage),
+        # lifeStage = case_when(
+        #     is.na(lifeStage) ~ "adult",
+        #     TRUE ~ lifeStage),
         splits_analyzed = case_when(
             is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
-            TRUE ~ splits_analyzed
+            .default = splits_analyzed
         )
     ) %>%
   select(-mean_ind_dil_factor) %>%
@@ -266,7 +266,7 @@ save_csv(
     .data         = taxa_original,
     save_location = here("data", "processed", "pre_obis"),
     save_name     = "zoo_data_pre_obis_merg",
-    overwrite     = TRUE,
+    overwrite     = FALSE,
     verbose       = TRUE
 )
 ```
@@ -357,7 +357,7 @@ meta <-
                 str_detect(station, "Loo")  ~ "LK",
                 str_detect(station, "West") ~ "WS",
                 str_detect(station, "9B")   ~ "9B",
-                TRUE ~ station), 
+                .default = station), 
            .after = station)
 
 dat <- 
