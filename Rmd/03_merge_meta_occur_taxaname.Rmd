@@ -43,13 +43,14 @@ other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
 
 # ---- max depth per site
 other_vars$max_depth <-
-  list(
-    "MR" = 36.5,
-    "LK" = 40.5,
-    "WS" = 23,
-    "54" = 3,
-    "57" = 5,
-    "9B" = 31
+  tribble(
+    ~site, ~maximumDepthInMeters,
+     "MR",                  36.5,
+     "LK",                  40.5,
+     "WS",                    23,
+     "54",                     3,
+     "57",                     5,
+     "9B",                    31
   )
 
 # ---- set variables for calculation
@@ -228,7 +229,15 @@ taxa_original <-
       "mesh" = "mesh_size_um"
     )
   ) %>%
+  
+  # add max depth
+  left_join(other_vars$max_depth) %>%
+    
   mutate(
+    # add min depth and uncertainty
+    minimumDepthInMeters          = 0,
+    coordinateUncertaintyInMeters = 500,
+    
     # split_amount = 0.5, # splits from cruise
     splits_analyzed = if_else(
       is.na(splits_analyzed), 
@@ -240,18 +249,7 @@ taxa_original <-
 
     # get aphia ID from end of scientificNameID
     aphiaID = str_extract(scientificNameID, "\\d+"),
-    aphiaID = as.numeric(aphiaID),
-    
-    maximumDepthInMeters = case_when(
-      str_detect(site, "MR") ~ other_vars$max_depth$MR,
-      str_detect(site, "LK") ~ other_vars$max_depth$LK,
-      str_detect(site, "WS") ~ other_vars$max_depth$WS,
-      str_detect(site, "57") ~ other_vars$max_depth$`57`,
-      str_detect(site, "54") ~ other_vars$max_depth$`54`,
-      str_detect(site, "9B") ~ other_vars$max_depth$`9B`
-    ),
-    minimumDepthInMeters = 0,
-    coordinateUncertaintyInMeters = 500
+    aphiaID = as.numeric(aphiaID)
   ) %>%
   left_join(.,
     aphia_id,
@@ -260,7 +258,6 @@ taxa_original <-
       "aphiaID"   = "aphia_id"
     )
   )
-
 
 save_csv(
     .data         = taxa_original,
