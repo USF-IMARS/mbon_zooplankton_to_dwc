@@ -26,7 +26,7 @@ conflict_prefer("select", "dplyr")
 # Get file paths
 
 ```{r file-path}
-# dir_path <- rstudioapi::selectDirectory()
+# rstudioapi::selectDirectory()
 dir_path <- "C:/Users/Jay Law/Desktop/DNAdata"
 
 # select the files that end in .csv or .xlsx
