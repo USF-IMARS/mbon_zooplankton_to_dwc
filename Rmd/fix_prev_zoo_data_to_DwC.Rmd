@@ -273,25 +273,49 @@ taxa_full <-
 taxa_full 
 
 # save updated version of base taxa and full taxa as .csv
-if (FALSE) {
-  write_excel_csv(
-    x = taxa_base,
-    file =  eval(file_exprs[[2]]),
-    na = ""
-  )
-  write_excel_csv(
-    x = taxa_full,
-    file = here::here(
-      base_dir,
-      glue(
-        "taxa_worms_info",
-        format(Sys.Date(), "_%Y%m%d"),
-        ".csv"
-      )
-    ),
-    na = ""
-  )
-}
+# loc       = here::here(base_dir), 
+# file_base = "aphia_taxa_jaime"
+# 
+save_csv(
+    .data          = taxa_base,
+    save_location  = file_exprs$file_loc,
+    save_name      = file_exprs$file_base,
+    overwrite      = FALSE,
+    verbose        = TRUE,
+    time_stamp_fmt = "%Y%m%d",
+    utf_8          = TRUE
+)
+
+save_csv(
+    .data          = taxa_full,
+    save_location  = here(base_dir),
+    save_name      = "taxa_worms_info",
+    overwrite      = FALSE,
+    verbose        = TRUE,
+    time_stamp_fmt = "%Y%m%d",
+    utf_8          = TRUE
+)
+
+ 
+# if (FALSE) {
+#   write_excel_csv(
+#     x = taxa_base,
+#     file =  eval(file_exprs[[2]]),
+#     na = ""
+#   )
+#   write_excel_csv(
+#     x = taxa_full,
+#     file = here::here(
+#       base_dir,
+#       glue(
+#         "taxa_worms_info",
+#         format(Sys.Date(), "_%Y%m%d"),
+#         ".csv"
+#       )
+#     ),
+#     na = ""
+#   )
+# }
 
 # update cloud service directory if have connection through explorer/Finder
 if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
@@ -482,18 +506,28 @@ janitor::get_dupes(occur, occurrenceID)
 
 ```{r construct-occurrence-table}
 # save locally
-if (FALSE) {
-  readr::write_excel_csv(
-    occur,
-    here::here(
-      base_dir, "processed",
-      glue(
-        "occurrences",
-        "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"
-      )
-    )
-  )
-}
+save_csv(
+    .data          = occur,
+    save_location  = here(base_dir, "processed"),
+    save_name      = "occurrences",
+    overwrite      = FALSE,
+    verbose        = TRUE,
+    time_stamp_fmt = "%Y%m%d_%H%M%S",
+    utf_8          = TRUE
+)
+
+# if (FALSE) {
+#   readr::write_excel_csv(
+#     occur,
+#     here::here(
+#       base_dir, "processed",
+#       glue(
+#         "occurrences",
+#         "{format(Sys.time(), '_%Y%m%d_%H%M%S')}.", "csv"
+#       )
+#     )
+#   )
+# }
 
 
 # save to cloud if connection exists
@@ -689,26 +723,50 @@ stopifnot(nrow(janitor::get_dupes(occur, occurrenceID)) == 0)
 
 ```{r save}
 # save obis cores locally
-if (FALSE) {
-  dir_sv <- here(base_dir, "obis")
-  path <-
-    here(
-      dir_sv,
-      glue(
-        "{c('event', 'occur', 'mof')}",
-        "_example_update_{Sys.Date()}.csv"
-      )
+pwalk(
+  list(
+    list(
+     event_final,
+     occur
+     # eventually mof
+    ),
+    here(base_dir, "obis"),
+    # glue("{c(\"event\", \"occur\", \"mof\")}_example_update")
+    glue("{c(\"event\", \"occur\")}_example_update")
+  ),
+  \(data, loc, name_f)
+    save_csv(
+      .data          = data,
+      save_location  = loc,
+      save_name      = name_f,
+      overwrite      = FALSE,
+      verbose        = TRUE,
+      time_stamp_fmt = "%Y-%m-%d",
+      utf_8          = TRUE
     )
-  path
+)
 
-  dir_create(dir_sv)
-
-  event_final %>%
-    write_excel_csv(file = path[1], na = "")
-
-  occur %>%
-    write_excel_csv(file = path[2], na = "")
-}
+# old save
+# if (FALSE) {
+#   dir_sv <- here(base_dir, "obis")
+#   path <-
+#     here(
+#       dir_sv,
+#       glue(
+#         "{c('event', 'occur', 'mof')}",
+#         "_example_update_{Sys.Date()}.csv"
+#       )
+#     )
+#   path
+# 
+#   # dir_create(dir_sv)
+# 
+#   event_final %>%
+#     write_excel_csv(file = path[1], na = "")
+# 
+#   occur %>%
+#     write_excel_csv(file = path[2], na = "")
+# }
 
 # save obis cores to cloud if connection exists
 if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
