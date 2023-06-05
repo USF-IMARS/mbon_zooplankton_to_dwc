@@ -1,0 +1,97 @@
+---
+title: "eDNA to DarwinCore"
+author: "Carolina P and Sebastian D."
+format: html
+editor: source
+---
+# Load Libraries if needed
+```{r setup}
+# external packages
+librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom, # optional
+    
+    quiet = TRUE
+    )
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+```
+
+# Get file paths
+```{r file-path}
+# dir_path <- rstudioapi::selectDirectory()
+dir_path <- "C:/Users/Jay Law/Desktop/DNAdata"
+
+# select the files that end in .csv or .xlsx
+file_paths <- 
+    dir_ls(
+        path = dir_path,
+        regexp = "\\.csv$|\\.xlsx$") %>% 
+    
+    # remove lock file `~$`
+    str_subset(
+        string = .,
+        pattern = "~\\$", 
+        negate = TRUE) 
+```
+
+# Read files
+```{r}
+# read OTU data
+otu_data <- 
+    str_subset(
+        string  = file_paths, 
+        pattern = "otu") %>%
+    read_csv(show_col_types = FALSE)
+
+# read taxonomic info
+taxa_info <- 
+    str_subset(
+        string  = file_paths, 
+        pattern = "tx_tab") %>%
+    read_csv(show_col_types = FALSE)
+
+# show first 10 rows
+slice_head(otu_data, n = 10)
+slice_head(taxa_info, n = 10)
+
+# show a random sample of 10 rows
+slice_sample(otu_data, n = 10)
+slice_sample(taxa_info, n = 10)
+```
+# Pivot Longer OTU Data
+```{r}
+dim(otu_data)
+otu_long <- 
+    tidyr::pivot_longer(
+        data = otu_data,
+        # cols = MR0316t500a:last_col(),
+        cols = -OTU, # the negative is used as "everything" but this column
+        names_to = "sample_id",
+        values_to = "read_counts"
+    ) %>% 
+    
+    # filter(str_detect(sample_id, "(?i)blank")) %$% unique(sample_id)  
+    filter(
+        read_counts > 0 
+        & str_detect(sample_id, "(?i)blank", negate = TRUE)
+        ) 
+
+slice_head(otu_long, n = 1, by = OTU)
+```
+
+```{r}
+left_join(
+    x = otu_long,
+    y = taxa_info,
+    by = "OTU"
+    # by = c("OTU", "somethinx", "somethingy" = "someelsey")
+    # by = c("OTU" = "OTU2")
+    # by = join_by(OTU == OTU2)
+)
+```
+
