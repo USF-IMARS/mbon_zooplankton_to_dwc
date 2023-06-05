@@ -4,7 +4,9 @@ author: "Carolina P and Sebastian D."
 format: html
 editor: source
 ---
+
 # Load Libraries if needed
+
 ```{r setup}
 # external packages
 librarian::shelf(
@@ -22,6 +24,7 @@ conflict_prefer("select", "dplyr")
 ```
 
 # Get file paths
+
 ```{r file-path}
 # dir_path <- rstudioapi::selectDirectory()
 dir_path <- "C:/Users/Jay Law/Desktop/DNAdata"
@@ -40,7 +43,8 @@ file_paths <-
 ```
 
 # Read files
-```{r}
+
+```{r read-files}
 # read OTU data
 otu_data <- 
     str_subset(
@@ -63,8 +67,10 @@ slice_head(taxa_info, n = 10)
 slice_sample(otu_data, n = 10)
 slice_sample(taxa_info, n = 10)
 ```
+
 # Pivot Longer OTU Data
-```{r}
+
+```{r pivot-long}
 dim(otu_data)
 otu_long <- 
     tidyr::pivot_longer(
@@ -75,7 +81,7 @@ otu_long <-
         values_to = "read_counts"
     ) %>% 
     
-    # filter(str_detect(sample_id, "(?i)blank")) %$% unique(sample_id)  
+    # remove columns with blank names and read_counts = 0
     filter(
         read_counts > 0 
         & str_detect(sample_id, "(?i)blank", negate = TRUE)
@@ -84,14 +90,50 @@ otu_long <-
 slice_head(otu_long, n = 1, by = OTU)
 ```
 
-```{r}
-left_join(
-    x = otu_long,
-    y = taxa_info,
-    by = "OTU"
-    # by = c("OTU", "somethinx", "somethingy" = "someelsey")
-    # by = c("OTU" = "OTU2")
-    # by = join_by(OTU == OTU2)
+# Add Taxonomic Information
+```{r add-info}
+taxa_info %>% 
+    mutate(
+        search_name =
+            case_when(
+                str_detect(Species, "s__") ~ Genus,
+                .default = Species
+            )
+    )
+```
+
+
+
+# Merged OTU with Taxonomic Info
+```{r merged-otu-taxa}
+otu_merg <- 
+    left_join(
+        x = otu_long,
+        y = taxa_info,
+        by = "OTU"
+        # by = c("OTU", "somethinx", "somethingy" = "someelsey")
+        # by = c("OTU" = "OTU2")
+        # by = join_by(OTU == OTU2)
+    )
+
+slice_sample(otu_merg, n = 10)
+```
+
+
+# Save Merged OTU and Taxonomic Information
+```{r save}
+dir_tree(here(), type = "directory")
+
+save_csv(
+    .data         = otu_merg,        
+    save_location = here("data", "processed", "edna"),
+    save_name     = "mbon_edna_otu_w_taxa",
+    overwrite     = FALSE,
+    verbose       = TRUE,
+    time_stamp_fmt = "%Y%m%d"
 )
 ```
+
+
+
 
