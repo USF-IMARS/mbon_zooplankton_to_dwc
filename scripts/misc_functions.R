@@ -84,9 +84,9 @@ last_mod <-  function(fpath, check = TRUE) {
 #' @examples
 #' # ADD_EXAMPLES_HERE
 #' 
-file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
+file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
                       file_base = "aphia_taxa",
-                      exts = "csv",
+                      exts      = "csv",
                       time_stamp_fmt = "%Y%m%d_%H%M%S") {
     
     # ---- help for deciding time stamp format
