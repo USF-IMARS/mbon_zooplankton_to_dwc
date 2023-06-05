@@ -373,25 +373,44 @@ species3 <-
 
 # Save Files
 ```{r save-files}
-if (FALSE) {
-    write_csv(
-        species,
-        file = here(base_dir, "processed",
-                    glue("zoo_compiled",
-                         format(Sys.Date(), "_%Y%m%d"),
-                         ".csv")),
-        na = "")
-    }
-if (FALSE) {
-    species3 %>%
-    select(-meta) %>%
-    write_csv(,
-              file = here(base_dir, "processed",
-                          glue("zoo_compiled_with_meta",
-                               format(Sys.Date(), "_%Y%m%d"),
-                               ".csv")),
-              na   = "")
-}
+save_csv(
+    .data          = species,
+    save_location  = here(base_dir, "processed"),
+    save_name      = "zoo_compiled",
+    overwrite      = FALSE,
+    verbose        = TRUE,
+    time_stamp_fmt = "%Y%m%d"
+)
+
+save_csv(
+    .data          = species,
+    save_location  = here(base_dir, "processed"),
+    save_name      = "zoo_compiled_with_meta",
+    overwrite      = FALSE,
+    verbose        = TRUE,
+    time_stamp_fmt = "%Y%m%d"
+)
+
+# old way to save csv
+# if (FALSE) {
+#     write_csv(
+#         species3,
+#         file = here(base_dir, "processed",
+#                     glue("zoo_compiled",
+#                          format(Sys.Date(), "_%Y%m%d"),
+#                          ".csv")),
+#         na = "")
+#     }
+# if (FALSE) {
+#     species3 %>%
+#     select(-meta) %>%
+#     write_csv(,
+#               file = here(base_dir, "processed",
+#                           glue("zoo_compiled_with_meta",
+#                                format(Sys.Date(), "_%Y%m%d"),
+#                                ".csv")),
+#               na   = "")
+# }
 ```
 
 # Read 2015 - 2017 OBIS Files (needs fixing)
