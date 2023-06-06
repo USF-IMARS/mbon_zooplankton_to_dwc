@@ -43,7 +43,23 @@ file_paths <-
 ```
 
 # Read files
+otu_data = 
+OTU  | sample1 | Sample2 | ... 
+OTU1 |  5      |   6     | ...
 
+sample column names = <station ID><month><year><something else, maybe triplicate>
+
+Want to convert out_data to
+
+OTU  | sample ID | count
+OTU1 | sample1   | 6
+
+
+taxa_info = 
+OTU  | phylgentic tree 1 | 2 | 3 
+OTU1 | species x ... 
+
+add the aphia ID and extract all the other information from the WoRMS database
 ```{r read-files}
 # read OTU data
 otu_data <- 
@@ -90,7 +106,9 @@ otu_long <-
 slice_head(otu_long, n = 1, by = OTU)
 ```
 
-# Add Taxonomic Information
+# WIP: Add Taxonomic Information
+add all information from WoRMS
+`worrms::wm_record()`
 ```{r add-info}
 taxa_info %>% 
     mutate(
@@ -100,6 +118,7 @@ taxa_info %>%
                 .default = Species
             )
     )
+
 ```
 
 
