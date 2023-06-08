@@ -21,18 +21,25 @@ library("conflicted")
 
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
+
+source(here(".Rprofile"))
 ```
 
 # Get file paths
 
 ```{r file-path}
-# rstudioapi::selectDirectory()
-dir_path <- "C:/Users/Jay Law/Desktop/DNAdata"
+if (!exists("dir_edna")) {
+  dir_edna <- "C:/Users/Jay Law/Desktop/DNAdata"
+  
+  if (!dir_exists(dir_edna)) {
+    dir_edna <- add_edna_path(full_path = "C:/Users/spd19/Box/DNAdata")
+  }
+}
 
 # select the files that end in .csv or .xlsx
 file_paths <- 
     dir_ls(
-        path = dir_path,
+        path = dir_edna,
         regexp = "\\.csv$|\\.xlsx$") %>% 
     
     # remove lock file `~$`
@@ -40,6 +47,8 @@ file_paths <-
         string = .,
         pattern = "~\\$", 
         negate = TRUE) 
+
+file_paths
 ```
 
 # Read files
@@ -103,6 +112,7 @@ otu_long <-
         & str_detect(sample_id, "(?i)blank", negate = TRUE)
         ) 
 
+# ---- the first row from each sample_id
 slice_head(otu_long, n = 1, by = OTU)
 ```
 
@@ -117,7 +127,8 @@ taxa_info %>%
                 str_detect(Species, "s__") ~ Genus,
                 .default = Species
             )
-    )
+    ) %>%
+    match_taxa_fix()
 
 ```
 
@@ -130,6 +141,8 @@ otu_merg <-
         x = otu_long,
         y = taxa_info,
         by = "OTU"
+        
+        # ---- various ways of using the input variable `by`
         # by = c("OTU", "somethinx", "somethingy" = "someelsey")
         # by = c("OTU" = "OTU2")
         # by = join_by(OTU == OTU2)
@@ -146,6 +159,7 @@ dir_tree(here(), type = "directory")
 save_csv(
     .data         = otu_merg,        
     save_location = here("data", "processed", "edna"),
+    # save_location = here(dir_edna, "processed"), # if want to save to cloud
     save_name     = "mbon_edna_otu_w_taxa",
     overwrite     = FALSE,
     verbose       = TRUE,
