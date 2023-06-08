@@ -873,3 +873,52 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
   # ---- end of function
 }
 
+##%######################################################%##
+#                                                          #
+####  ---- 10. Extract WoRMS Extended Information ----  ####
+#                                                          #
+##%######################################################%##
+#' Extract WoRMS Extended Information
+#'
+#' FUNCTION_DESCRIPTION
+#'
+#' @param .x Aphia ID to search
+#' @param .y The original taxonomic name
+#' @param .z A row number
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
+worrms_info_extract <- 
+    function(.x, .y, .z = NULL) {
+    
+    if (is.null(.z)) .z <- 0
+            
+    tryCatch(
+        {
+            if (.z == 1) {
+                cat(sprintf(
+                    "\n%-4s | %-6s | names\n%s",
+                    "Row", "aphia",
+                    stringi::stri_dup("-", 37)
+                ))
+            }  
+            
+            if (.z == 0) {
+            cat(sprintf("%6s | %s | ", .x, .y))
+                
+            } else {
+                cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
+            }
+            
+            x <- worrms::wm_record(.x)
+            
+            cat(x$scientificname)
+            
+            return(x)
+        },
+        error = function(e) {
+            return(NULL)
+        }
+    )
+}

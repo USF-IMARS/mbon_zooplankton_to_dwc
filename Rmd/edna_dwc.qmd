@@ -169,28 +169,10 @@ taxa_info <-
         taxa_orig,
         row
       ),
-      .f =
-        (\(.x, .y, .z)
-        tryCatch(
-          {
-            if (.z == 1) {
-              cat(sprintf(
-                "\n%-4s | %-6s | names\n%s",
-                "Row", "aphia",
-                stringi::stri_dup("-", 37)
-              ))
-            }
-            cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
-            x <- worrms::wm_record(.x)
-            cat(x$scientificname)
-            return(x)
-          },
-          error = function(e) {
-            return(NULL)
-          }
-        ))
+      .f = worrms_info_extract
     )
   ) %>%
+    
   unnest(info,
     names_repair = janitor::make_clean_names,
     keep_empty   = TRUE
