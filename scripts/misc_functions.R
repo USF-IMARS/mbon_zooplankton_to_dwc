@@ -222,3 +222,50 @@ save_csv <- function(
     # ---- end of function
 }
 
+
+##%######################################################%##
+#                                                          #
+####            Add eDNA path to `.Rprofile`            ####
+#                                                          #
+##%######################################################%##
+#' Add eDNA path to `.Rprofile`
+#'
+#' FUNCTION_DESCRIPTION
+#'
+#' @param start_path Start path if not found.
+#' @param full_path If know where cloud directory is located.
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
+add_edna_path <- function(start_path = here(),
+                          full_path = NULL) {
+    
+    # ---- either select directory manually or input directly
+    if (is.null(full_path)) {
+        dir_edna <- rstudioapi::selectDirectory(path = start_path)
+    } else {
+        dir_edna <- full_path
+    }
+    
+    edna_path <- glue(
+        "\n# ---- eDNA file path\n",
+        "dir_edna <- \"{dir_edna}\"\n\n")
+    
+    prof <- here(".Rprofile")
+    
+    # ---- check that .Rprofile exists
+    if (!file_exists(prof)) {
+        # create .Rprofile file
+        cat(character(0), file = prof)
+    }
+    
+    # ---- read .Rprofile info
+    line1 <- readLines(prof) 
+    
+    # ---- save .Rprofile
+    cat(edna_path, file = prof, append = TRUE)
+    
+    return(dir_edna)
+    # ---- end of function
+}
