@@ -275,7 +275,8 @@ slice_sample(edna_meta, n = 10)
 names(edna_meta)
 ```
 
-
+# DNA Derived Data
+<https://rs.gbif.org/extension/gbif/1.0/dna_derived_data_2021-07-05.xml>
 ```{r}
 left_join(
   edna_meta,
