@@ -74,14 +74,16 @@ add the aphia ID and extract all the other information from the WoRMS database
 otu_data <- 
     str_subset(
         string  = file_paths, 
-        pattern = "otu") %>%
+        pattern = "otu") %T>%
+    print() %>%
     read_csv(show_col_types = FALSE)
 
 # read taxonomic info
 taxa_info <- 
     str_subset(
         string  = file_paths, 
-        pattern = "tx_tab") %>%
+        pattern = "tx_tab") %T>%
+    print() %>%
     read_csv(show_col_types = FALSE)
 
 # show first 10 rows
@@ -97,7 +99,7 @@ slice_sample(taxa_info, n = 10)
 
 ```{r pivot-long}
 dim(otu_data)
-otu_long <- 
+otu_long <-
     tidyr::pivot_longer(
         data = otu_data,
         # cols = MR0316t500a:last_col(),
@@ -105,6 +107,11 @@ otu_long <-
         names_to = "sample_id",
         values_to = "read_counts"
     ) %>% 
+    
+    mutate(
+        .by = sample_id,
+        total_reads = sum(read_counts)
+    ) %>%
     
     # remove columns with blank names and read_counts = 0
     filter(
@@ -120,15 +127,84 @@ slice_head(otu_long, n = 1, by = OTU)
 add all information from WoRMS
 `worrms::wm_record()`
 ```{r add-info}
-taxa_info %>% 
-    mutate(
-        search_name =
-            case_when(
-                str_detect(Species, "s__") ~ Genus,
-                .default = Species
-            )
-    ) %>%
-    match_taxa_fix()
+taxa_info %<>%
+  mutate(
+    search_name =
+      case_when(
+        str_detect(Species, "s__") ~ Genus,
+        .default = Species
+      )
+  )
+
+
+# set location for aphiaID list and the base of the file name
+file_exprs <-
+  file_expr(
+    # loc       = dir_edna,
+    loc       = here("data", "processed", "edna"),
+    file_base = "aphia_edna"
+  )
+
+taxa_info <-
+  taxa_info %>%
+  select(search_name) %>%
+  distinct() %>%
+  merge_taxa(.,
+    .file_expr = file_exprs,
+    check      = FALSE,
+    # check    = TRUE,
+    use_cloud  = FALSE,
+    viewer     = TRUE
+  ) %>%
+  mutate(
+    aphia_id = if_else(
+      !is.na(scientificNameID),
+      str_extract(scientificNameID, "\\d+"),
+      NA_character_),
+    aphia_id = as.numeric(aphia_id),
+    row      = row_number(),
+    info     = pmap(
+      list(
+        aphia_id,
+        taxa_orig,
+        row
+      ),
+      .f =
+        (\(.x, .y, .z)
+        tryCatch(
+          {
+            if (.z == 1) {
+              cat(sprintf(
+                "\n%-4s | %-6s | names\n%s",
+                "Row", "aphia",
+                stringi::stri_dup("-", 37)
+              ))
+            }
+            cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
+            x <- worrms::wm_record(.x)
+            cat(x$scientificname)
+            return(x)
+          },
+          error = function(e) {
+            return(NULL)
+          }
+        ))
+    )
+  ) %>%
+  unnest(info,
+    names_repair = janitor::make_clean_names,
+    keep_empty   = TRUE
+  ) %>%
+  left_join(
+    taxa_info,
+    .,
+    by = c("search_name" = "taxa_orig")
+  )
+
+# ---- examine unmatched species for later
+taxa_info %>%
+  filter(is.na(aphia_id)) %>%
+  distinct(search_name)
 
 ```
 
@@ -156,6 +232,19 @@ slice_sample(otu_merg, n = 10)
 ```{r save}
 dir_tree(here(), type = "directory")
 
+# ---- eDNA taxa info save
+save_csv(
+    .data         = taxa_info,        
+    save_location = here("data", "processed", "edna"),
+    # save_location = here(dir_edna, "processed"), # if want to save to cloud
+    save_name     = "edna_taxa_info",
+    overwrite     = FALSE,
+    verbose       = TRUE,
+    time_stamp_fmt = "%Y%m%d"
+    # time_stamp_fmt = NULL
+)
+
+# ---- eDNA merged OTU data with taxa save
 save_csv(
     .data         = otu_merg,        
     save_location = here("data", "processed", "edna"),
@@ -164,9 +253,114 @@ save_csv(
     overwrite     = FALSE,
     verbose       = TRUE,
     time_stamp_fmt = "%Y%m%d"
+    # time_stamp_fmt = NULL
 )
 ```
 
 
+# Merge Metadata with OTU data
+```{r}
+edna_meta <-
+    str_subset(file_paths, "metadata") %>%
+    read_csv(show_col_types = FALSE) %>%
+    mutate(
+        .after = Month,
+        eventDate = str_extract(sample_name, "1[56]"),
+        eventDate = glue("{Month} 20{eventDate}"),
+        eventDate = my(eventDate),
+        eventDate = format(eventDate, "%Y-%m")
+    )
 
+slice_sample(edna_meta, n = 10)
+names(edna_meta)
+```
+
+
+```{r}
+left_join(
+  edna_meta,
+  otu_merg,
+  by = join_by("sample_name" == "sample_id")
+) %>%
+  mutate(
+    eventDate,
+    eventID                  = NA_character_,
+    occurrenceID             = glue("{sample_name}:{OTU}"),
+    decimalLatitude          = NA_real_,
+    decimalLongitude         = NA_real_,
+    occurenceStatus          = "present",
+    basisOfRecord            = "MaterialSample",
+    samplingProtocol         = "doi:10.1002/lom3.10237",
+    materialSampleID         = sample_name,
+    associatedSequences      = NA_character_,
+    organismQuantity         = read_counts,
+    organismQuantityType     = "DNA sequence reads",
+    sampleSizeValue          = total_reads,
+    sampleSizeUnit           = "DNA sequence reads",
+    identificationRemarks    = NA_character_,
+    identificationReferences = NA_character_,
+    PublicationReference     = NA_character_,
+  ) %>%
+  mutate(
+    sample_name,
+    env_broad_scale = "marine biome  (ENVO:00000447)",
+    env_local_scale = "coastal water (ENVO:00001250)",
+    env_medium      = "waterborne particulate matter (ENVO:01000436)",
+    project_name,
+    pcr_cond =
+      glue(
+        "COI cycling parameters were 95°C for 10 min; ",
+        "16 cycles at 94°C for 10 s; 62°C for 30 s (decreasing by 1°C ",
+        "per cycle); 68°C for 60 s; 25 cycles at 94°C for 10 s; ",
+        "46°C for 30 s; 68°C for 60 s; and 72°C for 10 min."
+      ),
+    occurrenceID,
+    seq_meth     = "Illumina_MiSEQ",
+    lib_layout   = "paired",
+    target_gene  = locus, # (?)
+    DNA_sequence = NA_character_,
+    mid          = tag_sequence,
+
+    # ampliconSize,
+    # thresholdQuantificationCycle,
+    # baselineValue,
+    # quantificationCycle,
+    # automaticThresholdQuantificationCycle,
+    # automaticBaselineValue,
+    # contaminationAssessment,
+    # estimatedNumberOfCopies,
+    # amplificationReactionVolume
+    # amplificationReactionVolumeUnit
+    # pcr_analysis_software,
+    # experimentalVariance,
+    # target_gene,
+    # target_subfragment,
+    # concentration,
+    # concentrationUnit,
+    # methodDeterminationConcentrationAndRatios,
+    # ratioOfAbsorbance260_230,
+    # ratioOfAbsorbance260_280,
+    samp_collec_device = SAMPLE_Collection_Device,
+    # samp_mat_process,
+    samp_vol_we_dna_ext,
+    size_frac          = samp_filter_size_ext,
+    # pcr_primer_lod,
+    # pcr_primer_loq
+
+    # detec_type,
+    otu_class_appr    = "97% ANI",
+    otu_seq_comp_appr = "blastn e-value 1x10 -5",
+    otu_db            = "NCBI nt ref database",
+
+    # url
+    # sop,
+    pcr_primer_forward      = primer_sequence_F,
+    pcr_primer_reverse      = primer_sequence_R,
+    pcr_primer_name_forward = "mlCOIintF",
+    pcr_primer_name_reverse = Primer_R,
+    # pcr_primer_reference = NA_character_,
+    # DNA_sequence
+  )
+
+```
 
