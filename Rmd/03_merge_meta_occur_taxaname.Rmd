@@ -258,7 +258,10 @@ taxa_original <-
       "aphiaID"   = "aphia_id"
     )
   )
+```
 
+# Save Merged Data
+```{r save-data}
 save_csv(
     .data         = taxa_original,
     save_location = here("data", "processed", "pre_obis"),
@@ -266,6 +269,26 @@ save_csv(
     overwrite     = FALSE,
     verbose       = TRUE
 )
+
+if (FALSE && exists(cloud_dir)) {
+  here("data", "processed", "pre_obis") %>%
+    dir_ls() %>%
+    last_mod() %>%
+    tibble(old_name = .) %>%
+    mutate(
+      new_name = basename(old_name),
+      new_name = str_remove(new_name, "_\\d{8}.*[^\\.csv]")
+    ) %$%
+    walk2(
+      .x = old_name,
+      .y = new_name,
+      ~ file_copy(
+        path = .x,
+        new_path = here(cloud_dir, "processed", .y),
+        overwrite = TRUE
+      )
+    )
+}
 ```
 
 # Create data sheet for Enrique Montes

@@ -18,7 +18,7 @@ librarian::shelf(
     # additional
     cli, rlang, data.table, geosphere, ggforce, hablar, hms, httr, janitor,
     jsonlite, knitr, lubridate, iobis/obistools, plotly, readxl, parzer,
-    renv, rmarkdown, tools, vroom, worrms, rmarkdown,
+    renv, rmarkdown, tools, vroom, worrms, rmarkdown, naniar,
     
 )
 

@@ -49,16 +49,79 @@ last_mod <-  function(fpath, check = TRUE) {
 #'                       - default = YYYYMMDD_HHMMSS (i.e "%Y%m%d_%H%M%S")
 #'                       - if no suffix, `NULL`
 #'                       - if want custom, `<custom_message>`
+#'                       - if help, will give a table of formats with examples
 #'
-#' @return Returns a list of two, file_base and file_expr.
+#' @returns Returns a list of three:
+#'          - file location  = file_loc
+#'          - base file name = file_base,
+#'          - file expression to be evaluated = file_expr
+#' 
+#' @details
+#' The time stamp can be formated based on 
+#' Code	Meaning	Code	Meaning
+#'      %a - Abbreviated weekday	
+#'      %A - Full weekday
+#'      %b - Abbreviated month	
+#'      %B - Full month
+#'      %c - Locale-specific date and time	
+#'      %d - Decimal date
+#'      %H - Decimal hours (24 hour)	
+#'      %I - Decimal hours (12 hour)
+#'      %j - Decimal day of the year	
+#'      %m - Decimal month
+#'      %M - Decimal minute	
+#'      %p - Locale-specific AM/PM
+#'      %S - Decimal second	
+#'      %U - Decimal week of the year (starting on Sunday)
+#'      %w - Decimal Weekday (0=Sunday)	
+#'      %W - Decimal week of the year (starting on Monday)
+#'      %x - Locale-specific Date	
+#'      %X - Locale-specific Time
+#'      %y - 2-digit year	
+#'      %Y - 4-digit year
+#'      %z - Offset from GMT	
+#'      %Z - Time zone (character)
 #' @examples
 #' # ADD_EXAMPLES_HERE
 #' 
-file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
+file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
                       file_base = "aphia_taxa",
-                      exts = "csv",
+                      exts      = "csv",
                       time_stamp_fmt = "%Y%m%d_%H%M%S") {
     
+    # ---- help for deciding time stamp format
+    if (str_detect(time_stamp_fmt, "help")) {
+          return(tribble(
+            ~code, ~meaning,
+          "%a",  "Abbreviated weekday", 
+          "%A",  "Full weekday",
+          "%b",  "Abbreviated month", 
+          "%B",  "Full month", 
+          "%c",  "Locale-specific date and time", 
+          "%d",  "Decimal date", 
+          "%H",  "Decimal hours (24 hour)", 
+          "%I",  "Decimal hours (12 hour)", 
+          "%j",  "Decimal day of the year",	
+          "%m",  "Decimal month", 
+          "%M",  "Decimal minute",	
+          "%p",  "Locale-specific AM/PM", 
+          "%S",  "Decimal second", 
+          "%U",  "Decimal week of the year (starting on Sunday)", 
+          "%w",  "Decimal Weekday (0=Sunday)", 
+          "%W",  "Decimal week of the year (starting on Monday)", 
+          "%x",  "Locale-specific Date", 
+          "%X",  "Locale-specific Time", 
+          "%y",  "2-digit year", 
+          "%Y",  "4-digit year", 
+          "%z",  "Offset from GMT",	
+          "%Z",  "Time zone (character)", 
+          ) %>%
+         mutate(
+             example = format(ymd_hms("2000-01-01 02:11:51"), code),
+             example = sprintf("%s == `%s`", "2000-01-01 02:11:51", example)
+         ))
+    }
+
     # catch time stamp format if NULL  
     time_stamp_fmt <-
         tryCatch(
@@ -90,7 +153,8 @@ file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
     
     list(
         file_base = file_base,
-        file_expr = file_expr
+        file_expr = file_expr,
+        file_loc  = loc
     )
     
     # ---- end of function
@@ -114,6 +178,9 @@ file_expr <- function(loc = here::here("data", "metadata", "aphia_id"),
 #'                       - default = YYYYMMDD_HHMMSS (i.e "%Y%m%d_%H%M%S")
 #'                       - if no suffix, `NULL`
 #'                       - if want custom, `<custom_message>`
+#' @param utf_8 Logical() `TRUE` or `FALSE` to use `readr::write_excel_csv` or 
+#'              `readr::write_csv` to indicate to Excel the csv is UTF-8 
+#'              encoded. 
 #'
 #' @return NULL, save file
 #'
@@ -127,7 +194,8 @@ save_csv <- function(
         save_name     = NULL,
         overwrite     = FALSE,
         verbose       = TRUE,
-        time_stamp_fmt = "%Y%m%d_%H%M%S") {
+        time_stamp_fmt = "%Y%m%d_%H%M%S",
+        utf_8          = FALSE) {
     
     # ---- checking input parameters
     if (is.null(.data)) {
@@ -163,7 +231,7 @@ save_csv <- function(
     data_f <- eval(data_f$file_expr)
     
     if (verbose) {
-        cli::cli_h1("{save_name}")
+        cli::cli_h1("Data Variable Name: {.var {save_name}}")
         cli::cli_alert_info(
             c("File Information:\n",
               "Rows:      {nrow(.data)}\n",
@@ -210,12 +278,25 @@ save_csv <- function(
     
     # ---- saving file
     if (verbose) cli::cli_alert_info("Saving file!")
-    
-    readr::write_csv(
+
+    if (utf_8) {
+      # save with UTF-8 
+      cli::cli_alert_info(
+          c("Note: saving to indicate to excel as {.var UTF-8}.\n", 
+            "Using: `{col_yellow(\"readr::write_excel_csv()\")}` ",
+            "instead of `{col_red(\"readr::write_csv()\")}`"))
+      readr::write_excel_csv(
         x    = .data,
         file = data_f,
         na   = ""
-    )
+      )
+    } else {
+      readr::write_csv(
+        x    = .data,
+        file = data_f,
+        na   = ""
+      )
+    }
     
     if (verbose) cli::cli_alert_success("Saved!\n\n")
 
