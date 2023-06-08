@@ -1,0 +1,172 @@
+---
+title: "eDNA to DarwinCore"
+author: "Carolina P and Sebastian D."
+format: html
+editor: source
+---
+
+# Load Libraries if needed
+
+```{r setup}
+# external packages
+librarian::shelf(
+    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom, # optional
+    
+    quiet = TRUE
+    )
+
+library("conflicted")
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+source(here(".Rprofile"))
+```
+
+# Get file paths
+
+```{r file-path}
+if (!exists("dir_edna")) {
+  dir_edna <- "C:/Users/Jay Law/Desktop/DNAdata"
+  
+  if (!dir_exists(dir_edna)) {
+    dir_edna <- add_edna_path(full_path = "C:/Users/spd19/Box/DNAdata")
+  }
+}
+
+# select the files that end in .csv or .xlsx
+file_paths <- 
+    dir_ls(
+        path = dir_edna,
+        regexp = "\\.csv$|\\.xlsx$") %>% 
+    
+    # remove lock file `~$`
+    str_subset(
+        string = .,
+        pattern = "~\\$", 
+        negate = TRUE) 
+
+file_paths
+```
+
+# Read files
+otu_data = 
+OTU  | sample1 | Sample2 | ... 
+OTU1 |  5      |   6     | ...
+
+sample column names = <station ID><month><year><something else, maybe triplicate>
+
+Want to convert out_data to
+
+OTU  | sample ID | count
+OTU1 | sample1   | 6
+
+
+taxa_info = 
+OTU  | phylgentic tree 1 | 2 | 3 
+OTU1 | species x ... 
+
+add the aphia ID and extract all the other information from the WoRMS database
+```{r read-files}
+# read OTU data
+otu_data <- 
+    str_subset(
+        string  = file_paths, 
+        pattern = "otu") %>%
+    read_csv(show_col_types = FALSE)
+
+# read taxonomic info
+taxa_info <- 
+    str_subset(
+        string  = file_paths, 
+        pattern = "tx_tab") %>%
+    read_csv(show_col_types = FALSE)
+
+# show first 10 rows
+slice_head(otu_data, n = 10)
+slice_head(taxa_info, n = 10)
+
+# show a random sample of 10 rows
+slice_sample(otu_data, n = 10)
+slice_sample(taxa_info, n = 10)
+```
+
+# Pivot Longer OTU Data
+
+```{r pivot-long}
+dim(otu_data)
+otu_long <- 
+    tidyr::pivot_longer(
+        data = otu_data,
+        # cols = MR0316t500a:last_col(),
+        cols = -OTU, # the negative is used as "everything" but this column
+        names_to = "sample_id",
+        values_to = "read_counts"
+    ) %>% 
+    
+    # remove columns with blank names and read_counts = 0
+    filter(
+        read_counts > 0 
+        & str_detect(sample_id, "(?i)blank", negate = TRUE)
+        ) 
+
+# ---- the first row from each sample_id
+slice_head(otu_long, n = 1, by = OTU)
+```
+
+# WIP: Add Taxonomic Information
+add all information from WoRMS
+`worrms::wm_record()`
+```{r add-info}
+taxa_info %>% 
+    mutate(
+        search_name =
+            case_when(
+                str_detect(Species, "s__") ~ Genus,
+                .default = Species
+            )
+    ) %>%
+    match_taxa_fix()
+
+```
+
+
+
+# Merged OTU with Taxonomic Info
+```{r merged-otu-taxa}
+otu_merg <- 
+    left_join(
+        x = otu_long,
+        y = taxa_info,
+        by = "OTU"
+        
+        # ---- various ways of using the input variable `by`
+        # by = c("OTU", "somethinx", "somethingy" = "someelsey")
+        # by = c("OTU" = "OTU2")
+        # by = join_by(OTU == OTU2)
+    )
+
+slice_sample(otu_merg, n = 10)
+```
+
+
+# Save Merged OTU and Taxonomic Information
+```{r save}
+dir_tree(here(), type = "directory")
+
+save_csv(
+    .data         = otu_merg,        
+    save_location = here("data", "processed", "edna"),
+    # save_location = here(dir_edna, "processed"), # if want to save to cloud
+    save_name     = "mbon_edna_otu_w_taxa",
+    overwrite     = FALSE,
+    verbose       = TRUE,
+    time_stamp_fmt = "%Y%m%d"
+)
+```
+
+
+
+
