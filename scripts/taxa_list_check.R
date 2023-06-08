@@ -832,7 +832,7 @@ master_taxa_list <- function(taxa_list  = NULL,
 #                                                          #
 ##%######################################################%##
 sep_life <- function(.x, .regex_lifestage = NULL) {
-  
+
   lifer <- str_replace_all(
     str_c("(?i)", .regex_lifestage),
     "([a-z]+)\\|",
@@ -849,7 +849,7 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
           ignore_case = TRUE
         )
       ),
-      taxa = str_trim(),
+      taxa = str_trim(taxa),
 
       # life stage
       lifestage = if_else(
@@ -857,7 +857,7 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
         str_extract(taxa_orig, lifer),
         NA_character_
       ),
-      lifestage = str_to_lower(),
+      lifestage = str_to_lower(lifestage),
 
       # cleaned taxa for OBIS search
       taxa = str_remove(
@@ -866,7 +866,7 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
           ignore_case = TRUE
         )
       ), 
-      taxa = str_trim()
+      taxa = str_trim(taxa)
     )
 
   return(values)
