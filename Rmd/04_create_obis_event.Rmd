@@ -97,7 +97,7 @@ dwc_info <-
 ```
 
 ## 1.6 Load MoF Base Info
-URL for controlled vocab: "http://vocab.nerc.ac.uk/collection/"
+URL for controlled vocab: <http://vocab.nerc.ac.uk/collection/>
 
 ```{r mof-base}
 # TODO: edit MoF for more information
@@ -107,7 +107,10 @@ source(here("scripts", "mof_base_create_table.R"))
 mof_info <- list()
 
 # ---- function to create/read base mof info
-mof_info$mof_base <- mof_read()
+mof_info$mof_base <-
+    mof_read() %T>%
+    print() %>%
+    filter(!is.na(measurementType))
 
 mof_info$mof_base
 ```
@@ -149,7 +152,7 @@ dwc_info <-
 # ============================================================================ #
   mutate(
     type                   = "Event",
-    modified               = Sys.Date(),
+    modified               = format(Sys.Date(), "%Y-%m-%d"),
     language               = "en",
     license                = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
     institutionCode        = "USF | NOAA", # include NOAA
@@ -363,7 +366,7 @@ mof_info$mof_event <-
   # ---- select `event` mof variables    
   select(
     eventID,
-    filter(mof_info$mof_base, str_detect(event_occur, "event"))$orig_term
+    any_of(filter(mof_info$mof_base, str_detect(event_occur, "event"))$orig_term)
   ) %>%
 
   # ---- convert to long format based on eventID
@@ -386,7 +389,7 @@ mof_info$mof_occur <-
   # ---- select `occurence` mof variables     
   select(
     eventID, occurrenceID,
-    filter(mof_info$mof_base, str_detect(event_occur, "occur"))$orig_term
+    any_of(filter(mof_info$mof_base, str_detect(event_occur, "occur"))$orig_term)
   ) %>%
 
   # ---- convert to long format based on eventID and occurenceID
@@ -407,24 +410,28 @@ mof_core <-
   ) %>%
  left_join(mof_info$mof_base, by = "orig_term") %>%
  arrange(eventID, event_occur) %>%
- select(-orig_term, -event_occur) %T>% print()
+ select(
+     -orig_term,
+     -event_occur,
+     -measurementAccuracy # maybe will update later
+     ) %T>% print()
 
 
 slice_sample(mof_core, n = 1, by = eventID)
 cli::cli_alert_info("Dimensions: {dim(mof_core)}")
 ```
 
-
-
 # 4.0 Examples to save
-```{r save}
+```{r dup-check}
 janitor::get_dupes(event_core)
 janitor::get_dupes(event_core, eventID)
 janitor::get_dupes(occur_core)
 janitor::get_dupes(occur_core, occurrenceID)
 janitor::get_dupes(mof_core) # splits_analyzed and split_size are different, but no definition
+```
 
 
+```{r save}
 set.seed(1234)
 events <- sample(unique(event_core$eventID), 5)
 # events <- unique(event_core$eventID)
@@ -446,7 +453,8 @@ pwalk(
       save_name      = name_f,
       overwrite      = FALSE,
       verbose        = TRUE,
-      time_stamp_fmt = "%Y-%m-%d"
+      time_stamp_fmt = "%Y-%m-%d",
+      utf_8 = TRUE
     )
 )
 ```
@@ -454,6 +462,8 @@ pwalk(
 
 # ---- TEST ----
 ```{r test}
+
+
 reduce(list(event_core, occur_core, mof_core), left_join) 
 
 left_join(dwc_info,
