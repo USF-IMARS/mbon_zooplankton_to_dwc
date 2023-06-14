@@ -68,7 +68,11 @@ other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 which_one <- "nat"
 other_vars$equation_zoo <- switch(
     which_one,
-    "nat"    = expression(dillution_factor * mean * 2 ^ (splits_analyzed)),
+    # pretty it's `nat`
+    "nat"    = expression(dillution_factor * mean * total_split_amount),
+    
+    
+    "nat_old"    = expression(dillution_factor * mean * splits_analyzed),
     "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
     "nat3"   = expression(dillution_factor * mean * (splits_analyzed)^-1),
     "jamie"  = expression((dillution / pipette_vol_m_l) * mean * splits_analyzed ),
@@ -175,7 +179,6 @@ meta_df <-
         net_area            = pi * 0.5^2,
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
-        # tow_speed_cm_sec     = distance_m_2 * 100 / (tow_time_min * 60),
         volume_filt_cubic_m = net_area/4 * distance_m_2,
         split_size          = map_dbl(split_size, function(x) {
                                     out <- tryCatch({
@@ -185,36 +188,23 @@ meta_df <-
 
 # ---- load zooplankton data
 taxa_files <-
-    dir_ls(
-        path = here("data", "processed"),
-        regexp = "all_merged_processed") %>%
-    last_mod(.) %>%
-    map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
-    mutate(
-        # ONLY USED IF:
-        # need to fix info from a specific cruise ID
-        # - uncomment and replace "" with the cruise ID and new cruise ID
-        # cruise_id = case_when(
-        #     str_detect(cruise_id, "") ~ "", # incase other become problematic
-        #     .default = cruise_id
-        #     ),
-        site      = str_replace(site, "MK", "MR"),
-        # lifeStage = case_when(
-        #     is.na(lifeStage) ~ "adult",
-        #     TRUE ~ lifeStage),
-        splits_analyzed = case_when(
-            is.na(splits_analyzed) | splits_analyzed == 0 ~ 1,
-            .default = splits_analyzed
-        )
-    ) %>%
+  dir_ls(
+    path = here("data", "processed"),
+    regexp = "all_merged_processed"
+  ) %>%
+  last_mod(.) %>%
+  map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
+  mutate(site = str_replace(site, "MK", "MR")) %>%
   select(-mean_ind_dil_factor) %>%
   rowwise(aliquot_1:aliquot_3) %>%
   mutate(
-      individualCount = sum(aliquot_1, 
-                            aliquot_2, 
-                            aliquot_3, 
-                            na.rm = TRUE),
-      .before = aliquot_1
+    individualCount = 
+        sum(aliquot_1,
+            aliquot_2,
+            aliquot_3,
+            na.rm = TRUE
+            ),
+    .before = aliquot_1
   ) %>%
   ungroup()
 
@@ -232,18 +222,18 @@ taxa_original <-
   
   # add max depth
   left_join(other_vars$max_depth) %>%
-    
+
   mutate(
     # add min depth and uncertainty
     minimumDepthInMeters          = 0,
     coordinateUncertaintyInMeters = 500,
     
-    # split_amount = 0.5, # splits from cruise
-    splits_analyzed = if_else(
-      is.na(splits_analyzed), 
-      0,
-      splits_analyzed
-    ),
+    # calc the amount of splits of a sample as a whole number to multiply
+    # with average and dilution factor
+    split_amount       = if_else(is.na(split_amount), 0, split_amount),
+    total_split_amount = 2^split_amount * split_size^-1, # whole number
+    total_split_frac   = total_split_amount^-1,
+     
     number_ind_sample = eval(other_vars$equation_zoo),
     ind_m3 = number_ind_sample / volume_filt_cubic_m,
 
@@ -272,21 +262,12 @@ save_csv(
 
 if (FALSE && exists(cloud_dir)) {
   here("data", "processed", "pre_obis") %>%
-    dir_ls() %>%
-    last_mod() %>%
-    tibble(old_name = .) %>%
-    mutate(
-      new_name = basename(old_name),
-      new_name = str_remove(new_name, "_\\d{8}.*[^\\.csv]")
-    ) %$%
-    walk2(
-      .x = old_name,
-      .y = new_name,
-      ~ file_copy(
-        path = .x,
-        new_path = here(cloud_dir, "processed", .y),
-        overwrite = TRUE
-      )
+  dir_ls() %>%
+  last_mod() %>%
+  file_copy(
+      path = .,
+      new_path  = here(cloud_dir, "processed", "zoo_data_pre_obis_merg.csv"),
+      overwrite = TRUE
     )
 }
 ```
