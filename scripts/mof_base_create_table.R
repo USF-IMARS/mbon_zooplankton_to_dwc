@@ -59,16 +59,17 @@ mof_read <- function() {
         tibble::tribble(
             ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
             "net_type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
-            "distance_m", "Length of sampling track", "P01/current/LENTRACK/",                NA,         "metres", "P06/current/ULAA/",                NA,
+            "distance_m_2", "Length of sampling track", "P01/current/LENTRACK/",                NA,         "metres", "P06/current/ULAA/",                NA,
             "net_size", "Sampling device aperture diameter", "Q01/current/Q0100012/",         NA,         "metres", "P06/current/ULAA/",                NA,
             "net_area", "Sampling device aperture surface area", "Q01/current/Q0100017/", NA,   "per square metre", "P06/current/PMSQ/",                NA,
             "flowmeter_in",            "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
             "flowmeter_out",           "flow meters", "L05/current/388/",                 NA,                   NA,                    NA,               NA,
             
-            # 
+            "inpeller_constant",            NA, NA, NA, NA, NA, NA,            
             "dillution",                      "",                     "",                 NA,         "milliliter",                    NA,               NA,
             "dillution_factor",               "",                     "",                 NA,                   NA,                    NA,               NA, 
-            "split_amount", "Sub-sampling coefficient", "P01/current/SSAMPC01/",          NA,            "decimal",                    NA,               NA,
+            # "split_size",                     "",                     "",                 NA,                    NA,                     NA,              NA, 
+            "total_split_frac", "Sub-sampling coefficient", "P01/current/SSAMPC01/",          NA,            "decimal",                    NA,               NA,
             "splits_analyzed",                "",                     "",                 NA,                   NA,                    NA,               NA, 
             # "filtered_volume_m3"
             "volume_filt_cubic_m", "Sample volume (filtration) by measuring cylinder", "P01/current/VOLFMCXX/",  NA,     "per cubic metre",   "P06/current/PCUM/",               NA, 
@@ -80,7 +81,6 @@ mof_read <- function() {
             "number_ind_sample", "Count (in assayed sample) of biological entity specified elsewhere", "P01/current/OCOUNT01/", NA, "Count of Biological Entity", "P09/current/OCNT/",              NA, 
             "tow_time_min",    "Sample Duration", "P01/current/AZDRZZ01/",                NA,             "Minutes",    "P06/current/UMIN/",              NA,
             "ship_speed_knots","Speed of towing platform", "P01/current/TOWSPEED/",       NA, "Knots (nautical miles per hour)", "P06/current/UKNT/",     NA, 
-            "split_size",                     "",                     "",                 NA,                    NA,                     NA,              NA, 
             "tow_speed_m_sec",           "Speed", "S06/current/S0600152/",                NA,   "Metres per second",    "P06/current/UVAA/",              NA, 
             "mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",                NA,         "Micrometres",    "P06/current/UMIC/",              NA,
             "microscopy",           "microscopy",    "S04/current/S0419/",                NA,                    NA,                     NA,              NA
@@ -88,7 +88,7 @@ mof_read <- function() {
          mutate(
              event_occur = case_when(
                  str_detect(orig_term, "ind_m3|number_ind_sample") ~ "occur",
-                 TRUE ~ "event"
+                 .default = "event"
              ),
              .after = orig_term
          )
