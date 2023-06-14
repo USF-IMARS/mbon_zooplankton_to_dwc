@@ -76,7 +76,7 @@ Steps:
 4. Add columns to convert to DarwinCore
 5. Extract each core
   - EventCore
-  - OccurenceCore
+  - OccurrenceCore
   - MoFcore
 
 
@@ -225,10 +225,12 @@ dwc_info <-
   print() %>%
     
 # ============================================================================ #
-# ---- 2.2.4 Occurence Level ----
+# ---- 2.2.4 Occurrence Level ----
 # ============================================================================ #    
   mutate(
     occurrenceID         = glue("{eventID}:{taxa_orig}:{lifeStage}"),
+    occurrenceID         = str_replace_all(occurrenceID, "\\s", "_"),
+    occurrenceID         = str_replace_all(occurrenceID, "\\.", ""),
     taxonRank            = rank,
     dateIdentified       = date_analyzed,
      # counts of organisms?
@@ -320,7 +322,7 @@ event_core <-
   print()
 ```
 
-## 3.2 Occurence Core
+## 3.2 Occurrence Core
 ```{r occur-extract}
 occur_core <-
   dwc_info %>%
@@ -383,16 +385,16 @@ mof_info$mof_event <-
 mof_info$mof_occur <-
   dwc_info %>%
   
-  # ---- filter for unique eventIDs and occurenceIDs
+  # ---- filter for unique eventIDs and occurrenceIDs
   distinct(eventID, occurrenceID, .keep_all = TRUE) %>%
     
-  # ---- select `occurence` mof variables     
+  # ---- select `occurrence` mof variables     
   select(
     eventID, occurrenceID,
     any_of(filter(mof_info$mof_base, str_detect(event_occur, "occur"))$orig_term)
   ) %>%
 
-  # ---- convert to long format based on eventID and occurenceID
+  # ---- convert to long format based on eventID and occurrenceID
   pivot_longer(
     cols      = -c(eventID, occurrenceID),
     names_to  = "orig_term",
@@ -401,7 +403,7 @@ mof_info$mof_occur <-
   ) 
 
 # ============================================================================ #
-# ---- Merge Event and Occurence MoF with MoF Base ----
+# ---- Merge Event and Occurrence MoF with MoF Base ----
 # ============================================================================ #    
 mof_core <-
   bind_rows(
@@ -462,7 +464,16 @@ pwalk(
 
 # ---- TEST ----
 ```{r test}
-
+str_count(occur_core$occurrenceID, "\\.") %>%
+    sort(decreasing = T)
+occur_core %>%
+    filter(str_detect(occurrenceID, "\\.")) %>%
+    select(occurrenceID) %>%
+    mutate(
+        mult = str_count(occurrenceID, "\\."),
+        occ2 = str_replace_all(occurrenceID, "\\.", "")
+    ) %>%
+      filter(mult > 1)
 
 reduce(list(event_core, occur_core, mof_core), left_join) 
 
