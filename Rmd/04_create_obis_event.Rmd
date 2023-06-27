@@ -264,8 +264,12 @@ dwc_info <-
     # individualCount,
     # organismQuantity         = ind_m3,
     # organismQuantityType     = "Individuals per cubic metre",
-    organismQuantity     = individualCount,
-    organismQuantityType = "Summation of 3x 5mL Aliquots",
+    # update June 26, 2023
+    # change organismQuantity to a density of individuals per cubic meter
+    # organismQuantity     = individualCount,
+    # organismQuantityType = "Summation of 3x 5mL Aliquots",
+    organismQuantity     = ind_m3,
+    organismQuantityType = "individuals per cubic metre",
     occurrenceStatus     = "present",
     preparations         = str_c(
       "seawater and 10% formalin before analysis in cod ends",
