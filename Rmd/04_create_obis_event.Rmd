@@ -261,7 +261,7 @@ dwc_info <-
     # individualCount          = number_ind_sample,
     # add each aliquot as a total count per sample event
     # update on April 17, 2023
-    # individualCount,
+    # organismQuantity
     # organismQuantity         = ind_m3,
     # organismQuantityType     = "Individuals per cubic metre",
     # update June 26, 2023
@@ -475,6 +475,33 @@ pwalk(
     ),
     here("data", "processed", "obis_example", Sys.Date()),
     glue("{c(\"event\", \"occur\", \"mof\")}_example_update")
+  ),
+  \(data, loc, name_f)
+    save_csv(
+      .data          = data,
+      save_location  = loc,
+      save_name      = name_f,
+      overwrite      = FALSE,
+      verbose        = TRUE,
+      time_stamp_fmt = "%Y-%m-%d",
+      utf_8 = TRUE
+    )
+)
+```
+```{r save-full}
+set.seed(1234)
+# events <- sample(unique(event_core$eventID), 5)
+events <- unique(event_core$eventID)
+
+pwalk(
+  list(
+    list(
+      filter(event_core, eventID %in% events),
+      filter(occur_core, eventID %in% events),
+      filter(mof_core, eventID %in% events)
+    ),
+    here("data", "processed", "obis_example", Sys.Date()),
+    glue("{c(\"event\", \"occur\", \"mof\")}_update")
   ),
   \(data, loc, name_f)
     save_csv(
