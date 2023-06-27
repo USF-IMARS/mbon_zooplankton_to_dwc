@@ -183,7 +183,25 @@ meta_df <-
         split_size          = map_dbl(split_size, function(x) {
                                     out <- tryCatch({
                                     eval(parse(text = x))}, 
-                                    error = function(e) {NA_integer_})}) 
+                                    error = function(e) {NA_integer_})}),
+        
+        # change station locations lat/lon because some seem off
+        lon_in = case_when(
+            str_detect(locationID, "MR") ~ -80.38000,
+            str_detect(locationID, "WS") ~ -81.71700,
+            str_detect(locationID, "LK") ~ -81.41300,
+            str_detect(locationID, "57") ~ -81.26500,
+            str_detect(locationID, "54") ~ -81.15283,
+            .default = lon_in
+        ),
+        lat_in = case_when(
+            str_detect(locationID, "MR") ~ 25.01000,
+            str_detect(locationID, "WS") ~ 24.47800,
+            str_detect(locationID, "LK") ~ 24.53800,
+            str_detect(locationID, "57") ~ 25.35167,
+            str_detect(locationID, "54") ~ 25.34533,
+            .default = lat_in
+        )
        ) 
 
 # ---- load zooplankton data
