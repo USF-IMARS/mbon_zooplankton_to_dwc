@@ -461,7 +461,7 @@ occur_core
 ```
 
 
-```{r save}
+```{r save-subset}
 set.seed(1234)
 events <- sample(unique(event_core$eventID), 5)
 # events <- unique(event_core$eventID)
@@ -490,7 +490,6 @@ pwalk(
 ```
 ```{r save-full}
 set.seed(1234)
-# events <- sample(unique(event_core$eventID), 5)
 events <- unique(event_core$eventID)
 
 pwalk(
