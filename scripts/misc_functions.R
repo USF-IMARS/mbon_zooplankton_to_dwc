@@ -90,7 +90,7 @@ file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
                       time_stamp_fmt = "%Y%m%d_%H%M%S") {
     
     # ---- help for deciding time stamp format
-    if (str_detect(time_stamp_fmt, "help")) {
+    if (!is.null(time_stamp_fmt) && str_detect(time_stamp_fmt, "help")) {
           return(tribble(
             ~code, ~meaning,
           "%a",  "Abbreviated weekday", 
