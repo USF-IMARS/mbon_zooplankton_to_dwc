@@ -53,6 +53,7 @@ other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
 
 other_vars$larval_stage <- 
     tribble(
+        # original name  # DwC versions
         ~larva_orig,     ~larva_new,
        "copepodite", "copepodites",
           "nauplii",     "nauplii", 
@@ -464,7 +465,6 @@ occur_core
 ```{r save-subset}
 set.seed(1234)
 events <- sample(unique(event_core$eventID), 5)
-# events <- unique(event_core$eventID)
 
 pwalk(
   list(
@@ -489,18 +489,15 @@ pwalk(
 )
 ```
 ```{r save-full}
-set.seed(1234)
-events <- unique(event_core$eventID)
-
 pwalk(
   list(
     list(
-      filter(event_core, eventID %in% events),
-      filter(occur_core, eventID %in% events),
-      filter(mof_core, eventID %in% events)
+      event_core,
+      occur_core,
+      mof_core
     ),
-    here("data", "processed", "obis_example", Sys.Date()),
-    glue("{c(\"event\", \"occur\", \"mof\")}_update")
+    here("data", "processed", "obis"),
+    glue("{c(\"event\", \"occur\", \"mof\")}")
   ),
   \(data, loc, name_f)
     save_csv(
@@ -509,10 +506,25 @@ pwalk(
       save_name      = name_f,
       overwrite      = FALSE,
       verbose        = TRUE,
-      time_stamp_fmt = "%Y-%m-%d",
+      time_stamp_fmt = NULL,
       utf_8 = TRUE
     )
 )
+
+if (FALSE && exists("cloud_dir")) {
+  obis_files <-
+    here("data", "processed", "obis") %>%
+    dir_ls() %>%
+    str_subset("old|ex", negate = TRUE)
+
+  dir_create(here(cloud_dir, "processed", "obis"))
+
+  file_copy(
+    obis_files,
+    here(cloud_dir, "processed", "obis"),
+    FALSE
+  )
+}
 ```
 
 
