@@ -110,22 +110,16 @@ if (is_empty(aphia_id) | FALSE) {
     mutate(
       aphiaID = str_extract(scientificNameID, "\\d+"),
       aphiaID = as.numeric(aphiaID),
-      info = map(
-        aphiaID,
-        ~ tryCatch(
-          {
-            worrms::wm_record(.x)
-          },
-          error = function(e) {
-            return(NULL)
-          }
+      info =  pmap(
+            list(aphiaID,
+                 taxa_orig,
+                 row_number()),
+            .f = worrms_info_extract # function in taxa_list_check.R
         )
-      )
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
     select(!contains("_2"), -c(2:6))
-
-
+  
   meta_file <-
     (file_expr(
       loc = here("data", "metadata"),
@@ -133,7 +127,7 @@ if (is_empty(aphia_id) | FALSE) {
     ))[[2]] %>%
     eval()
 
-  cli_alert_info("File name: {.file {basename(meta_file)}}")
+  cli_alert_info("\nFile name: {.file {basename(meta_file)}}")
 
   write_csv(aphia_id,
     file = meta_file,
@@ -289,6 +283,8 @@ if (FALSE && exists(cloud_dir)) {
     )
 }
 ```
+
+# STOP HERE ------------------
 
 # Create data sheet for Enrique Montes
 ```{r}
