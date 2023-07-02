@@ -749,7 +749,7 @@ master_taxa_list <- function(taxa_list  = NULL,
 
   file_location <- here(.cloud_dir, glue("{.file_expr[[1]]}.csv"))
 
-  # push to cloud
+  # ---- push to cloud
   if (str_detect(where_to, "cloud") & !is.null(taxa_list) & save) {
     file_location %>%
       write_excel_csv(taxa_list, ., na = "")
@@ -763,14 +763,14 @@ master_taxa_list <- function(taxa_list  = NULL,
     return(invisible(NULL))
   }
 
-  # pull from cloud
+  # ---- pull from cloud
   if (str_detect(where_to, "local") & !save) {
     file_location <-
       here::here(.cloud_dir) %>%
       fs::dir_ls(regexp = .file_expr[[1]])
 
     # if more than 1 file if found, choose one
-    if (length(file_location > 1)) {
+    if (length(file_location) > 1) {
       cli::cli_alert_info(c(
         "There was more than one file found. ",
         "Choose one:"
@@ -898,14 +898,14 @@ worrms_info_extract <-
         {
             if (.z == 1) {
                 cat(sprintf(
-                    "\n%-4s | %-6s | names\n%s",
+                    "\n%-4s | %-7s | names\n%s",
                     "Row", "aphia",
                     stringi::stri_dup("-", 37)
                 ))
             }  
             
             if (.z == 0) {
-            cat(sprintf("%6s | %s | ", .x, .y))
+            cat(sprintf("\n%6s | %s | ", .x, .y))
                 
             } else {
                 cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
