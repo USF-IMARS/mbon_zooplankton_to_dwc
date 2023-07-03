@@ -133,6 +133,8 @@ if (is_empty(aphia_id) | FALSE) {
     file = meta_file,
     na   = ""
   )
+  
+  rm(meta_file)
 } else {
   aphia_id <-
     aphia_id %>%
