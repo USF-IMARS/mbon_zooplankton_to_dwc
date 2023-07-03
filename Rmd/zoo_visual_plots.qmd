@@ -1,0 +1,371 @@
+---
+title: "Zooplankton Visual Collection"
+date: "2023-07-03"
+author: "Sebastian Di Geronimo"
+format: html
+---
+
+# 1.0 Load Libraries
+```{r setup}
+
+if (!nzchar(system.file(package = "librarian"))) 
+    install.packages("librarian")
+
+librarian::shelf(
+    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    # broom # optional
+    
+    # additional
+    
+)
+
+# shelf(conflicted) # may be needed if won't allow loading of certain packages
+
+conflicts_prefer(
+    dplyr::filter(), 
+    dplyr::select()
+    )
+```
+
+# 2.0 Load Data
+```{r load-data}
+# ---- Load Final OBIS Converted Data
+dat_heat <- 
+    dat_event %>%
+    select(locationID, mesh, eventDate) %>%
+    mutate(
+        year = year(eventDate),
+        year = as.character(year),
+        year = fct(year),
+        year = lvls_expand(year,
+                           new_levels = as.character(2015:year(Sys.Date()))),
+        year = fct_rev(year),
+        month = month(eventDate, label = TRUE, abbr = FALSE),
+        present = "N"
+    )
+
+# ---- Load Jamie Data
+dat_heat2 <- 
+    here("data", "zoo_pre_2018", "obis") %>%
+    dir_ls(regexp = "event") %>%
+    last() %>%
+    read_csv(show_col_types = FALSE) %>%
+    select(locationID, eventDate, "mesh" = samplingProtocol) %>%
+    mutate(locationID      = case_when(
+                str_detect(locationID, "Mol")  ~ "MR",
+                str_detect(locationID, "Loo")  ~ "LK",
+                str_detect(locationID, "West") ~ "WS",
+                str_detect(locationID, "9B")   ~ "9B",
+                .default = locationID),
+           mesh = str_extract(mesh, "\\d{2,3}"),
+            year = year(eventDate),
+        year = as.character(year),
+        year = fct(year),
+        year = lvls_expand(year, 
+                           new_levels = as.character(2015:year(Sys.Date()))),
+        year = fct_rev(year),
+        month = month(eventDate, label = TRUE, abbr = FALSE),
+        present = "J"
+    )
+
+# ---- Merge Analyzed Data
+dat_heat3 <- 
+    full_join(
+        dat_heat,
+        dat_heat2,
+        # by = join_by(locationID, mesh, year, month)
+    ) %>%
+    distinct(locationID, mesh, year, month, .keep_all = TRUE)
+
+
+# ---- Load Metadata for the Un-analyzed Samples
+meta_df <-
+    dir_ls(
+        path   = here("data", "metadata", "cruise_logsheets"),
+        regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+    last_mod(.) %>%
+    read_csv(show_col_types = FALSE) %>%
+    
+    # this is when Natalia LF started analysis
+    filter(date >= date("2017-06-18")) %>%
+    
+    mutate(locationID      = case_when(
+                str_detect(station, "Mol")  ~ "MR",
+                str_detect(station, "Loo")  ~ "LK",
+                str_detect(station, "West") ~ "WS",
+                str_detect(station, "9B")   ~ "9B",
+                .default = station), 
+           .after = station) %>%
+    mutate(
+        # Note: flowmeter is MF315
+        net_size            = 0.5,
+        net_area            = pi * 0.5^2,
+        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
+        tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
+        volume_filt_cubic_m = net_area/4 * distance_m_2,
+        split_size          = map_dbl(split_size, function(x) {
+                                    out <- tryCatch({
+                                    eval(parse(text = x))}, 
+                                    error = function(e) {NA_integer_})}),
+        
+        # change station locations lat/lon because some seem off
+        lon_in = case_when(
+            str_detect(locationID, "MR") ~ -80.38000,
+            str_detect(locationID, "WS") ~ -81.71700,
+            str_detect(locationID, "LK") ~ -81.41300,
+            str_detect(locationID, "57") ~ -81.26500,
+            str_detect(locationID, "54") ~ -81.15283,
+            .default = lon_in
+        ),
+        lat_in = case_when(
+            str_detect(locationID, "MR") ~ 25.01000,
+            str_detect(locationID, "WS") ~ 24.47800,
+            str_detect(locationID, "LK") ~ 24.53800,
+            str_detect(locationID, "57") ~ 25.35167,
+            str_detect(locationID, "54") ~ 25.34533,
+            .default = lat_in
+        )
+       )  %>%
+    select(locationID, "mesh" = mesh_size_um, "eventDate" = date) %>%
+    mutate(
+        mesh = as.character(mesh),
+        year = year(eventDate),
+        year = as.character(year),
+        year = fct(year),
+        year = forcats::lvls_expand(year, 
+                                    new_levels = as.character(2015:year(Sys.Date()))),
+        year = fct_rev(year),
+        month = month(eventDate, label = TRUE, abbr = FALSE),
+        present = "C"
+    ) %>%
+    anti_join(
+        dat_heat3,
+        by = join_by(locationID, mesh, year, month)
+    )
+
+```
+
+# 3.0 Plot Heat Maps
+
+## 3.1 Default Theme
+```{r heat-setup}
+theme <- list(
+    scale_y_discrete(expand = c(0,0)),
+    scale_fill_manual(
+        values   = c("#BDD7EE", rep("#FFF2CC", 2)),
+        na.value = "white"),
+    ggthemes::theme_clean(),
+    facet_grid(
+        fct_rev(locationID) ~ mesh,
+        switch = "y"),
+    theme(
+        text = element_text(family = "serif"),
+        # plot.title = element_text(size = 20),
+        strip.placement   = "outside",
+        strip.text.x      = element_text(face = "bold", 
+                                         # size = 15
+                                         ),
+        strip.text.y.left = element_text(face  = "bold", 
+                                         angle = 0, 
+                                         # size  = 15
+                                         ),
+        plot.margin = margin(10, 10, 15, 20),
+        panel.border = element_rect(color = "black", fill = NA, size = 1)
+        ),
+        scale_x_discrete(
+        position = "top", 
+        expand   = c(0,0),
+        drop     = FALSE)
+)
+```
+
+## 3.2 Plot Heat Map for Year, Month, Mesh and Station
+```{r heat-main}
+plt_heat_main <- 
+    bind_rows(
+    dat_heat3,
+    meta_df
+    ) %>%
+    filter(!str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
+    complete(year, month, locationID, mesh) %>%
+    ggplot(aes(y = year, x = month)) +
+    geom_tile(aes(
+        fill = present,
+        ),
+        color = "gray",
+        show.legend = FALSE) +
+    geom_tile(data = dat_heat3, fill = "transparent", color = "black") +
+    geom_text(data = dat_heat3, aes(label = present), family = "serif") +
+    labs(
+        title = "Zooplankton Collected and Analyzed",
+        subtitle = "(J: Jaimie, N: Natalia; yellow: analyzed, blue: collected)",
+        x = NULL,
+        y = NULL
+    ) +
+    theme
+```
+
+## 3.3 Plot Heat Map for Other Samples Not Taken Frequently
+```{r heat-other}
+plt_heat_other <- 
+    bind_rows(
+    dat_heat,
+    meta_df
+    ) %>%
+    filter(str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
+    complete(year, month, locationID, mesh) %>%
+    ggplot(aes(y = year, x = month)) +
+    geom_tile(aes(
+        fill = present,
+        ),
+        color = "gray",
+        show.legend = FALSE) +
+    labs(
+        title = "Other Zooplankton Collected",
+        subtitle = "(yellow: analyzed, blue: collected)",
+        x = NULL,
+        y = NULL
+    ) +
+    theme
+```
+
+## 3.4 Plot Heat Map for Overall
+```{r heat-all}
+dat_heat4 <-
+  bind_rows(
+    dat_heat3,
+    meta_df
+  ) %>%
+  filter(!str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
+  mutate(
+    analyzed = if_else(str_detect(present, "J|N"), 1, 0)
+  ) %>%
+  mutate(
+    .by     = c(year, month, locationID),
+    count   = n(),
+    counts  = sum(analyzed),
+    counts  = as.integer(counts),
+    counts2 = case_when(
+      counts == 0 ~ "none",
+      count > counts ~ "partial",
+      count == counts ~ "complete",
+      .default = ""
+    )
+  ) %>%
+  distinct(year, month, .keep_all = T)
+
+plt_heat_overall <-
+  dat_heat4 %>%
+  complete(year, month) %>%
+  ggplot(aes(y = year, x = month)) +
+  geom_tile(
+    aes(
+      fill = counts2
+    ),
+    color = "gray",
+    show.legend = FALSE
+  ) +
+  geom_tile(
+    data = filter(dat_heat4, counts2 == "complete"),
+    aes(color = counts2),
+    fill = "transparent",
+    linewidth = 2,
+    show.legend = FALSE
+  ) +
+  geom_text(aes(label = if_else(present != "C", present, NA)),
+            family = "serif") +
+  labs(
+    title = "Overall Zooplankton Collected and Analyzed",
+    subtitle = "(yellow: analyzed, blue: collected; green border: complete station)",
+    x = NULL,
+    y = NULL
+  ) +
+  scale_fill_manual(
+    values = c(
+      "#FFF2CC",
+      "#BDD7EE",
+      # "red"
+      "#FFF2CC"
+    ),
+    na.value = "white"
+  ) +
+  scale_color_manual(values = "green") +
+  theme[-c(4, 2)]
+```
+
+## 3.5 Show Heat Maps
+```{r show-plots}
+plt_heat_overall
+plt_heat_main
+plt_heat_other
+```
+
+# 4.0 Save Heat Map
+
+## 4.1 Function to Save Plots
+```{r save-func, fig.height=8, fig.width=17}
+##%######################################################%##
+#                                                          #
+####                   Save gg Plots                    ####
+#                                                          #
+##%######################################################%##
+file_sv <- function(plt, filename, device = c("jpeg", "svg"), 
+                    height = 15, width = 30, ...) {
+  device <- match.arg(device)
+  
+  height <- if (is.null(height)) 3.71 else height
+  
+  cowplot::save_plot(
+    filename    = filename,
+    plot        = plt,
+    base_height = height,
+    base_width  = width,
+    device      = device,
+    ...
+  )
+}
+```
+
+## 4.2 Doesn't Work as Expected, Save TOO BIG
+```{r save, fig.height=8, fig.width=17}
+if (FALSE) {
+    file_sv(
+        plt = plt_heat_overall,
+        filename =  here("data", "plots",
+       glue("zoo_visual_overall",
+            # format(Sys.time(), '_%Y%m%d_%H%M%S'),
+            ".jpeg")
+            ), 
+        device = "jpeg",
+        height = 10, width = NULL
+    )
+    file_sv(
+        plt = plt_heat_main,
+        filename =  here("data", "plots",
+       glue("zoo_visual_main",
+            # format(Sys.time(), '_%Y%m%d_%H%M%S'),
+            ".jpeg")
+            ), 
+        device = "jpeg",
+       height = 700, 
+       width = 1891,
+       scaling = 0.45,
+       dpi = 600,
+       units = "px"
+       # base_asp = 1.5
+    )
+    file_sv(
+        plt = plt_heat_other,
+        filename =  here("data", "plots",
+       glue("zoo_visual_other",
+            # format(Sys.time(), '_%Y%m%d_%H%M%S'),
+            ".jpeg")
+            ), 
+        device = "jpeg",
+       height = 15, 
+       width = 10
+    )
+}
+
+```
