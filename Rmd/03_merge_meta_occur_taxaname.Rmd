@@ -94,7 +94,8 @@ rm(func_attach)
 ```{r load-data}
 aphia_id <- 
     here("data", "metadata") %>%
-    dir_ls(regexp = "aphia_additional")
+    dir_ls(regexp = "aphia_extended_info", 
+           recurse = 1)
 
 if (is_empty(aphia_id) | FALSE) {
   cli_alert_info("Creating a additional aphia ID file.")
@@ -119,20 +120,16 @@ if (is_empty(aphia_id) | FALSE) {
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
     select(!contains("_2"), -c(2:6))
-  
-  meta_file <-
-    (file_expr(
-      loc = here("data", "metadata"),
-      file_base = "aphia_additional"
-    ))[[2]] %>%
-    eval()
 
-  cli_alert_info("\nFile name: {.file {basename(meta_file)}}")
-
-  write_csv(aphia_id,
-    file = meta_file,
-    na   = ""
-  )
+  cli_alert_info("\n\nSaving another `Aphia Extended` file!\n}")
+  save_csv(
+        .data         = aphia_id,        
+        save_location = here("data", "metadata", "aphia_extended"),
+        save_name     = "aphia_extended_info",
+        overwrite     = TRUE,
+        verbose       = TRUE,
+        utf_8         = TRUE
+    )
   
   rm(meta_file)
 } else {
