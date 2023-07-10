@@ -738,6 +738,10 @@ master_taxa_list <- function(taxa_list  = NULL,
                              save       = FALSE,
                              .file_expr = file_expr(),
                              sheet_name = "Master Taxa Sheet") {
+    
+  # TODO: break into two functions
+  # 1. pull_taxa_from_cloud
+  # 2. update_taxa_in_cloud
   assertthat::assert_that(
     !rlang::is_null(where_to),
     msg = glue(
@@ -749,7 +753,9 @@ master_taxa_list <- function(taxa_list  = NULL,
 
   file_location <- here(.cloud_dir, glue("{.file_expr[[1]]}.csv"))
 
-  # ---- push to cloud
+  # ========================================================================== #
+  # ---- update
+  # ========================================================================== #
   if (str_detect(where_to, "cloud") & !is.null(taxa_list) & save) {
     file_location %>%
       write_excel_csv(taxa_list, ., na = "")
@@ -763,7 +769,9 @@ master_taxa_list <- function(taxa_list  = NULL,
     return(invisible(NULL))
   }
 
+  # ========================================================================== #
   # ---- pull from cloud
+  # ========================================================================== #    
   if (str_detect(where_to, "local") & !save) {
     file_location <-
       here::here(.cloud_dir) %>%
@@ -798,7 +806,9 @@ master_taxa_list <- function(taxa_list  = NULL,
     return(invisible(NULL))
   }
 
-  # save to local
+  # ========================================================================== #
+  # ---- update local
+  # ========================================================================== #    
   if (str_detect(where_to, "local") & !is.null(taxa_list) & save) {
     file_location <- eval(.file_expr[[2]])
 
@@ -812,6 +822,151 @@ master_taxa_list <- function(taxa_list  = NULL,
       na   = ""
     )
 
+    return(invisible(NULL))
+  }
+
+  cli::cli_alert_warning(c(
+    "Nothing was pushed or pulled.\nIf pushing to",
+    "{.var cloud}, make sure to have to set",
+    "{.var taxa_list}"
+  ))
+
+  return(invisible(NULL))
+
+  # ---- end of function
+}
+
+
+# 1. pull_taxa_from_cloud
+pull_taxa_from_cloud <- function(
+        .cloud_dir,       
+        .file_expr = NULL,                         
+        sheet_name = "Master Taxa Sheet") {
+  # ========================================================================== #
+  # ---- pull from cloud
+  # ========================================================================== # 
+  file_location <-
+    here::here(.cloud_dir) %>%
+    fs::dir_ls(regexp = .file_expr[[1]])
+
+  # if more than 1 file if found, choose one
+  if (length(file_location) > 1) {
+    cli::cli_alert_info(c(
+      "There was more than one file found. ",
+      "Choose one:"
+    ))
+    file_location <-
+      file_location[menu(basename(file_location))]
+  }
+
+  assertthat::assert_that(
+    fs::file_exists(file_location),
+    msg = glue(
+      "`{.file_expr[[1]]}.csv` does not exists ",
+      "in {.cloud_dir}"
+    )
+  )
+
+  file_location %>%
+    fs::file_copy(., eval(.file_expr[[2]]))
+
+  cli::cli_alert_success(c(
+    "Copying ",
+    "{.strong {col_green(sheet_name)}} ",
+    "to {.path {dirname(eval(.file_expr[[2]]))}}"
+  ))
+
+  return(invisible(NULL))
+
+  # ---- end of function
+}
+
+
+# 2. update_taxa_list
+update_taxa_list <- function(taxa_list = NULL,
+                             .cloud_dir,
+                             where_to = c("local", "cloud"),
+                             save = FALSE,
+                             overwrite = save,
+                             .file_expr =  NULL,
+                             sheet_name = "Master Taxa Sheet") {
+  # taxa cloud location
+  # file to copy to cloud
+  # the base name
+
+
+  assertthat::assert_that(
+    !is.null(taxa_list),
+    msg = paste("`taxa_list` needs to contains a `data.frame` or `tibble` with", 
+                "taxonomic information")
+  )
+    
+  assertthat::assert_that(
+    fs::dir_exists(.cloud_dir),
+    msg = "`.cloud_dir` path does not exists! Please supply one that exists."
+  )
+    
+  assertthat::assert_that(
+    save,
+    msg = paste("`save` was set to `FALSE` so stopping early. Set to `TRUE`", 
+                "if you want to update a local/cloud master taxa sheet.")
+  )
+  
+  assertthat::assert_that(
+    !is.null(.file_expr) & is.list(.file_expr),
+    msg = paste("`.file_expr` is expected to be the output of the function", 
+                "`file_expr()` to set the file base name.")
+  )
+   
+  where_to <- match.arg(where_to)  
+  
+  # ========================================================================== #
+  # ---- update cloud
+  # ========================================================================== # 
+  if (str_detect(where_to, "cloud")) {
+    here(.cloud_dir, glue("{.file_expr[[1]]}.csv")) #%>%
+      # write_excel_csv(taxa_list, ., na = "")
+
+    cli::cli_alert_success(c(
+      "Updating ",
+      "{.strong {col_green(sheet_name)}} ",
+      "in {.path {cloud_dir}}"
+    ))
+    
+    save_csv(
+        .data         = taxa_list,        
+        save_location = .cloud_dir,
+        save_name     = .file_expr[[1]],
+        overwrite     = overwrite,
+        verbose       = TRUE,
+        time_stamp_fmt = NULL,
+        utf_8          = TRUE
+    )
+    
+    return(invisible(NULL))
+  }
+
+  # ========================================================================== #
+  # ---- update local
+  # ========================================================================== #
+  if (str_detect(where_to, "local")) {
+    file_location <- eval(.file_expr[[2]])
+
+    cli::cli_alert_success(c(
+      "Saving another version of ",
+      "{.strong {col_green(sheet_name)}} ",
+      "to {.path {dirname(file_location)}}"
+    ))
+    
+    save_csv(
+        .data = taxa_list,
+        save_location = file_exprs2[[3]],
+        save_name = file_exprs2[[1]],
+        overwrite = overwrite,
+        verbose = TRUE,
+        utf_8 = TRUE
+    )
+    
     return(invisible(NULL))
   }
 
