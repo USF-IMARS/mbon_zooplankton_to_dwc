@@ -94,7 +94,10 @@ taxa %>%
 
 ```{r push-pull-save}
 # current saved
-taxa_list <- load_taxa_list(check = TRUE)
+taxa_list <- 
+  load_taxa_list(
+    loc = file_exprs[[3]],
+    check = TRUE)
 
 # join to current taxa list to add new ones
 taxa_list <- 
@@ -115,10 +118,19 @@ no_matches
 #                  viewer     = TRUE)
 
 if (FALSE) {
-    master_taxa_list(taxa_list  = taxa_list, 
-                     .cloud_dir = cloud_dir, 
-                     where_to   = "local",
-                     save       = TRUE)
+  update_taxa_list(
+      taxa_list   = taxa_list,
+      .cloud_dir  = here(cloud_dir),
+      save        = TRUE,
+      # overwrite = FALSE,
+      .file_expr  = file_exprs,
+      where_to    = "local"
+  )
+    
+    # master_taxa_list(taxa_list  = taxa_list, 
+    #                  .cloud_dir = cloud_dir, 
+    #                  where_to   = "local",
+    #                  save       = TRUE)
 }
 ```
 
@@ -154,6 +166,20 @@ if (FALSE) {
 # ============================================================================ #    
 if (is.na(cloud_dir) | !dir_exists(cloud_dir)) {
     rlang::abort("Stop! You don't have a cloud directory set!")
+}
+
+# ============================================================================ #
+# ---- Update Master Taxonomic Sheet ----
+# ============================================================================ #    
+if (FALSE) {
+     update_taxa_list(
+      taxa_list   = taxa_list,
+      .cloud_dir  = here(cloud_dir),
+      save        = FALSE,
+      # overwrite = FALSE,
+      .file_expr  = file_exprs,
+      where_to    = "cloud"
+  )
 }
 
 # ============================================================================ #
