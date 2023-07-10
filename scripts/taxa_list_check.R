@@ -837,11 +837,27 @@ master_taxa_list <- function(taxa_list  = NULL,
 }
 
 
-# 1. pull_taxa_from_cloud
+##%######################################################%##
+#                                                          #
+####    ---- 8.1 Pull Taxonomic List from Cloud ----    ####
+#                                                          #
+##%######################################################%##
+#' Pull Taxonomic List from Cloud
+#'
+#' FUNCTION_DESCRIPTION
+#'
+#' @param .cloud_dir DESCRIPTION.
+#' @param .file_expr DESCRIPTION.
+#' @param sheet_name DESCRIPTION.
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
 pull_taxa_from_cloud <- function(
         .cloud_dir,       
         .file_expr = NULL,                         
         sheet_name = "Master Taxa Sheet") {
+
   # ========================================================================== #
   # ---- pull from cloud
   # ========================================================================== # 
@@ -881,8 +897,26 @@ pull_taxa_from_cloud <- function(
   # ---- end of function
 }
 
-
-# 2. update_taxa_list
+##%######################################################%##
+#                                                          #
+####        ---- 8.2 Update Taxonomic List ----         ####
+#                                                          #
+##%######################################################%##
+#' Update Taxonomic List
+#'
+#' FUNCTION_DESCRIPTION
+#'
+#' @param taxa_list DESCRIPTION.
+#' @param .cloud_dir DESCRIPTION.
+#' @param where_to DESCRIPTION.
+#' @param save DESCRIPTION.
+#' @param overwrite DESCRIPTION.
+#' @param .file_expr DESCRIPTION.
+#' @param sheet_name DESCRIPTION.
+#'
+#' @return RETURN_DESCRIPTION
+#' @examples
+#' # ADD_EXAMPLES_HERE
 update_taxa_list <- function(taxa_list = NULL,
                              .cloud_dir,
                              where_to = c("local", "cloud"),
@@ -890,11 +924,6 @@ update_taxa_list <- function(taxa_list = NULL,
                              overwrite = save,
                              .file_expr =  NULL,
                              sheet_name = "Master Taxa Sheet") {
-  # taxa cloud location
-  # file to copy to cloud
-  # the base name
-
-
   assertthat::assert_that(
     !is.null(taxa_list),
     msg = paste("`taxa_list` needs to contains a `data.frame` or `tibble` with", 
