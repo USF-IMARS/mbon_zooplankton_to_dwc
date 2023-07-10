@@ -101,7 +101,8 @@ Steps:
 ```{r load-data}
 # ---- search file
 dwc_info <- 
-    here("data", "processed", "pre_obis")  %>%
+    # here("data", "processed", "pre_obis")  %>%
+    here(cloud_dir, "processed")  %>%
     dir_ls(regexp = "zoo_data_pre_obis") %>%
     last_mod() %T>% 
     print()
@@ -459,6 +460,13 @@ janitor::get_dupes(occur_core, occurrenceID)
 janitor::get_dupes(mof_core) # splits_analyzed and split_size are different, but no definition
 
 occur_core
+```
+## 4.1 Show Missing Data
+```{r}
+naniar::vis_miss(event_core)
+naniar::vis_miss(occur_core)
+naniar::vis_miss(mof_core)
+
 ```
 
 
