@@ -215,20 +215,26 @@ infos %>%
 
 # compare Anni taxa
 infos %>%
-    mutate(
-        .before = 1,
-        flag = case_when(
-            !str_equal(Genus, genus) ~ 6,
-            !str_equal(Family, family) ~ 5,
-            !str_equal(Order, order) ~ 4,
-            !str_equal(Class, class) ~ 3,
-            !str_equal(Phylum, phylum) ~ 2,
-            !str_equal(Kingdom, kingdom) ~ 1,
-            .default = NA
-        )
-    ) %>%
-      arrange(desc(flag)) %>%
-     relocate(flag, lvl)
+  mutate(
+    .before = 1,
+    flag = case_when(
+      !str_equal(Genus, genus) ~ 6,
+      !str_equal(Family, family) ~ 5,
+      !str_equal(Order, order) ~ 4,
+      !str_equal(Class, class) ~ 3,
+      !str_equal(Phylum, phylum) ~ 2,
+      !str_equal(Kingdom, kingdom) ~ 1,
+      .default = NA
+    ),
+    mis_match_level = lvl[3 + flag]
+  ) %>%
+  arrange(desc(flag)) %>%
+  relocate(flag, mis_match_level, lvl) %T>%
+  save_csv(
+    save_location  = dir_edna,
+    save_name      = "miss_match_taxa_id",
+    time_stamp_fmt = NULL
+  )
 
 
 
