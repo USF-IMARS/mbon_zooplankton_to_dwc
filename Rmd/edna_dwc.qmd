@@ -162,12 +162,12 @@ taxa_info <-
       str_extract(scientificNameID, "\\d+"),
       NA_character_),
     aphia_id = as.numeric(aphia_id),
-    row      = row_number(),
+    # row      = row_number(),
     info     = pmap(
       list(
         aphia_id,
         taxa_orig,
-        row
+        row_number()
       ),
       .f = worrms_info_extract
     )
@@ -187,6 +187,45 @@ taxa_info <-
 taxa_info %>%
   filter(is.na(aphia_id)) %>%
   distinct(search_name)
+```
+
+
+```{r add-info}
+# ---- compare taxa from Anni to found taxa in WoRRMs
+infos <- 
+taxa_info %>%
+    select(Kingdom:search_name, kingdom:genus, scientificname) %>%
+    distinct()
+lvl <- names(infos) %>%
+    fct(levels = c("search_name", "scientificname", 
+                   "Species",
+                   "Genus", "genus",
+                   "Family", "family",
+                   "Order", "order",
+                   "Class", "class",
+                   "Phylum", "phylum",
+                   "Kingdom", "kingdom"
+                   )) %>%
+    levels()
+infos %>%
+    mutate(
+        .before = 1,
+        flag = case_when(
+            !str_equal(Genus, genus) ~ 6,
+            !str_equal(Family, family) ~ 5,
+            !str_equal(Order, order) ~ 4,
+            !str_equal(Class, class) ~ 3,
+            !str_equal(Phylum, phylum) ~ 2,
+            !str_equal(Kingdom, kingdom) ~ 1,
+            .default = NA
+        )
+    ) %>%
+      arrange(desc(flag)) %>%
+     relocate(flag, lvl)
+
+infos %>%
+    filter(if_any(is.character, \(x) str_detect(x, "<"))) %>%
+     relocate(lvl)
 
 ```
 
