@@ -218,22 +218,23 @@ infos %>%
   mutate(
     .before = 1,
     flag = case_when(
-      !str_equal(Genus, genus) ~ 6,
-      !str_equal(Family, family) ~ 5,
-      !str_equal(Order, order) ~ 4,
-      !str_equal(Class, class) ~ 3,
-      !str_equal(Phylum, phylum) ~ 2,
-      !str_equal(Kingdom, kingdom) ~ 1,
-      .default = NA
+      !str_equal(Genus, genus) ~ 1,
+      !str_equal(Family, family) ~ 3,
+      !str_equal(Order, order) ~ 5,
+      !str_equal(Class, class) ~ 7,
+      !str_equal(Phylum, phylum) ~ 9,
+      !str_equal(Kingdom, kingdom) ~ 11,
+      .default = 13
     ),
-    mis_match_level = lvl[3 + flag]
+    mis_match_level = if_else(flag < 13, lvl[3 + flag], "none")
   ) %>%
-  arrange(desc(flag)) %>%
+  arrange(flag) %>%
   relocate(flag, mis_match_level, lvl) %T>%
   save_csv(
     save_location  = dir_edna,
     save_name      = "miss_match_taxa_id",
-    time_stamp_fmt = NULL
+    time_stamp_fmt = NULL,
+    overwrite = T
   )
 
 
