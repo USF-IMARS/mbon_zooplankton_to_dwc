@@ -193,20 +193,27 @@ taxa_info %>%
 ```{r add-info}
 # ---- compare taxa from Anni to found taxa in WoRRMs
 infos <- 
-taxa_info %>%
-    select(Kingdom:search_name, kingdom:genus, scientificname) %>%
-    distinct()
-lvl <- names(infos) %>%
-    fct(levels = c("search_name", "scientificname", 
-                   "Species",
-                   "Genus", "genus",
-                   "Family", "family",
-                   "Order", "order",
-                   "Class", "class",
-                   "Phylum", "phylum",
-                   "Kingdom", "kingdom"
-                   )) %>%
-    levels()
+  taxa_info %>%
+  select(Kingdom:search_name, kingdom:genus, scientificname) %>%
+  distinct()
+lvl <-
+  c(
+    "search_name", "scientificname",
+    "Species",
+    "Genus", "genus",
+    "Family", "family",
+    "Order", "order",
+    "Class", "class",
+    "Phylum", "phylum",
+    "Kingdom", "kingdom"
+  )
+
+# speceis with `< >` in one of columns
+infos %>%
+    filter(if_any(is.character, \(x) str_detect(x, "<"))) %>%
+     relocate(lvl)
+
+# compare Anni taxa
 infos %>%
     mutate(
         .before = 1,
@@ -223,9 +230,7 @@ infos %>%
       arrange(desc(flag)) %>%
      relocate(flag, lvl)
 
-infos %>%
-    filter(if_any(is.character, \(x) str_detect(x, "<"))) %>%
-     relocate(lvl)
+
 
 ```
 
