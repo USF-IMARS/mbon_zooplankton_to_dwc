@@ -39,7 +39,7 @@ last_mod <-  function(fpath, check = TRUE) {
 ##%######################################################%##
 #' Base File Name and File Name Expression
 #'
-#' This function take a location to save aphiaID file and a base name to 
+#' This function takes a location to save file and a base name to 
 #' search for in either locally or the cloud
 #'
 #' @param loc Location to save aphia ID file
@@ -81,6 +81,9 @@ last_mod <-  function(fpath, check = TRUE) {
 #'      %Y - 4-digit year
 #'      %z - Offset from GMT	
 #'      %Z - Time zone (character)
+#'      
+#' @author Sebastian Di Geronimo (June, 2023)
+#'      
 #' @examples
 #' # ADD_EXAMPLES_HERE
 #' 
