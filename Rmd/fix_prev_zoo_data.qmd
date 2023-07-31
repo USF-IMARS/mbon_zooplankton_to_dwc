@@ -42,19 +42,26 @@ Jaime counted a certain number of a species, if it reached a certain amount:
 
 # Load Libraries
 ```{r setup}
+if (!nzchar(system.file(package = "librarian"))) 
+    install.packages("librarian")
+
 librarian::shelf(
-    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
     # broom # optional
     
     # additional
-    readxl, janitor, hablar
+    readxl, janitor, hablar,
+    
+    quiet = TRUE
 )
 
-library("conflicted")
+# shelf(conflicted) # may be needed if won't allow loading of certain packages
 
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
+conflicts_prefer(
+    dplyr::filter(), 
+    dplyr::select()
+    )
 ```
 
 ```{r create-folder}
@@ -99,9 +106,9 @@ sheets <-
     # filter(str_detect(sheets, "^(WS|LK)")) %>%
     filter(!str_detect(sheet_nm, "Samples|PL")) %>%
     mutate(
-        sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
+        # sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
         # may need to change to this?
-        # sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
+        sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
         sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)) %>%
     separate_wider_regex(
         sheet,
@@ -115,7 +122,7 @@ sheets <-
     mutate(dup   = if_else(str_detect(dup, "2"), 
                            "duplicate", 
                            NA_character_),
-           year = str_c("20", year)) %>%
+           year  = str_c("20", year)) %>%
     relocate(stn, .after = year) %>%
     relocate(year, .after = 1)
 ```
@@ -175,11 +182,12 @@ species <-
     mutate(
         # metadata
         meta = map(sheet_nm, 
-                   ~read_xlsx(file_location, 
-                              sheet = .,
-                              n_max = 7, 
-                              col_names    = FALSE,
-                              .name_repair = make_clean_names) 
+                   ~read_xlsx(
+                       file_location,
+                       sheet = .,
+                       n_max = 7,
+                       col_names    = FALSE,
+                       .name_repair = make_clean_names) 
                    ),
         # extract important metadata
         meta_top = map(meta,
@@ -282,7 +290,8 @@ meta_samples <-
   meta_samples_file %>%
   read_csv(
     show_col_types = FALSE,
-    name_repair = make_clean_names
+    name_repair = make_clean_names,
+    na = c("", "NA", "na", "did not work"),
   ) %>%
   select(-x) %>%
   filter(!if_all(2:last_col(), \(x) is.na(x))) %>%
@@ -308,6 +317,7 @@ meta_samples <-
     lat_in = if_else(is.numeric(lat_in) & lat_in < 0, -lat_in, lat_in),
     lon_in = if_else(is.numeric(lon_in) & lon_in > 0, -lon_in, lon_in)
   ) %>% 
+  fill(month, year, day, date) %>%
   nest(
       .by = c(year,
             month,
@@ -336,10 +346,10 @@ species1 <-
       clean_names()
 
 species3 <-
-    species1 %>%
-    unnest(data_x, names_repair = make_clean_names) %>% 
-    unnest(data_y, names_repair = make_clean_names) %>%
-    remove_empty("cols") %>%
+  species1 %>%
+  unnest(data_x, names_repair = make_clean_names) %>%
+  unnest(data_y, names_repair = make_clean_names) %>%
+  remove_empty("cols") %>%
   mutate(
     split_size_2 = map_dbl(
       split_size_2,
@@ -355,38 +365,42 @@ species3 <-
       }
     )
   ) %>%
-    relocate(contains("clasific"):n_ind_m3, 
-             .after = last_col()) %>%
- relocate(day, date, local_time_est, station, 
-          .after = month)  %>%
-    mutate(
-        new_vol = abs(vol_filtered_m_3 - vol_filtered_m3)
-    ) %>%
-    filter(
-        .by = sheet_nm,
-        new_vol == min(new_vol) |
-        is.na(new_vol)   
-    ) %>%
-     select(-new_vol)
+  relocate(contains("clasific"):n_ind_m3,
+    .after = last_col()
+  ) %>%
+  relocate(day, date, local_time_est, station,
+    .after = month
+  ) %>%
+  mutate(
+    new_vol = abs(vol_filtered_m_3 - vol_filtered_m3)
+  ) %>%
+  filter(
+    .by = sheet_nm,
+    new_vol == min(new_vol) |
+      is.na(new_vol)
+  ) %>%
+  select(-new_vol)
 ```
 
 
 # Save Files
 ```{r save-files}
 save_csv(
-    .data          = species,
+    .data          = species_unnest,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled",
-    overwrite      = FALSE,
+    # overwrite      = FALSE,
+    overwrite      = TRUE,
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
 
 save_csv(
-    .data          = species,
+    .data          = species3,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled_with_meta",
-    overwrite      = FALSE,
+    # overwrite      = FALSE,
+    overwrite      = TRUE,
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
