@@ -179,7 +179,7 @@ dwc_info <-
     license                = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
     institutionCode        = "USF | NOAA", # include NOAA
     # ownerInstitutionCode = "USF",
-    colletionCode          = "SEUS-MBON-Zooplankton",
+    collectionCode          = "SEUS-MBON-Zooplankton",
     parentEventID          = "IMaRS_MBON_zooplankton",
     datasetName            = paste(
       "MBON/USF-IMaRS/NOAA AOML Florida Keys National",
@@ -302,6 +302,71 @@ dwc_info <-
     # MOF?
 ```
 
+## 2.3 Load Data from before 2018
+```{r}
+stations <- c("LK", "MR", "WS")
+
+real_loc <- 
+tribble(
+ ~locationID, ~lon,  ~lat, ~labs,        
+ "MR",        -80.4, 25.0, "64, 200, 500",
+ "LK",        -81.4, 24.5, "64, 200, 500",
+ "WS",        -81.7, 24.5, "64, 200, 500",
+ "54",        -81.2, 25.3, "64 (only)",
+ "57",        -81.3, 25.4, "64 (only)")
+
+# TODO: add cloud dir
+old_data <- 
+    here("data", "zoo_pre_2018", "processed") %>%
+    dir_ls(regexp = "occurrences") %>%
+    last_mod() %>%
+    read_csv(show_col_types = FALSE) %T>% print()
+
+dwc_info <-
+    old_data %>%
+    select(any_of(names(dwc_info))) %>% 
+    mutate(
+        .keep = "used",
+        eventDate        = format_ISO8601(eventDate, usetz = "Z"),
+        eventID          = str_remove(eventID, "\\}"),
+        occurrenceID     = str_remove_all(occurrenceID, "\\}|\\."),
+        occurrenceID     = stringi::stri_trans_general(occurrenceID, "Latin-ASCII"),
+        locationID       = case_when(
+            str_detect(eventID, stations[1]) ~ stations[1],
+            str_detect(eventID, stations[2]) ~ stations[2],
+            str_detect(eventID, stations[3]) ~ stations[3],
+            .default = NA
+        ),
+        decimalLatitude = case_when(
+            str_detect(locationID, real_loc$locationID[1]) ~ real_loc$lat[1],
+            str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lat[2],
+            str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lat[3],
+        ),
+        decimalLongitude = case_when(
+            str_detect(locationID, real_loc$locationID[1]) ~ real_loc$lon[1],
+            str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lon[2],
+            str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lon[3],
+        ),
+    )  %>% 
+    bind_rows(., dwc_info) %>%
+     mutate(
+        # .keep = "used",
+        year,
+        eventDate1 = as_date(eventDate),
+        year = if_else(is.na(year),
+                        year(eventDate1),
+                        year),
+        month = if_else(is.na(month),
+                        month(eventDate1),
+                        month),
+        day = if_else(is.na(day),
+                        day(eventDate1),
+                        day),
+    ) %T>%
+    print()
+```
+
+
 # 3.0 Extract "Cores"
 The information from each core will be extracted into it's individual `core` to 
 save. The actual column names need to match the ones from section `2.2`. This 
@@ -317,7 +382,6 @@ event_core <-
     modified,
     license,
     institutionCode,
-    colletionCode,
     datasetName,
     language,
     locationID,
@@ -346,7 +410,8 @@ event_core <-
     minimumDepthInMeters,
     maximumDepthInMeters
   ) %>%
-  distinct() %T>% 
+  distinct() %>%
+  fill(1:language, .direction = "up") %T>% 
   print()
 ```
 
@@ -357,6 +422,7 @@ occur_core <-
   select(
     eventID,
     occurrenceID,
+    collectionCode,
     scientificName,
     kingdom:genus, # TODO: check if species column exists
     taxonRank,
@@ -451,7 +517,7 @@ slice_sample(mof_core, n = 1, by = eventID)
 cli::cli_alert_info("Dimensions: {dim(mof_core)}")
 ```
 
-# 4.0 Examples to save
+    # 4.0 Examples to save
 ```{r dup-check}
 janitor::get_dupes(event_core)
 janitor::get_dupes(event_core, eventID)
@@ -466,7 +532,6 @@ occur_core
 naniar::vis_miss(event_core)
 naniar::vis_miss(occur_core)
 naniar::vis_miss(mof_core)
-
 ```
 
 
@@ -502,7 +567,8 @@ pwalk(
     list(
       event_core,
       occur_core,
-      mof_core
+      # mof_core
+      filter(mof_core, !(str_detect(measurementType, "flow") & is.na(measurementValue)))
     ),
     here("data", "processed", "obis"),
     glue("{c(\"event\", \"occur\", \"mof\")}")
@@ -512,7 +578,8 @@ pwalk(
       .data          = data,
       save_location  = loc,
       save_name      = name_f,
-      overwrite      = FALSE,
+      overwrite      = TRUE,
+      # overwrite      = FALSE,
       verbose        = TRUE,
       time_stamp_fmt = NULL,
       utf_8 = TRUE
@@ -520,6 +587,7 @@ pwalk(
 )
 
 if (FALSE && exists("cloud_dir")) {
+# if (TRUE && exists("cloud_dir")) {
   obis_files <-
     here("data", "processed", "obis") %>%
     dir_ls() %>%
@@ -530,7 +598,8 @@ if (FALSE && exists("cloud_dir")) {
   file_copy(
     obis_files,
     here(cloud_dir, "processed", "obis"),
-    FALSE
+    # FALSE
+    TRUE
   )
 }
 ```
