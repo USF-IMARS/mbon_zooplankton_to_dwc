@@ -109,7 +109,8 @@ sheets <-
         # sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
         # may need to change to this?
         sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
-        sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)) %>%
+        # sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)
+        ) %>%
     separate_wider_regex(
         sheet,
         cols_remove = TRUE,
@@ -117,14 +118,15 @@ sheets <-
                      month = "\\d{2}",      # extract month
                      year  = "\\d{2}",      # extract year
                      mesh  = "200|500|64",  # extract mesh
-                     dup   = ".*|2$"))  %>% # extract duplicates
+                     dup   = ".*|0$|2$"))  %>% # extract duplicates
     arrange(year, month, stn, as.numeric(mesh)) %>%
-    mutate(dup   = if_else(str_detect(dup, "2"), 
+    mutate(dup   = if_else(str_detect(dup, "0|2"), 
                            "duplicate", 
                            NA_character_),
            year  = str_c("20", year)) %>%
     relocate(stn, .after = year) %>%
-    relocate(year, .after = 1)
+    relocate(year, .after = 1) %T>% 
+    print()
 ```
 
 # Optional: Reorder Sheets
@@ -228,8 +230,8 @@ species <-
                      ) %>%
                      hablar::retype()
                    )
-    ) %>%
-    select(-meta_top)
+    ) #%>%
+    # select(-meta_top)
 
 species_unnest <- 
     species %>%
@@ -386,21 +388,19 @@ species3 <-
 # Save Files
 ```{r save-files}
 save_csv(
-    .data          = species_unnest,
+    .data          = species,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled",
-    # overwrite      = FALSE,
-    overwrite      = TRUE,
+    overwrite      = FALSE,
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
 
 save_csv(
-    .data          = species3,
+    .data          = species,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled_with_meta",
-    # overwrite      = FALSE,
-    overwrite      = TRUE,
+    overwrite      = FALSE,
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
