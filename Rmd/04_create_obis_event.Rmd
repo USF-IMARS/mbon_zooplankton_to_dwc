@@ -326,7 +326,7 @@ dwc_info <-
     old_data %>%
     select(any_of(names(dwc_info))) %>% 
     mutate(
-        .keep = "used",
+        # .keep = "used",
         eventDate        = format_ISO8601(eventDate, usetz = "Z"),
         eventID          = str_remove(eventID, "\\}"),
         occurrenceID     = str_remove_all(occurrenceID, "\\}|\\."),
@@ -347,7 +347,11 @@ dwc_info <-
             str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lon[2],
             str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lon[3],
         ),
+        identifiedBy = "Jaimie Rojas-Marquez"
     )  %>% 
+    
+    # TODO: figure out what to do with these duplicates?
+    filter(!str_detect(eventID, "2$")) %>%
     bind_rows(., dwc_info) %>%
      mutate(
         # .keep = "used",
@@ -441,7 +445,8 @@ occur_core <-
     verbatimIdentification,
     georeferenceVerificationStatus,
     disposition
-  ) %T>%
+  )  %>%
+  fill(collectionCode, .direction = "up") %T>%
   print()
 ```
 
@@ -568,7 +573,7 @@ pwalk(
       event_core,
       occur_core,
       # mof_core
-      filter(mof_core, !(str_detect(measurementType, "flow") & is.na(measurementValue)))
+      filter(mof_core, !(is.na(measurementValue)))
     ),
     here("data", "processed", "obis"),
     glue("{c(\"event\", \"occur\", \"mof\")}")
