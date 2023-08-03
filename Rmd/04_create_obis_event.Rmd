@@ -347,7 +347,8 @@ dwc_info <-
             str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lon[2],
             str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lon[3],
         ),
-        identifiedBy = "Jaimie Rojas-Marquez"
+        identifiedBy = "Jaimie Rojas-Marquez",
+        identifiedByID = "https://orcid.org/0009-0009-7318-7180"
     )  %>% 
     
     # TODO: figure out what to do with these duplicates?
