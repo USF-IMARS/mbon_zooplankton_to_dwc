@@ -367,9 +367,14 @@ dwc_info <-
         day = if_else(is.na(day),
                         day(eventDate1),
                         day),
+    )  %>%
+     mutate(
+        across(contains("date") & (is.Date | is.POSIXct), 
+               \(x) format_ISO8601(x, usetz = "Z"))
     ) %T>%
     print()
 ```
+
 
 
 # 3.0 Extract "Cores"
@@ -540,7 +545,7 @@ naniar::vis_miss(occur_core)
 naniar::vis_miss(mof_core)
 ```
 
-
+## 4.2 Save A Subset of Data, 5 samples
 ```{r save-subset}
 set.seed(1234)
 events <- sample(unique(event_core$eventID), 5)
@@ -567,6 +572,8 @@ pwalk(
     )
 )
 ```
+
+## 4.3 Save All Data
 ```{r save-full}
 pwalk(
   list(
@@ -584,8 +591,8 @@ pwalk(
       .data          = data,
       save_location  = loc,
       save_name      = name_f,
-      overwrite      = TRUE,
-      # overwrite      = FALSE,
+      # overwrite      = TRUE,
+      overwrite      = FALSE,
       verbose        = TRUE,
       time_stamp_fmt = NULL,
       utf_8 = TRUE
@@ -604,8 +611,8 @@ if (FALSE && exists("cloud_dir")) {
   file_copy(
     obis_files,
     here(cloud_dir, "processed", "obis"),
-    # FALSE
-    TRUE
+    FALSE
+    # TRUE
   )
 }
 ```
