@@ -94,37 +94,37 @@ file_expr <- function(loc       = here::here("data", "metadata", "aphia_id"),
     
     # ---- help for deciding time stamp format
     if (!is.null(time_stamp_fmt) && str_detect(time_stamp_fmt, "help")) {
-          return(tribble(
+        return(tribble(
             ~code, ~meaning,
-          "%a",  "Abbreviated weekday", 
-          "%A",  "Full weekday",
-          "%b",  "Abbreviated month", 
-          "%B",  "Full month", 
-          "%c",  "Locale-specific date and time", 
-          "%d",  "Decimal date", 
-          "%H",  "Decimal hours (24 hour)", 
-          "%I",  "Decimal hours (12 hour)", 
-          "%j",  "Decimal day of the year",	
-          "%m",  "Decimal month", 
-          "%M",  "Decimal minute",	
-          "%p",  "Locale-specific AM/PM", 
-          "%S",  "Decimal second", 
-          "%U",  "Decimal week of the year (starting on Sunday)", 
-          "%w",  "Decimal Weekday (0=Sunday)", 
-          "%W",  "Decimal week of the year (starting on Monday)", 
-          "%x",  "Locale-specific Date", 
-          "%X",  "Locale-specific Time", 
-          "%y",  "2-digit year", 
-          "%Y",  "4-digit year", 
-          "%z",  "Offset from GMT",	
-          "%Z",  "Time zone (character)", 
-          ) %>%
-         mutate(
-             example = format(ymd_hms("2000-01-01 02:11:51"), code),
-             example = sprintf("%s == `%s`", "2000-01-01 02:11:51", example)
-         ))
+            "%a",  "Abbreviated weekday", 
+            "%A",  "Full weekday",
+            "%b",  "Abbreviated month", 
+            "%B",  "Full month", 
+            "%c",  "Locale-specific date and time", 
+            "%d",  "Decimal date", 
+            "%H",  "Decimal hours (24 hour)", 
+            "%I",  "Decimal hours (12 hour)", 
+            "%j",  "Decimal day of the year",	
+            "%m",  "Decimal month", 
+            "%M",  "Decimal minute",	
+            "%p",  "Locale-specific AM/PM", 
+            "%S",  "Decimal second", 
+            "%U",  "Decimal week of the year (starting on Sunday)", 
+            "%w",  "Decimal Weekday (0=Sunday)", 
+            "%W",  "Decimal week of the year (starting on Monday)", 
+            "%x",  "Locale-specific Date", 
+            "%X",  "Locale-specific Time", 
+            "%y",  "2-digit year", 
+            "%Y",  "4-digit year", 
+            "%z",  "Offset from GMT",	
+            "%Z",  "Time zone (character)", 
+        ) %>%
+            mutate(
+                example = format(ymd_hms("2000-01-01 02:11:51"), code),
+                example = sprintf("%s == `%s`", "2000-01-01 02:11:51", example)
+            ))
     }
-
+    
     # catch time stamp format if NULL  
     time_stamp_fmt <-
         tryCatch(
@@ -221,15 +221,20 @@ save_csv <- function(
             c("Check input, {.var {col_yellow(\"overwrite\")}} is `NULL`.",
               "{col_red(\"Stopping\")}"))
     }
-
+    
     # ---- file name
     data_f <- 
         file_expr(
-        save_location,
-        save_name,
-        exts = "csv",
-        time_stamp_fmt
-    )
+            save_location,
+            save_name,
+            exts = "csv",
+            time_stamp_fmt
+        )
+    
+    if (any(class(data_f) %in% c("tbl_df", "tbl", "data.frame"))) {
+        print(data_f)
+        return(data_f)
+    }
     
     data_f <- eval(data_f$file_expr)
     
@@ -241,7 +246,7 @@ save_csv <- function(
               "Columns:   {ncol(.data)}\n",
               "Location:  {.file {save_location}}\n",
               "File Name: {.file {basename(data_f)}}")
-            )
+        )
     }
     # ---- check if folder exists and create otherwise
     if (!dir_exists(save_location)) {
@@ -252,22 +257,22 @@ save_csv <- function(
         
         fs::dir_create(save_location)
     }
-
+    
     # ---- check if need to create file
     file_loc <- 
         fs::dir_ls(
-        save_location,
-        regexp = save_name
+            save_location,
+            regexp = save_name
         ) 
     
     create_f <- rlang::is_empty(file_loc)
-
+    
     if (!create_f && !overwrite) {
         # return early if no need to create
         if (verbose)
             cli::cli_alert_info(
-            "File exist and {.emph is not} being {col_green(\"overwritten\")}!\n"
-        )
+                "File exist and {.emph is not} being {col_green(\"overwritten\")}!\n"
+            )
         return(invisible())
     }
     
@@ -281,28 +286,51 @@ save_csv <- function(
     
     # ---- saving file
     if (verbose) cli::cli_alert_info("Saving file!")
-
+    
     if (utf_8) {
-      # save with UTF-8 
-      cli::cli_alert_info(
-          c("Note: saving to indicate to excel as {.var UTF-8}.\n", 
-            "Using: `{col_yellow(\"readr::write_excel_csv()\")}` ",
-            "instead of `{col_red(\"readr::write_csv()\")}`"))
-      readr::write_excel_csv(
-        x    = .data,
-        file = data_f,
-        na   = ""
-      )
+        # save with UTF-8 
+        cli::cli_alert_info(
+            c("Note: saving to indicate to excel as {.var UTF-8}.\n", 
+              "Using: `{col_yellow(\"readr::write_excel_csv()\")}` ",
+              "instead of `{col_red(\"readr::write_csv()\")}`"))
+        readr::write_excel_csv(
+            x    = .data,
+            file = data_f,
+            na   = ""
+        )
     } else {
-      readr::write_csv(
-        x    = .data,
-        file = data_f,
-        na   = ""
-      )
+        readr::write_csv(
+            x    = .data,
+            file = data_f,
+            na   = ""
+        )
     }
     
     if (verbose) cli::cli_alert_success("Saved!\n\n")
+    
+    # ---- end of function
+}
 
+##%######################################################%##
+#                                                          #
+####                   Save gg Plots                    ####
+#                                                          #
+##%######################################################%##
+file_sv <- function(plt, filename, device = c("jpeg", "svg"), 
+                    height = 15, width = 30, ...) {
+    device <- match.arg(device)
+    
+    height <- if (is.null(height)) 3.71 else height
+    
+    cowplot::save_plot(
+        filename    = filename,
+        plot        = plt,
+        base_height = height,
+        base_width  = width,
+        device      = device,
+        ...
+    )
+    
     # ---- end of function
 }
 
