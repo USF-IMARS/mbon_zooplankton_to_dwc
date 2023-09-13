@@ -150,52 +150,13 @@ if (is_empty(aphia_id) | FALSE) {
 ```{r load-data}
 # ---- load metadata
 meta_df <-
-    dir_ls(
-        path   = here("data", "metadata", "cruise_logsheets"),
-        regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-    last_mod(.) %>%
-    read_csv(show_col_types = FALSE) %>%
+  here(cloud_dir, "cruise_logsheets") %>%
+  dir_ls(regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+  last_mod(.) %>%
+  read_csv(show_col_types = FALSE) %>%
     
-    # this is when Natalia LF started analysis
-    filter(date >= date("2017-06-18")) %>%
-    
-    mutate(locationID      = case_when(
-                str_detect(station, "Mol")  ~ "MR",
-                str_detect(station, "Loo")  ~ "LK",
-                str_detect(station, "West") ~ "WS",
-                str_detect(station, "9B")   ~ "9B",
-                .default = station), 
-           .after = station) %>%
-    mutate(
-        # Note: flowmeter is MF315
-        net_size            = 0.5,
-        net_area            = pi * 0.5^2,
-        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
-        tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area/4 * distance_m_2,
-        split_size          = map_dbl(split_size, function(x) {
-                                    out <- tryCatch({
-                                    eval(parse(text = x))}, 
-                                    error = function(e) {NA_integer_})}),
-        
-        # change station locations lat/lon because some seem off
-        lon_in = case_when(
-            str_detect(locationID, "MR") ~ -80.38000,
-            str_detect(locationID, "WS") ~ -81.71700,
-            str_detect(locationID, "LK") ~ -81.41300,
-            str_detect(locationID, "57") ~ -81.26500,
-            str_detect(locationID, "54") ~ -81.15283,
-            .default = lon_in
-        ),
-        lat_in = case_when(
-            str_detect(locationID, "MR") ~ 25.01000,
-            str_detect(locationID, "WS") ~ 24.47800,
-            str_detect(locationID, "LK") ~ 24.53800,
-            str_detect(locationID, "57") ~ 25.35167,
-            str_detect(locationID, "54") ~ 25.34533,
-            .default = lat_in
-        )
-       ) 
+  # this is when Natalia LF started analysis
+  filter(date >= date("2017-06-18"))
 
 # ---- load zooplankton data
 taxa_files <-
