@@ -672,3 +672,19 @@ str_subset(names(event_core), str_c(obistools::event_fields(), collapse = "|"),
            negate = T)
 ```
 
+```{r}
+set.seed(1234)
+dwc_info %>%
+    filter(!is.na(recordedBy)) %>%
+    nest(.by = cruise_id) %>%
+    slice_sample(n = 2) %>%
+    unnest(data) %>%
+    slice_head(by = cruise_id, prop = 0.2) %>%
+    writexl::write_xlsx(
+      here("data", "processed", "obis", "ioos_subsample.xlsx")
+        )
+
+shell.exec(here("data", "processed", "obis", "ioos_subsample.xlsx"))
+shell.exec(here("data", "processed", "obis"))
+```
+
