@@ -190,8 +190,28 @@ taxa_info %>%
 ```
 
 
-```{r add-info}
 # ---- compare taxa from Anni to found taxa in WoRRMs
+
+Differences were found between the phylogenetic tree from the database that Anni
+used and from WoRMS. 
+
+This chunk was a first attempt to find these issues.
+
+The solutions was to add the phylogenetic tree from Annu as one column in the 
+`verbatimIdentification` and use the WoRMS database as the tree to submit.
+
+This was corrected in another script: `update_taxonomy_SteveFormel.R`
+
+```{r find-issues}
+if (FALSE && menu(c("Yes", "No"), title = "Open Solution Script?") == 1 ) {
+  here() %>%
+    dir_ls(regexp = "update_taxonomy_SteveFormel") %>%
+    rstudioapi::documentOpen()
+}
+
+overwrite_file <- FALSE
+# overwrite_file <- TRUE
+
 infos <- 
   taxa_info %>%
   select(Kingdom:search_name, kingdom:genus, scientificname) %>%
@@ -234,7 +254,7 @@ infos %>%
     save_location  = dir_edna,
     save_name      = "miss_match_taxa_id",
     time_stamp_fmt = NULL,
-    overwrite = T
+    overwrite = overwrite_file
   )
 
 
