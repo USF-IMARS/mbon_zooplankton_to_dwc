@@ -204,7 +204,7 @@ This was corrected in another script: `update_taxonomy_SteveFormel.R`
 
 ```{r find-issues}
 if (FALSE && menu(c("Yes", "No"), title = "Open Solution Script?") == 1 ) {
-  here() %>%
+  here("scripts") %>%
     dir_ls(regexp = "update_taxonomy_SteveFormel") %>%
     rstudioapi::documentOpen()
 }
