@@ -94,6 +94,7 @@ meta <-
 ```{r load-logsheets}
 meta <-
   meta %>%
+  filter(!is.na(skips)) %>%
   mutate(
     data = pmap(
       .l = list(.x = file, .y = skips, .z = sheets, .c = cruise_id),
@@ -303,7 +304,7 @@ meta <-
 # Save merged metadata
 ```{r save}
 overwrite <- FALSE
-# overwrite <TRUE
+# overwrite <- TRUE
 # ---- write metadata to file ----
 save_csv(
   .data          = meta,        
@@ -318,10 +319,29 @@ save_csv(
 if (FALSE) {
   here("data", "metadata", "cruise_logsheets") %>%
   dir_ls(regexp = "meta_combined") %>%
-  last_mod() %>%
+  last_mod() %>% 
   file_copy(
       here(cloud_dir, "cruise_logsheets", "meta_combined.csv"),
       overwrite = TRUE
+  )
+}
+
+# for NOAA AOML
+if (FALSE) {
+relocate(
+  meta,
+  date_time,
+  date,
+  time_gmt,
+  .after = locationID
+) %>%
+  relocate(notes, .after = volume_filt_cubic_m) %>%
+  relocate(flowmeter_in, .before = flowmeter_out) %>%
+  openxlsx2::write_xlsx(
+    .,
+    here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
+    na.strings = "",
+    overwrite = overwrite
   )
 }
 ```
