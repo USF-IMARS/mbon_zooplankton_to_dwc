@@ -272,11 +272,11 @@ meta <-
            .after = station) %>%
     mutate(
         # Note: flowmeter is MF315
-        net_size            = 0.5,
-        net_area            = pi * 0.5^2,
+        net_size            = 0.5, # diameter in m
+        net_area            = pi * (net_size/2)^2, # m^2
         distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant,
         tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60),
-        volume_filt_cubic_m = net_area/4 * distance_m_2,
+        volume_filt_cubic_m = net_area * distance_m_2,
         
         # Fix Latitude and Longitude
         # Some files had mixed up lat and lon and some have lon at a positive
