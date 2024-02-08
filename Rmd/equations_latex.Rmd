@@ -23,7 +23,7 @@ D = \frac {(N \times V_S)}{N_A \times V \times P_s} \\
      \begin{cases}
           \text {N}_{\text {lab}_{split}} = 0, & \text {N}_{\text {cruise}_{split}} \\
           \text {N}_{\text {lab}_{split}} > 0, 
-              &  \text {N}_{\text {cruise}_{split}} \times \text {N}_{\text{lab}_{splt}}
+              &  \text {N}_{\text {cruise}_{split}} + \text {N}_{\text{lab}_{splt}}
      \end{cases} \\
 \end{align}
 $$
@@ -41,9 +41,9 @@ D = \frac {(N \times V_S)}{N_A  \times P_s} \times V^{-1} = \mu_{ind} \times \te
      \end{cases} \\
 & \text {N}_{\text {cruise}_{split}} = \text {number of splits on the cruise} \\
 & \text {N}_{\text {lab}_{split}} = \text {number of splits in the lab} \\
+& if~{N}_{\text {lab}_{split}} \text { or } \text {N}_{\text {lab}_{split}} =\text {fraction}, 
+~then,~\frac {N_{split}^{-1}} {2} \\
 \end{align} \\
-if~{N}_{\text {lab}_{split}} \text { or } \text {N}_{\text {lab}_{split}} =\text {fraction}, \\
-then,~\frac {N_{split}^{-1}} {2}
 $$
 
 ```{r}
