@@ -374,6 +374,36 @@ dwc_info <-
     ) %T>%
     print()
 ```
+```{r}
+save_csv(
+  .data          = dwc_info,
+  save_location  =  here("data", "processed"),
+  save_name      = "zooplankton_erddap",
+  # overwrite      = TRUE,
+  overwrite      = FALSE,
+  verbose        = TRUE,
+  time_stamp_fmt = NULL,
+  utf_8 = TRUE
+    )
+
+if (FALSE && exists("cloud_dir")) {
+# if (TRUE && exists("cloud_dir")) {
+  copy_file_name <-
+    here("data", "processed") %>%
+    dir_ls() %>%
+    str_subset("zooplankton_erddap\\.csv")
+
+  dir_create(here(cloud_dir, "processed"))
+
+  file_copy(
+    copy_file_name,
+    here(cloud_dir, "processed", "obis"),
+    FALSE
+    # TRUE
+  )
+}
+
+```
 
 
 
