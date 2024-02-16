@@ -8,7 +8,14 @@ editor: source
 
 # 1.0 ---- Summary of Document ----
 
+This script uses the pre-OBIS zooplankton data and separates into identifier and
+location ID. Then, the data will be save as a `.csv` with the intials of who 
+identified the species and the location ID:
+ex: "zooplankton_erddap_<NP|JRM>_<locationID>.csv"
 
+
+This assumes that the data is stored locally and there is a variable called 
+`cloud_dir` to show the path to Box to store the new files.
 
 # 2.0 ---- Setup ----
 
@@ -39,10 +46,6 @@ conflicts_prefer(
 ## 2.2 Load Dataset
 
 ```{r load-data}
-# run snippet after saving file
-# set location to save data and plots
-dir_data_save <- here("data", "processed", "errdap_loc_split")
-
 dat <-   
   here("data", "processed") %>%
   dir_ls(regexp = "zooplankton_erddap_20240209") %>%
