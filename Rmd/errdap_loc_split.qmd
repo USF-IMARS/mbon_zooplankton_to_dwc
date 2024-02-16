@@ -1,0 +1,106 @@
+---
+title: "Splitting Stations into Separate Files"
+author: "Sebastian Di Geronimo"
+date: "2024-02-16"
+format: html
+editor: source
+---
+
+# 1.0 ---- Summary of Document ----
+
+
+
+# 2.0 ---- Setup ----
+
+
+## 2.1 Load Libraries
+
+```{r setup, include=FALSE}
+if (!nzchar(system.file(package = "librarian"))) 
+    install.packages("librarian")
+
+librarian::shelf(
+    quiet = TRUE,
+    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
+    
+    # additional
+    
+)
+
+conflicts_prefer(
+  dplyr::filter(), 
+  dplyr::select()
+  )
+  
+
+```
+
+## 2.2 Load Dataset
+
+```{r load-data}
+# run snippet after saving file
+# set location to save data and plots
+dir_data_save <- here("data", "processed", "errdap_loc_split")
+
+dat <-   
+  here("data", "processed") %>%
+  dir_ls(regexp = "zooplankton_erddap_20240209") %>%
+  read_csv(show_col_types = FALSE) %T>% 
+  print()
+
+dat_nest <- nest(dat, .by = c("identifiedBy", "locationID")) %T>% print()
+
+pwalk(
+  list(
+    dat_nest$identifiedBy,
+    dat_nest$locationID,
+    dat_nest$data,
+    overwrite = FALSE # change to TRUE if want to overwrite data
+  ),
+  function(name, loc, data, overwrite = overwrite) {
+    
+      dat <-
+      data %>%
+      mutate(
+        .before      = 1,
+        identifiedBy = name,
+        locationID   = loc
+      )
+
+    # "zooplankton_erddap_<NP|JRM>_<locationID>.csv"
+    nam       <- if_else(str_detect(name, "Jaimie"), "JRM", "NLF")
+    file_name <- glue("zooplankton_erddap_{nam}_{loc}.csv")
+    dir_name  <- here(cloud_dir, "processed", "erddap")
+
+    fs::dir_create(dir_name)
+
+    if (!file_exists(here(dir_name, file_name))) {
+      
+      message(glue("Saving File {file_name}"))
+      write_csv(
+        x    = dat,
+        file = here(dir_name, file_name),
+        na   = ""
+      )
+      
+    } else if (file_exists(here(dir_name, file_name)) && overwrite) {
+      
+      message(glue("Overwriting File {file_name}"))
+      write_csv(
+        x    = dat,
+        file = here(dir_name, file_name),
+        na   = ""
+      )
+      
+    } else {
+      
+        message(glue("Skipping File {file_name}"))
+    }
+  }
+)
+
+
+
+```
+
