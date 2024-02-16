@@ -63,7 +63,7 @@ pwalk(
   ),
   function(name, loc, data, overwrite = overwrite) {
     
-      dat <-
+    dat <-
       data %>%
       mutate(
         .before      = 1,
@@ -79,26 +79,21 @@ pwalk(
     fs::dir_create(dir_name)
 
     if (!file_exists(here(dir_name, file_name))) {
-      
       message(glue("Saving File {file_name}"))
       write_csv(
         x    = dat,
         file = here(dir_name, file_name),
         na   = ""
       )
-      
     } else if (file_exists(here(dir_name, file_name)) && overwrite) {
-      
       message(glue("Overwriting File {file_name}"))
       write_csv(
         x    = dat,
         file = here(dir_name, file_name),
         na   = ""
       )
-      
     } else {
-      
-        message(glue("Skipping File {file_name}"))
+      message(glue("Skipping File {file_name}"))
     }
   }
 )
