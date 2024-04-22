@@ -15,6 +15,7 @@ WSMasterSampleLog.xlsx                      | CTD water samples for all stations
 cruise_logsheets/{cruise_id}                | details for MoF as needed.
 
 ### Jaime's
+
 filename                                    | explanation
 --------------------------------------------|----------------
 compiled_zoo_taxonomy_Jaimie_31JAN2018.xlsx | Species counts for all samples compliled into one file by Jaimie 2018-01-31. Has header information & species counts. 
@@ -24,8 +25,7 @@ sp.csv                                      | manually created mapping from Jaim
 ### Natalia's
 Samples separated into directories by mesh size.
 
-filename                                                                 |
+filename                                                                 |   explaination
 -------------------------------------------------------------------------|---
 {ship_id}{year}{julian_day_of_cruise_start}_{station_number}_{mesh_size} | Taxa counts for each aliquot. Includes header with event collection data. Some have misspellings in header info.
 
-## 
