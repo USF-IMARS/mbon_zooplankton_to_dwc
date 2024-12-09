@@ -46,22 +46,21 @@ if (!nzchar(system.file(package = "librarian")))
     install.packages("librarian")
 
 librarian::shelf(
-    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
-    forcats, lubridate, glue, fs, magrittr, here,
-    # broom # optional
+  quiet = TRUE,
+  librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+  forcats, lubridate, glue, fs, magrittr, here,
     
-    # additional
-    readxl, janitor, hablar,
+  # additional
+  readxl,
+  # xlsx,
+  janitor, hablar,
     
-    quiet = TRUE
 )
 
-# shelf(conflicted) # may be needed if won't allow loading of certain packages
-
 conflicts_prefer(
-    dplyr::filter(), 
-    dplyr::select()
-    )
+  dplyr::filter(),
+  dplyr::select()
+)
 ```
 
 ```{r create-folder}
@@ -80,54 +79,176 @@ Download these and put in the orig folder
 https://docs.google.com/spreadsheets/d/1GmebUJ35rlVF07b2GNWZXLj91RlDc5lW/edit#gid=1910593077
 https://drive.google.com/drive/folders/17f5gOJuU6wBuoNvkpoc7fkW4-8Ql6B3e
 
-```{r get-sheet-info}
+```{r file-search}
 file_location <-
-    base_dir %>%
-    dir_ls(regexp = "[^~].compiled_zoo",
-           recurse = TRUE)
+  base_dir %>%
+  dir_ls(
+    regexp = "[^~].compiled_zoo|zoo_reorder_sht",
+    recurse = TRUE)  %>%
+  str_subset("~\\$", negate = TRUE) %T>%
+  print() 
 
+# select reorder file if exists, will be created lower
+file_location <-
+  if_else(
+    !is_empty(str_subset(file_location, "reorder")),
+    str_subset(file_location, "reorder"),
+    str_subset(file_location, "compiled")
+    ) %T>%
+  print() 
+
+# get metadata from collection
 meta_samples_file <-
-    base_dir %>%
-    dir_ls(regexp = "[^~].sample-details",
-           recurse = TRUE)
+  base_dir %>%
+  dir_ls(
+    regexp = "[^~].sample-details",
+    recurse = TRUE) %T>%
+  print()
 
-file_location
-meta_samples_file
 
-# read all sheet names and filter for ones with WS and LK
-# WS = Western Sambo
-# LK = Looe Key
-sheets <-
-    excel_sheets(file_location) %>%
-    
-    # turn into tibbles (DON'T worry about what it is)
-    tibble(sheet_nm = .) %>%
-    
-    # filter(str_detect(sheets, "^(WS|LK)")) %>%
-    filter(!str_detect(sheet_nm, "Samples|PL")) %>%
-    mutate(
-        # sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR0116500", sheet_nm),
-        # may need to change to this?
-        sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
-        # sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)
-        ) %>%
-    separate_wider_regex(
-        sheet,
-        cols_remove = TRUE,
-        patterns = c(stn   = "\\w{2}",      # extract station
-                     month = "\\d{2}",      # extract month
-                     year  = "\\d{2}",      # extract year
-                     mesh  = "200|500|64",  # extract mesh
-                     dup   = ".*|0$|2$"))  %>% # extract duplicates
-    arrange(year, month, stn, as.numeric(mesh)) %>%
-    mutate(dup   = if_else(str_detect(dup, "0|2"), 
-                           "duplicate", 
-                           NA_character_),
-           year  = str_c("20", year)) %>%
-    relocate(stn, .after = year) %>%
-    relocate(year, .after = 1) %T>% 
-    print()
 ```
+
+# Read all sheet names and filter for ones with MR, WS and LK
+
+MR = Molasses Reef
+WS = Western Sambo
+LK = Looe Key
+
+```{r get-sheet-info}
+sheets <-
+  readxl::excel_sheets(file_location) %>%
+  tibble(sheet_nm = .) %>%
+  filter(!str_detect(sheet_nm, "Samples|PL")) %>%
+  mutate(
+    # may need to change to this?
+    sheet = if_else(str_detect(sheet_nm, "MR116500"), "MR1116500", sheet_nm),
+    # sheet = if_else(str_detect(sheet_nm, "WS0117640"), "WS011764", sheet)
+  ) %>%
+  separate_wider_regex(
+    sheet,
+    cols_remove = TRUE,
+    patterns    = c(
+      stn = "\\w{2}", # extract station
+      month = "\\d{2}", # extract month
+      year = "\\d{2}", # extract year
+      mesh = "200|500|64", # extract mesh
+      dup = ".*|0$|2$"
+    )
+  ) %>% 
+  # extract duplicates
+  arrange(year, month, stn, mesh) %>%
+  mutate(
+    year = str_c("20", year),
+    dup = if_else(str_detect(dup, "0|2"),
+      "duplicate",
+      NA_character_
+    )
+  ) %>%
+  relocate(stn, .after = year) %>%
+  relocate(year, .after = 1) %T>%
+  print()
+
+arrange(sheets, sheet_nm) %>%
+  mutate(
+    sheet_num2 =
+      case_when(
+        !is.na(dup) ~ str_remove(sheet_nm, "(0|2)$"),
+        .default = sheet_nm
+      )
+  ) %>%
+  janitor::get_dupes(sheet_num2)
+```
+
+# Determine Differences of Individuals per Sample
+
+```{r}
+if (FALSE) {
+test <-
+  sheets %>%
+  # slice(c(1, 5, 34)) %>%
+  mutate(
+    # metadata
+    meta = imap(
+      sheet_nm,
+      \(.x, idx) {
+        print(idx)
+        
+        shelf(xlsx)
+        
+        dat <- xlsx::read.xlsx(
+          file         = file_location,
+          sheetIndex   = idx + 2,
+          startRow     = 8,
+          colIndex     = c(4, 6),
+          keepFormulas = TRUE
+        ) %>%
+       janitor::remove_empty("rows") %>%
+       mutate(
+            `Total.Ind..Sample` = as.character(`Total.Ind..Sample`)
+          )
+
+        unshelf(xlsx)
+        
+        return(dat)
+        }
+    ),
+  ) 
+
+test2 <- 
+  test %>%
+  # extract the data within the list
+  unnest(meta)  %>%
+  rename("D" = Total.Ind..Sample) %T>%
+  print()
+
+test2 
+
+test_calc <-
+  test2 %>%
+  mutate(
+    .before = 1,
+    .by = sheet_nm,
+    row = row_number()
+  ) %>%
+  mutate(
+    calc =
+      case_when(
+        str_detect(`D`, "\\$C\\$7") ~ "correct",
+        str_detect(`D`, "^\\d.*\\d$") ~ "no calc, only number",
+        is.na(`D`) ~ "nothing",
+        .default = "no split size"
+      ),
+    .after = `D`
+  )
+test_calc %T>%
+  print() %T>%
+  {
+    filter(., str_detect(calc, "nothing")) %>%
+    print()
+  } 
+
+calc_percent <- 
+  test_calc %>%
+  filter(!str_detect(calc, "nothing")) %>%
+  count(calc) %>%
+  mutate(
+    frac = n / sum(n) * 100,
+    frac = round(frac, 2)
+  ) %T>% 
+  print()
+
+
+# list(
+#   "calculations" = test_calc,
+#   "percents" = calc_percent
+# ) %>%
+#   writexl::write_xlsx(
+#     path = here(base_dir, "formula_issues.xlsx")
+#   )
+}
+```
+
+
 
 # Optional: Reorder Sheets
 When opening in excel, it is hard to search through each sheet because they are
@@ -173,258 +294,371 @@ if (!file_exists(here(base_dir, "processed", "zoo_reorder_sht.xlsx"))
 ```
 
 # Read Zooplankton Data
+
+read each sheet for metadata and data
+
+add 2 columns and loop through each file to load:
+  1. meta data (includes date and location)
+  2. data (includes species info)
+
+Notes on calculations:
+
+`no_ind_aliquot`:
+  - if value here, multiply by counted aliquot to get `ind_count`
+`ind_count`: 
+  - total count of individuals across all aliquots
+
+`total_ind_sample`:
+  - count per sample taking into account the number of splits and counted 
+    aliquots
+  - this is the *issue* because uses excel formula and the majority doesnt 
+    add `split_size` to calculation
+  - calculation:
+    (`total_ind_sample` * `vol_sample_water` / `counted_aliquot`) * 
+    (`split_size` / `folson`)
+  - however, ~79% of the sheets do not include "* (`split_size` / `folson`)",
+    and ~1.6% are only numbers, not calculated
+  - 18.53% are calculated correctly
+	
+
 ```{r read-data}
-# read each sheet for data and metadata
-species <- 
-    sheets %>%
-    
-    # add 2 columns and loop through each file to load
-    # 1. meta data (includes date and location)
-    # 2. data (includes species info)
-    mutate(
-        # metadata
-        meta = map(sheet_nm, 
-                   ~read_xlsx(
-                       file_location,
-                       sheet = .,
-                       n_max = 7,
-                       col_names    = FALSE,
-                       .name_repair = make_clean_names) 
-                   ),
-        # extract important metadata
-        meta_top = map(meta,
-                       function(x) {
-                           r <- which(str_detect(x$x, "Vol|^\\.$"))
-                           
-                           if (any(str_detect(x$x, "^\\.$"), 
-                                   na.rm = TRUE)) 
-                               x$x[r] <- "Vol filtered  (m³ )"
-                           
-                           x_name <-
-                               slice(x, r) %>%
-                               unlist(use.names = FALSE) %>%
-                               make_clean_names()
-                           x <- slice(x, r + 1)
-                           names(x) <- x_name
-                           x <- remove_empty(x, which = "cols")
-                           }
-                       ),
-        # species data
-        data = map2(sheet_nm, 
-                    meta_top,
-                   ~read_xlsx(file_location, 
-                              sheet = .x, 
-                              skip  = 7,
-                              na    = c("", "#VALUE!"),
-                              .name_repair = make_clean_names
-                              )  %>%
-                     filter(!str_detect(clasification, "Densidad total")) %>%
-                     rename("ind_count" = x) %>%
-                     bind_cols(.y) %>%
-                     mutate(
-                        vol_filtered_m3 = if_else(!str_detect(vol_filtered_m3, 
-                                                       "no hay volumen|XXX"),
-                                           vol_filtered_m3, 
-                                           NA_character_) %>%
-                                           as.numeric()
-                     ) %>%
-                     hablar::retype()
-                   )
-    ) #%>%
-    # select(-meta_top)
-
-species_unnest <- 
-    species %>%
-    
-    # extract the data within the list
-    unnest(data)
-```
-
-
-```{r testing-data}
-species_unnest 
-species_unnest  %$% unique(vol_filtered_m3)
-# species_unnest  %>%
-#     filter(if_any(contains("vol_filt"):counted_aliquot, 
-#                   (\(x) is.na(x) | str_detect(x, "no hay volumen|XXX"))
-#                   )) 
-# 
-# shell.exec(file_location)
-```
-
-# Report No Volume Recorded
-```{r}
-# find NAs in n_ind_m3 and count sheet
-vol_miss <- 
-    species_unnest %>%
-    filter(is.na(n_ind_m3)) %>%
-    count(sheet_nm) %$% 
-    unique(sheet_nm)
-
-# determine if na for individuals per cubic meter are because:
-# 1. there was no volume recorded
-# 2. the species didn't exist
-species1 <-
-  species %>%
+species <-
+  sheets %>%
   mutate(
-    data = map2(
-      .x   = sheet_nm,
-      .y   = data,
-      vols = vol_miss,
-      function(x, y, vols) {
-        mutate(
-          y,
-          no_vol = if_else(
-            x %in% vols,
-            "no volume recorded", NA_character_
-          )
+    # metadata
+    meta = imap(
+      sheet_nm,
+      \(.x, idx) {
+        print(idx)
+        read_xlsx(
+          file_location,
+          sheet        = .x,
+          n_max        = 7,
+          col_names    = FALSE,
+          .name_repair = make_clean_names
         )
       }
+    ),
+
+    # extract important metadata from row 7 and tidy
+    meta_top = map(
+      meta,
+      function(x) {
+        r <- which(str_detect(x$x, "Vol|^\\.$"))
+
+        if (any(str_detect(x$x, "^\\.$"),
+          na.rm = TRUE
+        )) {
+          x$x[r] <- "Vol filtered  (m³ )"
+        }
+
+        x_name <-
+          slice(x, r) %>%
+          unlist(use.names = FALSE) %>%
+          make_clean_names()
+        x <- slice(x, r + 1)
+        names(x) <- x_name
+        x <- remove_empty(x, which = "cols")
+      }
+    ),
+
+    # species data
+    data = map2(
+      sheet_nm,
+      meta_top,
+      ~ read_xlsx(file_location,
+        sheet = .x,
+        skip = 7,
+        na = c("", "#VALUE!"),
+        .name_repair = make_clean_names
+      ) %>%
+        filter(!str_detect(clasification, "Densidad total")) %>%
+        rename("ind_count" = x)
     )
   )
 
-rm(vol_miss)
-```
-# Merge Meta Data with Zooplankton Data
-```{r}
-# load metadata and fix
-meta_samples <-
-  meta_samples_file %>%
-  read_csv(
-    show_col_types = FALSE,
-    name_repair = make_clean_names,
-    na = c("", "NA", "na", "did not work"),
+species_unnest <-
+  species %>%
+  # extract metadata and data within the list
+  unnest(meta_top) %>%
+
+  # convert vol_filtered_m3 to numeric
+  mutate(
+    .after = vol_filtered_m3,
+    vol_filtered_m3 =
+      if_else(
+        !str_detect(
+          vol_filtered_m3,
+          "no hay volumen|XXX"
+        ),
+        vol_filtered_m3,
+        NA_character_
+      ),
+    
+    # determine if na for individuals per cubic meter are because:
+    # 1. there was no volume recorded
+    # 2. the species didn't exist
+    no_vol = if_else(is.na(vol_filtered_m3), "no volume recorded", NA_character_)
   ) %>%
-  select(-x) %>%
-  filter(!if_all(2:last_col(), \(x) is.na(x))) %>%
+  
+  hablar::retype() %>%
+  unnest(data) %>%
+  mutate(
+    .after = total_ind_sample,
+    total_ind_correct = (ind_count * vol_sample_water / counted_aliquot) * (split_size / folson)
+  ) %T>%
+  print()
+
+```
+
+# Number of times higher using correct calculation
+
+With correct calculation:
+
+equal = 18.5%
+2x higher = 63.8%
+4x higher = 15.9% 
+different amounts = 1.84%
+
+```{r}
+species_unnest %>%
+  select(1:dup, folson:counted_aliquot, no_ind_aliquot:total_ind_correct, clasification) %>%
+  mutate(
+    .after           = total_ind_sample,
+    ind_diff         = format(total_ind_correct - total_ind_sample, scientific = FALSE),
+    ind_div          = round(total_ind_correct / total_ind_sample, digits = 2),
+    total_ind_correct    = format(total_ind_correct, scientific = FALSE),
+    total_ind_sample = format(total_ind_sample, scientific = FALSE),
+    ind_div_off      = case_when(
+      ind_div == 1 ~ "same",
+      ind_div == 2 ~ "2x",
+      ind_div == 4 ~ "4x",
+      ind_div > 4 | ind_div < 0 ~ "large",
+      ind_div < 1 ~ "new is less",
+      .default = as.character(ind_div)
+    )
+  ) %T>%
+  View("diffs") %>%
+  count(ind_div) %>%
+  arrange(desc(n)) %>%
+  mutate(
+    frac = n / sum(n) * 100,
+    frac = round(frac, 2)
+  )
+
+```
+
+
+# Merge Meta Data with Zooplankton Data
+
+## Load Metadata
+
+```{r load-meta}
+# # load metadata and fix
+# meta_samples <-
+#   meta_samples_file %>%
+#   read_csv(
+#     show_col_types = FALSE,
+#     name_repair = make_clean_names,
+#     na = c("", "NA", "na", "did not work"),
+#   ) %>%
+#   select(-x) %>%
+#   remove_empty("rows") %>%
+#   mutate(
+#     month   = format(date, "%m"),
+#     year    = format(date, "%Y"),
+#     day     = format(date, "%d"),
+#     .before = date
+#   ) %>%
+#   fill(month, year, day, date) %>%
+#   mutate(
+#     stn = case_when(
+#       str_detect(station, "Mol") ~ "MR",
+#       str_detect(station, "West") ~ "WS",
+#       str_detect(station, "Loo") ~ "LK",
+#       .default = station
+#     ),
+#     .before = mesh_size_um
+#   ) %>%
+#   mutate(
+#     lat_in = suppressWarnings(parzer::parse_lat(lat_in)), # warns if NA
+#     lon_in = suppressWarnings(parzer::parse_lon(lon_in)), # warns if NA
+#     lat_in = if_else( lat_in < 0, -lat_in, lat_in),
+#     lon_in = if_else( lon_in > 0, -lon_in, lon_in)
+#   ) %>%
+#   separate_longer_delim(mesh_size_um, delim = " / ") %>%
+#   hablar::retype() %T>%
+#   print() %>%
+#   nest(
+#     .by = c(
+#       year,
+#       month,
+#       stn,
+#       mesh_size_um
+#     )
+#   ) %>%
+#   print()
+
+
+# get_dupes(stn, date, mesh_size_um)
+# distinct(stn, Date, `mesh size (um)`, .keep_all = TRUE)
+```
+
+```{r load-combine-metadata}
+# sheet from IMaRS
+meta_df_imars <-
+  here(cloud_dir, "cruise_logsheets") %>%
+  dir_ls(regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
+  last_mod(.) %>%
+  read_csv(show_col_types = FALSE) %>%
+  filter(date < as_date("2017-04-01")) %T>% 
+  print()
+
+# sheet from NOAA
+meta_noaa_zoo <- 
+  # here(cloud_dir, "cruise_logsheets") %>%
+  here("data", "metadata", "cruise_logsheets") %>%
+  dir_ls(regexp = "zoo_noaa_meta") %>%
+  str_subset("~\\$", negate = TRUE) %>%
+  last_mod(.) %>%
+  read_csv(show_col_types = FALSE) %>%
+  filter(
+    year(date_time) == 2015 
+    & between(month(date_time), 4, 6)
+    & str_detect(locationID, "WS|MR|LK")
+  ) %T>% 
+  print()
+
+# merged
+meta_df <- 
+  bind_rows(
+    meta_noaa_zoo,
+    meta_df_imars
+  ) %>%
+  select(names(meta_df_imars), everything()) %>%
   mutate(
     month   = format(date, "%m"),
     year    = format(date, "%Y"),
     day     = format(date, "%d"),
-    .before = date
-  ) %>%
-  mutate(
-    stn = case_when(
-      str_detect(station, "Mol")  ~ "MR",
-      str_detect(station, "West") ~ "WS",
-      str_detect(station, "Loo")  ~ "LK",
-      .default = station
-    ),
-    .before = mesh_size_um
-  ) %>%
-  separate_longer_delim(mesh_size_um, delim = " / ") %>%
-  mutate(
-    lat_in = suppressWarnings(parzer::parse_lat(lat_in)), # warns if NA
-    lon_in = suppressWarnings(parzer::parse_lon(lon_in)), # warns if NA
-    lat_in = if_else(is.numeric(lat_in) & lat_in < 0, -lat_in, lat_in),
-    lon_in = if_else(is.numeric(lon_in) & lon_in > 0, -lon_in, lon_in)
-  ) %>% 
-  fill(month, year, day, date) %>%
-  nest(
-      .by = c(year,
-            month,
-            stn,
-            mesh_size_um)
+    .before = date_time
+  )  %>%
+  hablar::retype() %>%
+  distinct() %T>% 
+  print() 
+
+```
+
+## Merge Metadata with Meta
+
+flow out = 112991 - seems a bit high, but that what NOAAs says making vol = 7257.432 m^3
+
+for some reason this was changed in `sample-detail` to 12991 which drops to 229 m^3
+
+notes:
+
+missing two cruise: 
+ok - 2016-11 MR 64 - because no record out volume
+
+issue - 2016-03 all stations and mesh have duplicate matches from meta to one micro sheet
+
+ok - 2017-01 WS 64 - has a duplicate samples for some reason
+ok - 2015-04 WS 500 - has a duplicate samples for some reason
+
+NOTE: cruise March 2016 still need some work because of the duplicate
+ 
+```{r}
+species_unnest %>%
+  nest(.by = sheet_nm:meta, .key = "nested_data") %>%
+  filter(
+    between(row_number(), 52, 52 + 8)
   )
-    # get_dupes(stn, date, mesh_size_um)
-    # distinct(stn, Date, `mesh size (um)`, .keep_all = TRUE)
+
+
+# merge metadata with zoo data
+# this combines month, year, station and mesh 
+species_merged_meta <-
+  species_unnest %>%
+  nest(.by = sheet_nm:meta, .key = "nested_data") %>%
+  filter(
+    !between(row_number(), 52, 52 + 8) # March 2016 - duplicate issue
+  ) %T>%
+  print() %>%
+  # left_join(
+  full_join(
+    meta_df,
+    by = join_by(
+      year,
+      month,
+      "stn" == "locationID",
+      "mesh" == "mesh_size_um"
+    ),
+    # relationship = "one-to-one"
+  ) %>%
+  clean_names() %T>%
+  print()
+
+species_merged_filt <- 
+  species_merged_meta %>%
+  filter(!is.na(sheet_nm)) %>%
+  rename("split_size_og" = split_size) %>%
+  unnest(nested_data) %>%
+  janitor::remove_empty("cols")
+
+get_dupes(species_merged_filt)
+visdat::vis_miss(species_merged_filt)
+
+
+#  LK071664	2016	7	LK	64	
+# filter(meta_df, row_number() == 114)
 ```
 
 
-```{r}
-# merge metadata with zoo data
-# this combines month, year, station and mesh 
-species1 <-
-    species %>%
-    # left_join(
-    full_join(
-        meta_samples,
-        by = join_by(
-            year,
-            month,
-            stn,
-            "mesh"  == "mesh_size_um")
-    ) %>%
-      clean_names()
 
-species3 <-
-  species1 %>%
-  unnest(data_x, names_repair = make_clean_names) %>%
-  unnest(data_y, names_repair = make_clean_names) %>%
-  remove_empty("cols") %>%
+```{r}
+
+species_merged_filt %>%
+  distinct(sheet_nm, .keep_all = TRUE) %>%
+  select(1:6, "old_vol" = vol_filtered_m3, "new_vol" = volume_filt_cubic_m) %>%
   mutate(
-    split_size_2 = map_dbl(
-      split_size_2,
-      function(x) {
-        out <- tryCatch(
-          {
-            eval(parse(text = x))
-          },
-          error = function(e) {
-            NA_integer_
-          }
-        )
-      }
-    )
-  ) %>%
-  relocate(contains("clasific"):n_ind_m3,
-    .after = last_col()
-  ) %>%
-  relocate(day, date, local_time_est, station,
-    .after = month
-  ) %>%
-  mutate(
-    new_vol = abs(vol_filtered_m_3 - vol_filtered_m3)
-  ) %>%
-  filter(
-    .by = sheet_nm,
-    new_vol == min(new_vol) |
-      is.na(new_vol)
-  ) %>%
-  select(-new_vol)
+    diff = new_vol - old_vol, 
+    matters = if_else(abs(diff) < 1, "no", "yesssssss"),
+    diff = format(diff, scientific = FALSE)
+  )  %T>% 
+  print() %>%
+  count(matters)
+
+
 ```
 
 
 # Save Files
+
+
 ```{r save-files}
-save_csv(
-    .data          = species,
+species_unnest %>%
+  janitor::remove_empty("cols") %>%
+  select(-meta) %>%
+  save_csv(
+    .data          = .,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled",
-    overwrite      = FALSE,
+    # overwrite      = TRUE, # comment in when overwriting
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
 
-save_csv(
-    .data          = species,
+species_merged_filt %>%
+  janitor::remove_empty("cols") %>%
+  select(-meta) %>%
+  save_csv(
+    .data          = .,
     save_location  = here(base_dir, "processed"),
     save_name      = "zoo_compiled_with_meta",
-    overwrite      = FALSE,
+    # overwrite      = TRUE, # comment in when overwriting
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d"
 )
 
-# old way to save csv
-# if (FALSE) {
-#     write_csv(
-#         species3,
-#         file = here(base_dir, "processed",
-#                     glue("zoo_compiled",
-#                          format(Sys.Date(), "_%Y%m%d"),
-#                          ".csv")),
-#         na = "")
-#     }
-# if (FALSE) {
-#     species3 %>%
-#     select(-meta) %>%
-#     write_csv(,
-#               file = here(base_dir, "processed",
-#                           glue("zoo_compiled_with_meta",
-#                                format(Sys.Date(), "_%Y%m%d"),
-#                                ".csv")),
-#               na   = "")
-# }
 ```
 
 # Read 2015 - 2017 OBIS Files (needs fixing)
@@ -474,4 +708,113 @@ here("data", "example", "claudia_zoo_biometry",
 
 
 ```
+
+```{r}
+species_merged_filt2 <- 
+  here(base_dir, "processed") %>%
+  dir_ls(regexp = "zoo_compiled_with_meta") %>%
+  last_mod() %>%
+  read_csv(show_col_types = FALSE)
+```
+
+```{r}
+new_data <- 
+  here("data", "processed", "pre_obis") %>%
+    dir_ls(regexp = "zoo_data_pre_obis") %>%
+    .[10] %>%
+
+    # last_mod() %>%
+    read_csv(show_col_types = FALSE) %>%
+    filter(
+      !str_detect(mesh, "64") 
+      & !str_detect(site, "9B|57")
+    ) 
+
+
+new_data_summary <- 
+  new_data %>%
+  summarise(
+    .by = c(cruise_id, site, mesh, date_time),
+    
+    new_ind = sum(number_ind_sample, na.rm = TRUE)
+    
+  ) %>%
+    rename("stn" = site)
+new_data_summary2 <- 
+  new_data %>%
+  summarise(
+    .by = c(cruise_id, site, mesh, date_time),
+    
+    new_ind = sum(ind_m3, na.rm = TRUE)
+    
+  ) %>%
+    rename("stn" = site)
+
+```
+
+
+```{r}
+species_merged_filt2 %>%
+  summarise(
+    .by = c(sheet_nm, cruise_id, stn, mesh, date_time),
+    
+    old_ind = sum(total_ind_sample, na.rm = TRUE),
+    new_ind = sum(total_ind_correct, na.rm = TRUE)
+    
+  ) %>%
+  ggplot(aes(x = date_time)) +
+    geom_line(aes(y = old_ind), color = "red") +
+    geom_line(aes(y = new_ind), color = "blue") +
+    geom_point(aes(y = old_ind), color = "red") +
+    geom_point(aes(y = new_ind), color = "blue") +
+    theme_minimal() + 
+    facet_wrap(~mesh + stn, ncol = 3, scale = "free_y")
+```
+
+
+```{r}
+species_merged_filt2 %>%
+  summarise(
+    .by = c(sheet_nm, cruise_id, stn, mesh, date_time),
+    
+    old_ind = sum(total_ind_sample, na.rm = TRUE),
+    new_ind = sum(total_ind_correct, na.rm = TRUE)
+    
+  ) %>%
+  ggplot(aes(x = date_time)) +
+    geom_line(aes(y = old_ind), color = "red") +
+    geom_line(aes(y = new_ind), color = "blue") +
+    geom_line(
+      data = new_data, aes(y = new_ind), color = "blue") +
+    geom_point(aes(y = old_ind), color = "red") +
+    geom_point(aes(y = new_ind), color = "blue") +
+    theme_minimal() + 
+    facet_wrap(~mesh + stn, ncol = 3, scale = "free_y")
+```
+```{r}
+species_merged_filt2 %>%
+  mutate(
+    vol_filt_new = total_ind_correct / volume_filt_cubic_m
+  )  %>%
+  summarise(
+    .by = c(sheet_nm, cruise_id, stn, mesh, date_time),
+    
+    new_ind = sum(vol_filt_new, na.rm = TRUE)
+    
+  ) %>%
+  ggplot(aes(x = date_time)) +
+    # geom_line(aes(y = old_ind), color = "red") +
+    geom_line(aes(y = new_ind), color = "blue") +
+    geom_line(
+      data = new_data_summary2, aes(y = new_ind), color = "blue") +
+    # geom_point(aes(y = old_ind), color = "red") +
+    geom_point(aes(y = new_ind), color = "blue") +
+    coord_cartesian(ylim = c(-5, NA)) +
+    theme_minimal() + 
+    facet_wrap(~mesh + stn, ncol = 3, scale = "free_y")
+```
+
+
+
+
 
