@@ -13,15 +13,12 @@ if (!nzchar(system.file(package = "librarian")))
     install.packages("librarian")
 
 librarian::shelf(
-    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
-    forcats, lubridate, glue, fs, magrittr, here, conflicted,
-    # broom # optional
+    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    forcats, lubridate, glue, fs, magrittr, here,
     
     # additional
     cli, naniar, Hmisc
 )
-
-# shelf(conflicted) # may be needed if won't allow loading of certain packages
 
 conflicts_prefer(
     dplyr::filter(), 
