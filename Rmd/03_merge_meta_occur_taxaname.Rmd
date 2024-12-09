@@ -7,26 +7,18 @@ output: html_document
 
 TODO: check how to save UTF-8 encoding on csv files 
 ```{r setup}
-knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
-    librarian, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
+    librarian, conflicted, ggplot2, tibble, tidyr, readr, purrr, dplyr, stringr,
     forcats, lubridate, glue, fs, magrittr, here,
-    # broom # optional
     
     # additional
     openxlsx
 )
 
-library("conflicted")
-
-conflicts_prefer(dplyr::filter,
-                 dplyr::select)
-
-# library("readxl")
-# library("hablar") # might be useful when needing to fix names
-# library("worrms")
-# library("geosphere")
-
+conflicts_prefer(
+  dplyr::filter,
+  dplyr::select
+  )
 
 # obistools::event_fields()
 # source(here::here("scripts","log_file_changes.R"))
@@ -68,11 +60,11 @@ other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 which_one <- "nat"
 other_vars$equation_zoo <- switch(
     which_one,
-    # pretty it's `nat`
+    # pretty sure it's `nat`
     "nat"    = expression(dillution_factor * mean * total_split_amount),
     
     
-    "nat_old"    = expression(dillution_factor * mean * splits_analyzed),
+    "nat_old" = expression(dillution_factor * mean * splits_analyzed),
     "nat2"   = expression(dillution_factor * mean * (splits_analyzed * split_size)^-1),
     "nat3"   = expression(dillution_factor * mean * (splits_analyzed)^-1),
     "jamie"  = expression((dillution / pipette_vol_m_l) * mean * splits_analyzed ),
@@ -91,16 +83,23 @@ rm(func_attach)
 ```
 
 # Load data for OBIS conversion
+
+## Aphia ID Information
+
+Taxonomic information from WoRRMS
+
 ```{r load-data}
-aphia_id <- 
-    here("data", "metadata") %>%
-    dir_ls(regexp = "aphia_extended_info", 
-           recurse = 1)
+aphia_id <-
+  here("data", "metadata") %>%
+  dir_ls(
+    regexp = "aphia_extended_info",
+    recurse = 1
+  )
 
 if (is_empty(aphia_id) | FALSE) {
   cli_alert_info("Creating a additional aphia ID file.")
 
-  # ---- load aphia id
+  # ---- load aphia ID ---- #
   aphia_id <-
     dir_ls(
       path = here("data", "metadata", "aphia_id"),
@@ -111,26 +110,28 @@ if (is_empty(aphia_id) | FALSE) {
     mutate(
       aphiaID = str_extract(scientificNameID, "\\d+"),
       aphiaID = as.numeric(aphiaID),
-      info =  pmap(
-            list(aphiaID,
-                 taxa_orig,
-                 row_number()),
-            .f = worrms_info_extract # function in taxa_list_check.R
-        )
+      info = pmap(
+        list(
+          aphiaID,
+          taxa_orig,
+          row_number()
+        ),
+        .f = worrms_info_extract # function in taxa_list_check.R
+      )
     ) %>%
     unnest(info, names_repair = janitor::make_clean_names) %>%
     select(!contains("_2"), -c(2:6))
 
   cli_alert_info("\n\nSaving another `Aphia Extended` file!\n}")
   save_csv(
-        .data         = aphia_id,        
-        save_location = here("data", "metadata", "aphia_extended"),
-        save_name     = "aphia_extended_info",
-        overwrite     = TRUE,
-        verbose       = TRUE,
-        utf_8         = TRUE
-    )
-  
+    .data         = aphia_id,
+    save_location = here("data", "metadata", "aphia_extended"),
+    save_name     = "aphia_extended_info",
+    overwrite     = TRUE,
+    verbose       = TRUE,
+    utf_8         = TRUE
+  )
+
   rm(meta_file)
 } else {
   aphia_id <-
@@ -139,16 +140,18 @@ if (is_empty(aphia_id) | FALSE) {
 
   cli_alert_info("Loading file: {.file {basename(aphia_id)}}")
 
-  aphia_id <- 
-      read_csv(
-          aphia_id,
-          show_col_types = FALSE
-  )
+  aphia_id <-
+    read_csv(
+      aphia_id,
+      show_col_types = FALSE
+    )
 }
 ```
 
+## Load Metadata and Microscopy Data
+
 ```{r load-data}
-# ---- load metadata
+# ---- load metadata ---- #
 meta_df <-
   here(cloud_dir, "cruise_logsheets") %>%
   dir_ls(regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
@@ -156,31 +159,48 @@ meta_df <-
   read_csv(show_col_types = FALSE) %>%
     
   # this is when Natalia LF started analysis
-  filter(date >= date("2017-06-18"))
+  filter(date >= date("2017-06-18")) %T>% 
+  print()
 
-# ---- load zooplankton data
+# ---- load zooplankton data ---- #
 taxa_files <-
   dir_ls(
     path = here("data", "processed"),
     regexp = "all_merged_processed"
   ) %>%
   last_mod(.) %>%
-  map_dfr(~ read_csv(., show_col_types = FALSE)) %>%
-  mutate(site = str_replace(site, "MK", "MR")) %>%
-  select(-mean_ind_dil_factor) %>%
+  map(~ read_csv(., show_col_types = FALSE)) %>%
+  list_c() %>%
+  mutate(
+    site      = str_replace(site, "MK", "MR"),
+    cruise_id = str_replace(cruise_id, "WS17275", "WS17282")
+  ) %>%
+  select(-mean_ind_dil_factor, -lifestage) %>%
   rowwise(aliquot_1:aliquot_3) %>%
   mutate(
-    individualCount = 
-        sum(aliquot_1,
-            aliquot_2,
-            aliquot_3,
-            na.rm = TRUE
-            ),
+    individualCount =
+      sum(
+        aliquot_1,
+        aliquot_2,
+        aliquot_3,
+        na.rm = TRUE
+      ),
     .before = aliquot_1
   ) %>%
-  ungroup()
+  ungroup() %T>%
+  print()
+```
 
-# ---- merge metadata and taxa data
+
+# Merge Data
+
+Merge:
+- metadata
+- microscopy data
+- taxonomic information
+
+```{r merge-metadata-microscopy-aphiaid}
+# ---- merge metadata and taxa data ---- #
 taxa_original <-
   taxa_files %>%
   left_join(
@@ -192,6 +212,14 @@ taxa_original <-
     )
   ) %>%
   
+  rename(
+    "ignore_date_collected" = date_collected,
+    # "duplicate_mesh_col" = mesh,
+    "ignore_filtered_volume_m3" = filtered_volume_m3,
+    "file_metadta" = file
+  ) %>%
+      
+    
   # add max depth
   left_join(other_vars$max_depth) %>%
 
@@ -206,21 +234,34 @@ taxa_original <-
     total_split_amount = 2^split_amount * split_size^-1, # whole number
     total_split_frac   = total_split_amount^-1,
      
-    number_ind_sample = eval(other_vars$equation_zoo),
-    ind_m3 = number_ind_sample / volume_filt_cubic_m,
+    number_ind_sample  = eval(other_vars$equation_zoo),
+    ind_m3             = number_ind_sample / volume_filt_cubic_m,
 
     # get aphia ID from end of scientificNameID
     aphiaID = str_extract(scientificNameID, "\\d+"),
     aphiaID = as.numeric(aphiaID)
   ) %>%
+  relocate(
+    .after = 1,
+    site, station:volume_filt_cubic_m, maximumDepthInMeters:total_split_frac) %>%
+  relocate(contains(c("ignore", "duplicate")), .after = last_col()) %T>% 
+  print() %>%
   left_join(.,
     aphia_id,
     by = c(
       "taxa_orig" = "taxa_orig",
       "aphiaID"   = "aphia_id"
     )
-  )
+  ) %T>% 
+  print()
 ```
+# ---- TODO: relocate metadata to front of data
+
+```{r}
+visdat::vis_miss(taxa_original)
+```
+
+
 
 # Save Merged Data
 ```{r save-data}
@@ -228,7 +269,7 @@ save_csv(
     .data         = taxa_original,
     save_location = here("data", "processed", "pre_obis"),
     save_name     = "zoo_data_pre_obis_merg",
-    overwrite     = FALSE,
+    # overwrite     = TRUE, # comment in to overwrite
     verbose       = TRUE
 )
 
