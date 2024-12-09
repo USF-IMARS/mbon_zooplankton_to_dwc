@@ -70,16 +70,16 @@ distinct(taxa_data, cruise_id, site, mesh)
 
 ```{r aphia-ids}
 taxa <-
-    taxa_data %>%
-    select(taxa) %>%
-    distinct() %>%
-    merge_taxa(., 
-               .file_expr = file_exprs, 
-               check      = FALSE, 
-               use_cloud  = TRUE,
-               # viewer     = TRUE, 
-               # .recurse   = TRUE
-               )
+  taxa_data %>%
+  select(taxa) %>%
+  distinct() %>%
+  merge_taxa(.,
+    .file_expr = file_exprs,
+    check      = FALSE,
+    use_cloud  = TRUE,
+    # viewer     = TRUE,
+    # .recurse   = TRUE
+  )
 
 taxa
 
