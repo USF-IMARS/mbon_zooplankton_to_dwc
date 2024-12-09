@@ -8,7 +8,6 @@ output: html_document
 # Load Packages
 This loads any packages that are not contained in the .Rprofile.
 ```{r setup}
-knitr::opts_chunk$set(echo = TRUE)
 librarian::shelf(
     readxl, hablar, worrms, ggforce, geosphere, vroom, plotly,
     quiet = TRUE
@@ -32,18 +31,35 @@ rm(func_attach)
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
 # select all cruise files
-meta <-
+metadata_paths <-
   main_cloud_dir %>%
   dir_ls(type = "directory") %>%
   dir_ls(regexp = "metadata", recurse = 1) %>%
-  dir_ls(regexp = "\\.xlsx$") %>%
+  dir_ls(regexp = "\\.xlsx$") %T>% 
+  {
+    basename(.) %>%
+    print()    
+  } %>%
   str_subset(
-    "(?i)ignore|~|filtA|All_cruise|BB3|Digna|Schedule|Kelble|apad|cdom|cruisetrack|noaa|sample_id_|zooplankton|collected|net_tow",
-    negate = TRUE) %>%
+     paste(
+    "(?i)ignore|~|filtA|All_cruise|BB3|Digna|Schedule|Kelble|apad|cdom",
+    "cruisetrack|noaa|sample_id_|zooplankton|collected|net_tow|edna",
+    "creation_blank|core|mwreu_",
+       sep = "|"), 
+    negate = TRUE) %T>% 
+  {
+    basename(.) %>%
+    print()    
+  } 
+
+
+
+meta_skips <-
+  metadata_paths %>%
   tibble(file = .) %>%
   mutate(
     base = basename(file),
-    cruise_id = str_extract(file, "(WS|SV|H|WB)\\d{4,5}"),
+    cruise_id = str_extract(file, "(WS|SV|HG|H|WB)\\d{4,5}"),
     sheets =
     # read all files for sheet names that match zooplankton and Sheet2
       map_chr(
@@ -51,8 +67,9 @@ meta <-
         \(.x) {
           sht_all <- readxl::excel_sheets(.x) 
           sht <- str_subset(sht_all, "(?i)zooplankton", negate = FALSE)
-
-          if (is_empty(sht)) sht <- str_subset(sht_all, "(?i)sheet2")
+          
+          # if (is_empty(sht)) sht <- str_subset(sht_all, "(?i)sheet2")
+          # if (is_empty(sht)) sht <- str_subset(sht_all, "(?i)sampling")
 
           if (is_empty(sht)) sht <- NA_character_
 
@@ -91,9 +108,18 @@ meta <-
   print()
 ```
 
+```{r}
+meta_skips %>%
+  filter(str_detect(sheets, "sampling|Sheet2")) %>%
+  pull(file) %>%
+  map(~ shell.exec(.x))
+```
+
+
 ```{r load-logsheets}
 meta <-
-  meta %>%
+  meta_skips %>%
+  # slice(1) %>%
   filter(!is.na(skips)) %>%
   mutate(
     data = pmap(
@@ -102,7 +128,7 @@ meta <-
         cli_alert_info(.c)
 
         # read sheets
-        temp <- 
+        temp <-
           readxl::read_xlsx(
             .x,
             sheet = .z,
@@ -110,18 +136,48 @@ meta <-
             .name_repair = janitor::make_clean_names,
             na = c("skip", "Did not collect", "not recorded", "na")
           ) %>%
-          
           # remove rows that are fully empty
           janitor::remove_empty(which = "rows") %>%
-          
+          # remove formalin_vol_ml column
+          select(-contains("formalin_vol_ml")) %>%
           # fill station names down if not there
           tidyr::fill(station) %>%
-            
           # drop rows when flowmeter_out = NA
           drop_na(flowmeter_out) %>%
-            
           # fill down if lat, lon, date, or time is not there
           tidyr::fill(contains(c("lat", "lon", "date", "time"))) %>%
+          mutate(
+            across(
+              contains("local_time_est"),
+              \(.x) {
+                x <-
+                  tryCatch(
+                    {
+                      ymd_hms(.x, tz = "est") %>%
+                        format(
+                          format = "%H:%M:%S",
+                          tz = "utc"
+                        ) %>%
+                        hms::as_hms()
+                      #   hms::as_hms(
+                      #   format(
+                      #     .x,
+                      #     format = "%H:%M:%S",
+                      #     tz = "utc"
+                      #   )
+                      # )
+                    },
+                    warning = function(w) {
+                      NA
+                    },
+                    error = function(e) {
+                      NA
+                    }
+                  )
+              }
+            )
+          ) %>%
+          rename("time_gmt" = contains("local_time_est")) %>%
           mutate(
             # convert time if labeled as time_gmt if needed
             across(
@@ -208,24 +264,23 @@ meta <-
             station, mesh_size_um
           )
         )
-        
+
         # if (str_detect(.c, "WS16207")) browser()
-        if (is.POSIXct(temp$tow_time_min))  {
-          temp <- 
+        if (is.POSIXct(temp$tow_time_min)) {
+          temp <-
             temp %$%
             hms::as_hms(tow_time_min) %>%
             str_split(":", simplify = TRUE) %>%
-            as_tibble()  %>% 
+            as_tibble() %>%
             mutate(
-                across(c(V1, V2, V3), \(x) as.numeric(x)), 
-                time = V1 + V2/60
-                ) %>%
+              across(c(V1, V2, V3), \(x) as.numeric(x)),
+              time = V1 + V2 / 60
+            ) %>%
             select(tow_time_min = time) %>%
             bind_cols(select(temp, -tow_time_min), .)
         }
-        
+
         temp
-        
       }
     ),
     # filter for sheets without any information
@@ -236,78 +291,109 @@ meta <-
 
 ```
 
+
+
+
 # Keep record of files that have no data because either didn't collect or didn't write down
 ```{r filter-no-data}
 no_data <- filter(meta, data_exists == 0)
+no_data %>%
+  pull(data)
 
-slice(meta, 10) %>%
-    unnest(data)
+```
 
-meta <-
+```{r filter-no-data}
+meta_fix <-
   meta %>%
   filter(data_exists > 0) %>%
   select(-data_exists) %>%
   unnest(data) %>%
   select(-file, -sheets, -skips, -contains("local_time_est"), file = base) %>%
+  rename(
+    "ignore_distance_m" = distance_m, 
+    "ignore_tow_speed" = tow_speed
+    ) %>%
+  relocate(flowmeter_in, .before = flowmeter_out) %>%
   separate_rows(mesh_size_um, sep = "/") %>%
   mutate(
-      mesh_size_um     = str_trim(mesh_size_um), 
-      mesh_size_um     = retype(mesh_size_um),
-      # file           = str_remove(file,pattern = "\\.\\d{1,3}$")
-      # mesh_size_um   = strsplit(as.character(mesh_size_um), "/")
-      ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
-      file             = tools::file_path_sans_ext(file),
-      split_size       = map_dbl(split_size, function(x) {
-                                out <- tryCatch({
-                                eval(parse(text = x))}, 
-                                error = function(e) {NA_integer_})}),
-  ) %>% 
-    arrange(date) %>%
-     mutate(locationID      = case_when(
-                str_detect(station, "Mol")  ~ "MR",
-                str_detect(station, "Loo")  ~ "LK",
-                str_detect(station, "West") ~ "WS",
-                str_detect(station, "9B")   ~ "9B",
-                .default = station), 
-           .after = station) %>%
-    mutate(
-        # Note: flowmeter is MF315
-        net_size            = 0.5, # diameter in m
-        net_area            = pi * (net_size/2)^2, # m^2
-        distance_m_2        = (flowmeter_out - flowmeter_in) * inpeller_constant, # m
-        tow_speed_m_sec     = distance_m_2 / (tow_time_min * 60), # m s^-1
-        volume_filt_cubic_m = net_area * distance_m_2, # m^3
-        
-        # Fix Latitude and Longitude
-        # Some files had mixed up lat and lon and some have lon at a positive
-        # decimal degree and should only be negative.
-        lon_in = case_when(
-            str_detect(locationID, "MR") ~ -80.38000,
-            str_detect(locationID, "WS") ~ -81.71700,
-            str_detect(locationID, "LK") ~ -81.41300,
-            str_detect(locationID, "57") ~ -81.26500,
-            str_detect(locationID, "54") ~ -81.15283,
-            .default = lon_in
-        ),
-        lat_in = case_when(
-            str_detect(locationID, "MR") ~ 25.01000,
-            str_detect(locationID, "WS") ~ 24.47800,
-            str_detect(locationID, "LK") ~ 24.53800,
-            str_detect(locationID, "57") ~ 25.35167,
-            str_detect(locationID, "54") ~ 25.34533,
-            .default = lat_in
-        )
-       )
+    mesh_size_um = str_trim(mesh_size_um),
+    mesh_size_um = retype(mesh_size_um),
+    ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
+    file = tools::file_path_sans_ext(file),
+    split_size = map_dbl(split_size, function(x) {
+      out <- tryCatch(
+        {
+          eval(parse(text = x))
+        },
+        error = function(e) {
+          NA_integer_
+        }
+      )
+    }),
+  ) %>%
+  arrange(date) %>%
+  mutate(
+    locationID = case_when(
+      str_detect(station, "Mol") ~ "MR",
+      str_detect(station, "Loo") ~ "LK",
+      str_detect(station, "West") ~ "WS",
+      str_detect(station, "9B") ~ "9B",
+      .default = station
+    ),
+    .after = station
+  ) %>%
+  mutate(
+    # Note: flowmeter is MF315
+    net_size = # diameter in m
+      case_when(
+        mesh_size_um == 64 ~ 0.6,
+        mesh_size_um == 200 ~ 0.5,
+        mesh_size_um == 500 ~ 0.5
+      ),
+    net_area            = pi * (net_size / 2)^2, # m^2
+    flowmeter_diff      = flowmeter_out - flowmeter_in,
+    distance_m          = flowmeter_diff * inpeller_constant, # m
+    tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
+    volume_filt_cubic_m = net_area * distance_m, # m^3
+
+    # Fix Latitude and Longitude
+    # Some files had mixed up lat and lon and some have lon at a positive
+    # decimal degree and should only be negative.
+    lon_in = case_when(
+      str_detect(locationID, "MR") ~ -80.38000,
+      str_detect(locationID, "WS") ~ -81.71700,
+      str_detect(locationID, "LK") ~ -81.41300,
+      str_detect(locationID, "57") ~ -81.26500,
+      str_detect(locationID, "54") ~ -81.15283,
+      .default = lon_in
+    ),
+    lat_in = case_when(
+      str_detect(locationID, "MR") ~ 25.01000,
+      str_detect(locationID, "WS") ~ 24.47800,
+      str_detect(locationID, "LK") ~ 24.53800,
+      str_detect(locationID, "57") ~ 25.35167,
+      str_detect(locationID, "54") ~ 25.34533,
+      .default = lat_in
+    )
+  ) %>%
+  relocate(flowmeter_diff, .after = flowmeter_out) %>%
+  relocate(contains("ignore"), .after = last_col()) %>%
+  relocate(date_time, date, time_gmt, .after = mesh_size_um) %T>% 
+  print()
 
 ```
+
+
+
 
 # Save merged metadata
 ```{r save}
 overwrite <- FALSE
-# overwrite <- TRUE
+overwrite <- TRUE
+
 # ---- write metadata to file ----
 save_csv(
-  .data          = meta,        
+  .data          = meta_fix,        
   save_location  = here("data", "metadata", "cruise_logsheets"),
   save_name      = "meta_combined",
   overwrite      = overwrite,
@@ -316,6 +402,7 @@ save_csv(
   utf_8          = FALSE
 )
 
+# copy to cloud
 if (FALSE) {
   here("data", "metadata", "cruise_logsheets") %>%
   dir_ls(regexp = "meta_combined") %>%
@@ -328,20 +415,218 @@ if (FALSE) {
 
 # for NOAA AOML
 if (FALSE) {
-relocate(
-  meta,
-  date_time,
-  date,
-  time_gmt,
-  .after = locationID
-) %>%
-  relocate(notes, .after = volume_filt_cubic_m) %>%
-  relocate(flowmeter_in, .before = flowmeter_out) %>%
-  openxlsx2::write_xlsx(
-    .,
-    here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
-    na.strings = "",
-    overwrite = overwrite
-  )
+  meta_fix %>%
+    relocate(notes, .after = volume_filt_cubic_m) %>%
+    openxlsx2::write_xlsx(
+      .,
+      here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
+      na.strings = "",
+      overwrite = overwrite
+    )
 }
 ```
+
+
+# Digitized Zooplankton Net Tows
+
+File: `zooplankton_net_tows.xlsx`
+
+A pdf from NOAA AOML with the original hand written logs was digitized by 
+Lilly Verrill and Mia Poage in summer 2023.
+
+This file contains:
+- cruise_id
+- date
+- station
+- net_size (i.e. mesh size)
+- time
+- time_zone (b/c was recorded in EDT)
+- flowmeter_in	
+- latitude	
+- longitude	
+- tow_time (as time and needs to be converted to number)
+- flowmeter_out	
+- notes
+
+
+
+```{r}
+noaa_zoo_pdf <-
+  here(cloud_dir, "../miscellaneous_tasks") %>%
+  dir_ls(regexp = "zooplankton_net_tows.xlsx") %>%
+  str_subset("~\\$", negate = TRUE) %>%
+  read_excel() %T>%
+  print() %>%
+  mutate(
+    .before = time,
+    time = str_remove(time, "\\d{4}-\\d{2}-\\d{2}\\s"),
+    date_time =
+      pmap(
+        list(
+          date,
+          time,
+          time_zone
+        ),
+        \(.date, .time, .timezone) {
+          # print(.timezone)
+
+          if (is.na(.timezone)) {
+            return(lubridate::NA_POSIXct_)
+          }
+          .timezone <- if_else(.timezone == "EDT", "EST", .timezone)
+          as_datetime(paste(.date, .time), tz = .timezone)
+        }
+      ),
+  ) %>%
+  unnest(date_time) %>%
+  mutate(
+    date      = as_date(date_time),
+    time      = hms::as_hms(date_time),
+    
+    # lat/lon fix if has space
+    longitude = paste(longitude, "W"),
+    latitude  = parzer::parse_lat(latitude),
+    longitude = parzer::parse_lon(longitude),
+    
+    
+    
+  ) %>%
+  select(-time_zone) %>%
+  relocate(date, .after = date_time) %>%
+  mutate(
+    tow_time2 = hms::as_hms(tow_time),
+    tow_time2 = str_split(tow_time2, ":")
+  ) %>%
+  unnest_wider(tow_time2, names_sep = "_") %>%
+  mutate(
+    across(contains("tow_time2"), as.numeric),  
+    tow_time = tow_time2_1 + tow_time2_2/ 60
+  ) %>%
+  select(-contains("tow_time2"))
+
+```
+
+## Rename and Add Calculations to Digitized Zooplantkon Net Tow
+
+Renaming columns:
+New                Old
+"mesh_size_um" = net_size
+"tow_time_min" = tow_time
+"locationID"   = station
+"lon_in"       = longitude
+"lat_in"       = latitude
+
+Add Columns:
+inpeller_constant
+net_size (as the diameter of the net in meters)
+
+Calculations:
+net_area        = pi * (net_size/2)^2)
+flowmeter_diff  = flow out - flow in
+distance_m      = flowmeter_diff * inpeller_constant
+tow_speed_m_sec = distance_m / (tow_time_min * 60)
+
+
+```{r}
+noaa_zoo_metadata <-
+  noaa_zoo_pdf %>%
+  rename(
+    "mesh_size_um" = net_size,
+    "tow_time_min" = tow_time,
+    "locationID"   = station,
+    "lon_in"       = longitude,
+    "lat_in"       = latitude
+  ) %>%
+  mutate(
+    inpeller_constant = 0.245,
+    # Note: flowmeter is MF315
+    net_size = # diameter in m
+      case_when(
+        mesh_size_um == 64 ~ 0.6,
+        mesh_size_um == 200 ~ 0.5,
+        mesh_size_um == 500 ~ 0.5
+      ),
+    net_area            = pi * (net_size / 2)^2, # m^2
+    flowmeter_diff      = flowmeter_out - flowmeter_in,
+    distance_m          = flowmeter_diff * inpeller_constant, # m
+    tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
+    volume_filt_cubic_m = net_area * distance_m, # m^3
+
+    # Fix Latitude and Longitude
+    # Some files had mixed up lat and lon and some have lon at a positive
+    # decimal degree and should only be negative.
+    lon_in = case_when(
+      str_detect(locationID, "MR") ~ -80.38000,
+      str_detect(locationID, "WS") ~ -81.71700,
+      str_detect(locationID, "LK") ~ -81.41300,
+      str_detect(locationID, "57") ~ -81.26500,
+      str_detect(locationID, "54") ~ -81.15283,
+      .default = lon_in
+    ),
+    lat_in = case_when(
+      str_detect(locationID, "MR") ~ 25.01000,
+      str_detect(locationID, "WS") ~ 24.47800,
+      str_detect(locationID, "LK") ~ 24.53800,
+      str_detect(locationID, "57") ~ 25.35167,
+      str_detect(locationID, "54") ~ 25.34533,
+      .default = lat_in
+    ),
+    
+    station = case_when(
+      str_detect(locationID, "MR") ~ "Molasses Reef",
+      str_detect(locationID, "LK") ~ "Looe Key (deep)",
+      str_detect(locationID, "WS") ~ "Western Sambo",
+      .default = locationID
+    )
+    
+  ) %>%
+  relocate(flowmeter_diff, .after = flowmeter_out) %>%
+  relocate(contains("ignore"), .after = last_col()) %>%
+  relocate(date_time, date, "time_gmt" = time, .after = mesh_size_um)  %>%
+  relocate(station, .before = locationID) %T>%
+  print()
+
+
+
+```
+# Save merged NOAA metadata
+```{r save}
+overwrite <- FALSE
+# overwrite <- TRUE
+
+# ---- write metadata to file ----
+save_csv(
+  .data          = noaa_zoo_metadata,        
+  save_location  = here("data", "metadata", "cruise_logsheets"),
+  save_name      = "zoo_noaa_meta",
+  overwrite      = overwrite,
+  verbose        = TRUE,
+  time_stamp_fmt = "%Y%m%d_%H%M%S",
+  utf_8          = FALSE
+)
+
+# copy to cloud
+if (FALSE) {
+  here("data", "metadata", "cruise_logsheets") %>%
+  dir_ls(regexp = "zoo_noaa_meta") %>%
+  last_mod() %>% 
+  file_copy(
+      here(cloud_dir, "cruise_logsheets", "zoo_noaa_meta.csv"),
+      overwrite = TRUE
+  )
+}
+
+# for NOAA AOML
+if (FALSE) {
+  meta_fix %>%
+    relocate(notes, .after = volume_filt_cubic_m) %>%
+    openxlsx2::write_xlsx(
+      .,
+      here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
+      na.strings = "",
+      overwrite = overwrite
+    )
+}
+```
+
+
