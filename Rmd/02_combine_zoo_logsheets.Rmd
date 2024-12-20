@@ -12,21 +12,23 @@ librarian::shelf(
     readxl, hablar, worrms, ggforce, geosphere, vroom, plotly,
     quiet = TRUE
     )
-```
 
-# Load functions if not already
-This will load the functions needed if not already contain in the search path.
-```{r load-functions}
+# Load helper functions if not already
 source(here("scripts", "attach_funcs.R"))
 func_attach()
 rm(func_attach)
 ```
 
-# Load cruise metadata files from `data/metadata/` 
+
+# Load cruise metadata files from Box `imars_mbon_cruises/years/` or elsewhere
+
+
 1. Parse all file paths
 - Will ignore files with `~$` in front because these are usually temporary files that are opened
 2. Remove files that would not contain zooplankton metadata
 3. Loop through each file and look for sheet with `zooplankton` in the name 
+
+
 ```{r read-sheets, include=FALSE}
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
@@ -37,9 +39,13 @@ metadata_paths <-
   dir_ls(regexp = "metadata", recurse = 1) %>%
   dir_ls(regexp = "\\.xlsx$") %T>% 
   {
+    cat("All `xlsx` files\n---\n\n")
     basename(.) %>%
+    sort() %>%
     print()    
   } %>%
+  
+  # filter out non-metadata files
   str_subset(
      paste(
     "(?i)ignore|~|filtA|All_cruise|BB3|Digna|Schedule|Kelble|apad|cdom",
@@ -48,28 +54,28 @@ metadata_paths <-
        sep = "|"), 
     negate = TRUE) %T>% 
   {
+    cat("\n\n---\nFiltered files\n---\n\n")
     basename(.) %>%
     print()    
-  } 
+  }
+```
 
 
-
+```{r read-sheets, include=FALSE}
 meta_skips <-
   metadata_paths %>%
   tibble(file = .) %>%
   mutate(
-    base = basename(file),
+    base      = basename(file),
     cruise_id = str_extract(file, "(WS|SV|HG|H|WB)\\d{4,5}"),
     sheets =
-    # read all files for sheet names that match zooplankton and Sheet2
+    # read all files for sheet names that match `zooplankton`
       map_chr(
         .x = file,
         \(.x) {
+          cli_alert_info("Reading file: {basename(.x)}")
           sht_all <- readxl::excel_sheets(.x) 
           sht <- str_subset(sht_all, "(?i)zooplankton", negate = FALSE)
-          
-          # if (is_empty(sht)) sht <- str_subset(sht_all, "(?i)sheet2")
-          # if (is_empty(sht)) sht <- str_subset(sht_all, "(?i)sampling")
 
           if (is_empty(sht)) sht <- NA_character_
 
@@ -77,30 +83,31 @@ meta_skips <-
         }
       )
   ) %>%
+  print() %>%
   filter(!is.na(sheets)) %>%
   mutate(
     skips =
       map2_int(
         .x = file,
         .y = sheets,
+        # find row number to start zooplankton metadata
         function(.x, .y) {
           cat(basename(.x), "\n")
 
-          # find number of rows to skip to get to metadata
           skips <- 
             readxl::read_xlsx(
               .x,
-              range = cell_cols("A"),
-              col_names = FALSE,
-              sheet = .y,
+              range        = cell_cols("A"),
+              sheet        = .y,
+              col_names    = FALSE,
               .name_repair = "unique_quiet"
             ) %>%
             pull(1) %>%
             str_which("(?i)zooplankton sampling")
 
           # if skips can't find a number, will make NA
-          if (is_empty(skips)) skips <- NA_integer_
-
+          skips <- if_else(is_empty(skips), NA_integer_, skips)
+          
           skips
         }
       )
@@ -108,13 +115,22 @@ meta_skips <-
   print()
 ```
 
-```{r}
-meta_skips %>%
-  filter(str_detect(sheets, "sampling|Sheet2")) %>%
-  pull(file) %>%
-  map(~ shell.exec(.x))
-```
 
+# Load Logsheets
+
+
+1. read spreadsheet
+2. remove empty rows
+3. remove column `formalin_vol_ml` as is not necessary
+4. fill down for station, lat, lon, date and time
+5. drop rows when flowmeter out is NA
+6. if has column `local_time_est`, convert time to gmt
+    - then rename `time_gmt`
+7. convert `time_gmt` to a time object using `hms`
+8. combine date and time to create date time column
+9. if lat/lon are characters, convert to decimal degrees
+10. convert tow_tow_min to minutes with decimals for seconds
+12. check if data is output 
 
 ```{r load-logsheets}
 meta <-
@@ -140,16 +156,17 @@ meta <-
           janitor::remove_empty(which = "rows") %>%
           # remove formalin_vol_ml column
           select(-contains("formalin_vol_ml")) %>%
-          # fill station names down if not there
-          tidyr::fill(station) %>%
+          
+          # fill down if lat, lon, date, or time is not there
+          tidyr::fill(contains(c("station", "lat", "lon", "date", "time"))) %>%
+
           # drop rows when flowmeter_out = NA
           drop_na(flowmeter_out) %>%
-          # fill down if lat, lon, date, or time is not there
-          tidyr::fill(contains(c("lat", "lon", "date", "time"))) %>%
           mutate(
             across(
               contains("local_time_est"),
               \(.x) {
+                # if have est time, convert to gmt/utc time
                 x <-
                   tryCatch(
                     {
@@ -159,13 +176,6 @@ meta <-
                           tz = "utc"
                         ) %>%
                         hms::as_hms()
-                      #   hms::as_hms(
-                      #   format(
-                      #     .x,
-                      #     format = "%H:%M:%S",
-                      #     tz = "utc"
-                      #   )
-                      # )
                     },
                     warning = function(w) {
                       NA
@@ -178,6 +188,7 @@ meta <-
             )
           ) %>%
           rename("time_gmt" = contains("local_time_est")) %>%
+          
           mutate(
             # convert time if labeled as time_gmt if needed
             across(
@@ -204,7 +215,7 @@ meta <-
               }
             ),
 
-            # convert time_gmt to date_time if possible with date and
+            # convert time_gmt to date_time if possible with date and time
             across(
               contains(c("time_gmt")),
               list(date_time = \(.x) {
@@ -239,7 +250,7 @@ meta <-
               .after = "lon_in"
             ) %>%
             select(-lon_in, -lat_in) %>%
-            rename(lon_in = lon, lat_in = lat)
+            rename("lon_in" = lon, "lat_in" = lat)
         }
 
         # change name of x to notes if exists
@@ -287,7 +298,8 @@ meta <-
     data_exists =
       map(.x = data, ~ if_else(nrow(.x) > 0, 1, 0)) %>%
         unlist()
-  )
+  ) %T>%
+  print()
 
 ```
 
@@ -295,44 +307,83 @@ meta <-
 
 
 # Keep record of files that have no data because either didn't collect or didn't write down
+
+
 ```{r filter-no-data}
 no_data <- filter(meta, data_exists == 0)
+
+cli::cli_alert_danger("Cruise(s) with no data:")
+cat_bullet(no_data$cruise_id)
+
 no_data %>%
   pull(data)
 
-```
+# open files to check zooplankton
+# map(
+#   .x = no_data$file,
+#   \(.x) {
+#       shell.exec(.x)
+#   }
+# )
 
-```{r filter-no-data}
-meta_fix <-
+```
+# Merge Metadata 
+
+Merge all metadata sheets across all cruises when samples are taken
+
+```{r merge-metadata}
+meta_merg <- 
   meta %>%
   filter(data_exists > 0) %>%
   select(-data_exists) %>%
-  unnest(data) %>%
-  select(-file, -sheets, -skips, -contains("local_time_est"), file = base) %>%
+  unnest(data) %T>% 
+  print()
+```
+
+
+# Add/Remove/Rename Columns
+
+Remove:
+- file
+- sheets
+- skips
+- local_time_est
+
+Modify:
+- 
+
+```{r filter-no-data}
+meta_fix <-
+  meta_merg %>%
+  select(-sheets, -skips, -contains("local_time_est")) %>%
   rename(
     "ignore_distance_m" = distance_m, 
-    "ignore_tow_speed" = tow_speed
+    "ignore_tow_speed"  = tow_speed
     ) %>%
   relocate(flowmeter_in, .before = flowmeter_out) %>%
   separate_rows(mesh_size_um, sep = "/") %>%
   mutate(
-    mesh_size_um = str_trim(mesh_size_um),
-    mesh_size_um = retype(mesh_size_um),
+    mesh_size_um     = str_trim(mesh_size_um),
+    mesh_size_um     = retype(mesh_size_um),
     ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
-    file = tools::file_path_sans_ext(file),
-    split_size = map_dbl(split_size, function(x) {
-      out <- tryCatch(
-        {
-          eval(parse(text = x))
-        },
-        error = function(e) {
-          NA_integer_
-        }
-      )
-    }),
+    file             = tools::file_path_sans_ext(file),
+    split_size       = map_dbl(split_size, 
+      function(x) {
+        out <- tryCatch(
+          {
+            eval(parse(text = x))
+          },
+          error = function(e) {
+            NA_integer_
+          }
+        )
+      }),
   ) %>%
   arrange(date) %>%
   mutate(
+    .after = station,
+    
+    # add location ID as DarwinCore column name
     locationID = case_when(
       str_detect(station, "Mol") ~ "MR",
       str_detect(station, "Loo") ~ "LK",
@@ -340,22 +391,15 @@ meta_fix <-
       str_detect(station, "9B") ~ "9B",
       .default = station
     ),
-    .after = station
-  ) %>%
-  mutate(
-    # Note: flowmeter is MF315
-    net_size = # diameter in m
-      case_when(
-        mesh_size_um == 64 ~ 0.6,
-        mesh_size_um == 200 ~ 0.5,
-        mesh_size_um == 500 ~ 0.5
-      ),
-    net_area            = pi * (net_size / 2)^2, # m^2
-    flowmeter_diff      = flowmeter_out - flowmeter_in,
-    distance_m          = flowmeter_diff * inpeller_constant, # m
-    tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
-    volume_filt_cubic_m = net_area * distance_m, # m^3
-
+    
+    # rename station to full name
+    station = case_when(
+      str_detect(locationID, "MR") ~ "Molasses Reef",
+      str_detect(locationID, "LK") ~ "Looe Key (deep)",
+      str_detect(locationID, "WS") ~ "Western Sambo",
+      .default = locationID
+    ),
+    
     # Fix Latitude and Longitude
     # Some files had mixed up lat and lon and some have lon at a positive
     # decimal degree and should only be negative.
@@ -375,25 +419,118 @@ meta_fix <-
       str_detect(locationID, "54") ~ 25.34533,
       .default = lat_in
     )
+  ) %T>% 
+ print()
+```
+
+# Calculations
+
+- net size
+- net area
+- distance
+- tow speed (m/sec)
+- volume filtered (m^3)
+
+```{r calculations}
+meta_calc <- 
+  meta_fix %>%
+  mutate(
+    # Note: flowmeter is MF315
+    net_size = # diameter in m
+      case_when(
+        mesh_size_um == 64 ~ 0.6,
+        mesh_size_um == 200 ~ 0.5,
+        mesh_size_um == 500 ~ 0.5
+      ),
+    net_area            = pi * (net_size / 2)^2, # m^2
+    flowmeter_diff      = flowmeter_out - flowmeter_in,
+    distance_m          = flowmeter_diff * inpeller_constant, # m
+    tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
+    volume_filt_cubic_m = net_area * distance_m, # m^3
+
   ) %>%
   relocate(flowmeter_diff, .after = flowmeter_out) %>%
   relocate(contains("ignore"), .after = last_col()) %>%
   relocate(date_time, date, time_gmt, .after = mesh_size_um) %T>% 
   print()
-
 ```
 
 
 
 
+# Find Potiential Errors
+
+```{r errors}
+# volume filtered < 0 or > 500 
+meta_calc %>%
+  filter(volume_filt_cubic_m > 500 | volume_filt_cubic_m <= 0) %>%
+  select(
+    -c(file, net_size:tow_speed_m_sec, ship_speed_knots, inpeller_constant, 
+       split_size, contains("ignore"))
+    )
+```
+
+
+## Plot Volume Filtered
+
+Plot data to find erroneous entries
+
+```{r plots}
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")
+
+
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-100, 1200), expand = expansion())
+    
+# volume filt <= 0 or > 500   
+meta_calc %>%
+  filter(volume_filt_cubic_m <= 0 | volume_filt_cubic_m > 500) %T>%
+  print() %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")  
+
+# tow time vs vol filt
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  # scale_y_continuous(limits = c(-100, 1200), expand = expansion()) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1))) 
+
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-100, 1000), expand = expansion(0, c(0, 100))) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1)), 
+                     breaks = seq(0, 8)) 
+
+```
+
+
+
 # Save merged metadata
+
 ```{r save}
+meta_final <- select(meta_calc, -file,  "file" = base)
+
 overwrite <- FALSE
-overwrite <- TRUE
+# overwrite <- TRUE
 
 # ---- write metadata to file ----
 save_csv(
-  .data          = meta_fix,        
+  .data          = meta_final,        
   save_location  = here("data", "metadata", "cruise_logsheets"),
   save_name      = "meta_combined",
   overwrite      = overwrite,
@@ -415,7 +552,7 @@ if (FALSE) {
 
 # for NOAA AOML
 if (FALSE) {
-  meta_fix %>%
+  meta_final %>%
     relocate(notes, .after = volume_filt_cubic_m) %>%
     openxlsx2::write_xlsx(
       .,
@@ -427,7 +564,12 @@ if (FALSE) {
 ```
 
 
-# Digitized Zooplankton Net Tows
+
+
+# # -------- #
+
+
+# NOAA Written Logs Digitized Zooplankton Net Tows
 
 File: `zooplankton_net_tows.xlsx`
 
@@ -488,8 +630,6 @@ noaa_zoo_pdf <-
     latitude  = parzer::parse_lat(latitude),
     longitude = parzer::parse_lon(longitude),
     
-    
-    
   ) %>%
   select(-time_zone) %>%
   relocate(date, .after = date_time) %>%
@@ -502,7 +642,8 @@ noaa_zoo_pdf <-
     across(contains("tow_time2"), as.numeric),  
     tow_time = tow_time2_1 + tow_time2_2/ 60
   ) %>%
-  select(-contains("tow_time2"))
+  select(-contains("tow_time2")) %T>% 
+  print()
 
 ```
 
@@ -527,7 +668,7 @@ distance_m      = flowmeter_diff * inpeller_constant
 tow_speed_m_sec = distance_m / (tow_time_min * 60)
 
 
-```{r}
+```{r fix-noaa-digitized}
 noaa_zoo_metadata <-
   noaa_zoo_pdf %>%
   rename(
@@ -589,6 +730,67 @@ noaa_zoo_metadata <-
 
 
 ```
+
+```{r}
+noaa_zoo_metadata %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  mutate(
+      .keep = "used",
+      cruise_id,
+      locationID,
+      year = as.factor(year(date))
+  ) %>%
+  filter(is.na((year)))
+```
+
+
+```{r plots}
+noaa_zoo_metadata %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")
+
+
+noaa_zoo_metadata %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-100, 1200), expand = expansion())
+    
+# volume filt <= 0 or > 500   
+noaa_zoo_metadata %>%
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  filter(volume_filt_cubic_m <= 0 | volume_filt_cubic_m > 500) %T>%
+  print() %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")  
+
+# tow time vs vol filt
+noaa_zoo_metadata %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  # scale_y_continuous(limits = c(-100, 1200), expand = expansion()) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1))) 
+
+noaa_zoo_metadata %>% 
+  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
+  geom_point() +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-100, 1000), expand = expansion(0, c(0, 100))) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1)), 
+                     breaks = seq(0, 8)) 
+
+```
+
+
+
+
 # Save merged NOAA metadata
 ```{r save}
 overwrite <- FALSE
@@ -616,17 +818,6 @@ if (FALSE) {
   )
 }
 
-# for NOAA AOML
-if (FALSE) {
-  meta_fix %>%
-    relocate(notes, .after = volume_filt_cubic_m) %>%
-    openxlsx2::write_xlsx(
-      .,
-      here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
-      na.strings = "",
-      overwrite = overwrite
-    )
-}
 ```
 
 
