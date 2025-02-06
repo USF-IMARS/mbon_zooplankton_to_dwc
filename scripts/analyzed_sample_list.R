@@ -1,18 +1,18 @@
 ##%######################################################%##
 #                                                          #
-####        Create list of all samples analyized        ####
+####        Create list of all samples analyzed         ####
 #                                                          #
 ##%######################################################%##
 ##
 librarian::shelf(
-    librarian, tibble, tidyr, dplyr, stringr,
+    librarian, conflicted, tibble, tidyr, dplyr, stringr,
     lubridate, glue, fs, magrittr, here
 )
 
-library("conflicted")
-
-conflict_prefer("filter", "dplyr")
-conflict_prefer("select", "dplyr")
+conflicts_prefer(
+    dplyr::filter(), 
+    dplyr::select()
+)
 
 # query folder in cloud directory for data names
 sample_list <- 
@@ -23,9 +23,10 @@ sample_list <-
     
     # extract basename 
     mutate(
-        base = basename(files) %>%
-               tools::file_path_sans_ext()
+        base = basename(files),
+        base = tools::file_path_sans_ext(base)
     ) %>%
+    
     # extract info from filename
     separate(base, c("cruise_id", "station", "mesh"), sep = "_")
 
