@@ -51,7 +51,7 @@ load_data <- function(file_taxa, verbose = TRUE) {
     mutate(
       x1 = str_replace(x1, ".*ate of.*", "date analyzed")
     ) %>%
-    pivot_wider(,
+    pivot_wider(
       names_from  = x1,
       values_from = x2
     ) %>%
