@@ -9,7 +9,7 @@ editor: source
 # 1.0 ---- Summary of Document ----
 
 This script uses the pre-OBIS zooplankton data and separates into identifier and
-location ID. Then, the data will be save as a `.csv` with the intials of who 
+location ID. Then, the data will be save as a `.csv` with the initials of who 
 identified the species and the location ID:
 ex: "zooplankton_erddap_<NP|JRM>_<locationID>.csv"
 
