@@ -62,13 +62,17 @@ load_data <- function(file_taxa, verbose = TRUE) {
     ) %>%
     hablar::retype()
 
-  # load the data set
+  # load count data set
   taxa <-
     readxl::read_xlsx(
       path         = file_taxa,
       skip         = skips,
       .name_repair = janitor::make_clean_names
-    ) %>%
+    ) 
+  
+  # merge header info with count data
+  merged_dat <- 
+    taxa %>%
     bind_cols(calc, .) %>%
     select("cruise_id" = sample_id, everything()) %>%
     filter(mean > 0) %>%
@@ -80,7 +84,7 @@ load_data <- function(file_taxa, verbose = TRUE) {
       )
     )
 
-  return(taxa)
+  return(merged_dat)
   # ---- end of function
 }
 
@@ -536,15 +540,16 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
                         ind_file = TRUE,
                         append = TRUE,
                         ...) {
-  dir <- here::here(loc, "ind_file_merg")
+  dir_all <- here::here(loc, "all_merged")
+  dir_ind <- here::here(loc, "ind_file_merg")
 
-  fs::dir_create(loc)
-  fs::dir_create(dir)
+  fs::dir_create(dir_all)
+  fs::dir_create(dir_ind)
 
   # ---- save processed taxa data
   file.name <-
     here::here(
-      loc,
+      dir_all,
       glue(
         "all_merged_",
         "processed",
@@ -552,7 +557,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
         ".csv"
       )
     )
-  old_merged <- fs::dir_ls(loc, regexp = "all_merged") %>%
+  old_merged <- fs::dir_ls(dir_all, regexp = "all_merged") %>%
     last_mod(.)
 
   # ---- save merged list
@@ -580,7 +585,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
       mutate(
         files =
           here(
-            dir,
+            dir_ind,
             glue(
               "{basename(path_ext_remove(taxa_matched_merg$files))}_",
               "processed",
@@ -599,7 +604,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
       )
 
     cli::cli_alert_info("Saving merged files in {.file {dirname(file.name)}}")
-    cli::cli_alert_info("Saving individual files in {.file {dir}}")
+    cli::cli_alert_info("Saving individual files in {.file {dir_ind}}")
 
     Sys.sleep(1)
   } else {
@@ -627,7 +632,7 @@ save_merged <- function(taxa_matched_merg, .taxa_file = NULL,
 #' @param file_name The file containing the processed data file paths.
 #' @param check Whether to check any unmatched names.
 #' 
-#' TRUE = check list and remove old files from processesing \cr
+#' TRUE = check list and remove old files from processing \cr
 #' FALSE = use entire list of files
 #'
 #' @return List of files to be processed.
@@ -641,21 +646,22 @@ skip_file <- function(file_taxa,
     
     # load file most recent taxa with aphiaID 
     files_lists <-  
-        fs::dir_ls(path    =  here::here(),
+        fs::dir_ls(path    = loc,
                    regexp  = glue("{file_name}.*\\.csv$"),
                    recurse = TRUE)
     
-    # check list of files to remove from search
+    # check list of files previously processed and removes files from list
     if (isTRUE(check)) {
-        files_lists <- files_lists %>%
+        files_lists <- 
+            files_lists %>%
             {if (!is_empty(.))
                 read_csv(., show_col_types = FALSE) %>%
-                    pull(files)
+                  pull(files)
             }
         
         if (all(class(file_taxa) != "character")) file_taxa <- pull(file_taxa, 1)
         
-        file_taxa <-  file_taxa[!(file_taxa %in% files_lists)]
+        file_taxa <- file_taxa[!(file_taxa %in% files_lists)]
         
         assertthat::assert_that(
             assertthat::not_empty(file_taxa),
@@ -666,10 +672,13 @@ skip_file <- function(file_taxa,
     } 
     
     if (str_detect(check, "(?i)ig")) {
+    # if (!(check)) { # <-- this should be the way to go, but need to separate 
+    # appending list as a new function??
         cli::cli_alert_info("Ignoring checks and returning same input!")
         return(tibble(files = file_taxa))
     }
     
+    # ---- create or append processed list ---- #
     file.name <- here::here(loc, glue("{file_name}.csv"))
     
     # ---- initialize file list
