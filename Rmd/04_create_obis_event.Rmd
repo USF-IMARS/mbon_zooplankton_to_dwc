@@ -102,23 +102,25 @@ Steps:
 ## 1.5 Load data for OBIS conversion
 ```{r load-data}
 # ---- search file ---- #
-dwc_info_path <- 
-    # here("data", "processed", "pre_obis")  %>%
-    here(cloud_dir, "processed")  %>%
-    dir_ls(regexp = "zoo_data_pre_obis") %>%
-    last_mod() %T>% 
-    print()
+dwc_info_path <-
+  # here("data", "processed", "pre_obis") %>%
+  here(cloud_dir, "processed") %>%
+  dir_ls(regexp = "zoo_data_pre_obis") %>%
+  last_mod() %T>%
+  print()
 
 # ---- load file ---- #
-dwc_info <- 
-    dwc_info_path %>%
-    read_csv(
-        show_col_types = FALSE,
-        guess_max      = 4000)  %>%
-    left_join(
-        other_vars$larval_stage,
-        by = c("lifeStage" = "larva_orig")) %>%
-    print()
+dwc_info <-
+  dwc_info_path %>%
+  read_csv(
+    show_col_types = FALSE,
+    guess_max      = 4000
+  ) %>%
+  left_join(
+    other_vars$larval_stage,
+    by = c("lifeStage" = "larva_orig")
+  ) %>%
+  print()
 ```
 
 ## 1.6 Load MoF Base Info
@@ -133,9 +135,9 @@ mof_info <- list()
 
 # ---- function to create/read base mof info
 mof_info$mof_base <-
-    mof_read() %T>%
-    print() %>%
-    filter(!is.na(measurementType))
+  mof_read() %T>%
+  print() %>%
+  filter(!is.na(measurementType))
 
 mof_info$mof_base
 ```
@@ -182,7 +184,7 @@ dwc_info <-
     license                = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
     institutionCode        = "USF | NOAA", # include NOAA
     # ownerInstitutionCode = "USF",
-    collectionCode          = "SEUS-MBON-Zooplankton",
+    collectionCode         = "SEUS-MBON-Zooplankton",
     parentEventID          = "IMaRS_MBON_zooplankton",
     datasetName            = paste(
       "MBON/USF-IMaRS/NOAA AOML Florida Keys National",
@@ -305,7 +307,7 @@ dwc_info <-
     # MOF?
 ```
 
-## 2.3 Load Data from before 2018
+## 2.3 Load Pre-2018 Data 
 ```{r}
 stations <- c("LK", "MR", "WS")
 
@@ -617,7 +619,7 @@ pwalk(
       # mof_core
       filter(mof_core, !(is.na(measurementValue)))
     ),
-    here("data", "processed", "obis"),
+    here("data", "processed", "obis", Sys.Date()),
     glue("{c(\"event\", \"occur\", \"mof\")}")
   ),
   \(data, loc, name_f)
@@ -625,8 +627,7 @@ pwalk(
       .data          = data,
       save_location  = loc,
       save_name      = name_f,
-      # overwrite      = TRUE,
-      overwrite      = FALSE,
+      # overwrite      = TRUE,        # <-- uncomment to overwrite
       verbose        = TRUE,
       time_stamp_fmt = NULL,
       utf_8 = TRUE
