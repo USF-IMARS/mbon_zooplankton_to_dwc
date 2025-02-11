@@ -37,10 +37,12 @@ mof_read <- function() {
         source(here("scripts", "misc_functions.R"))
     }
     
-    mof_file <- dir_ls(here(), 
-                       regexp = "mof_sheet.*\\.csv", 
-                       recurse = TRUE) %>%
-                last_mod(.)
+    mof_file <- 
+      dir_ls(
+        path    = here(), 
+        regexp  = "mof_sheet.*\\.csv", 
+        recurse = TRUE) %>%
+      last_mod(.)
 
 
     # ======================================================================== #
@@ -49,13 +51,13 @@ mof_read <- function() {
     # if file doesnt exists, will create a stock one based on previous information
     if (identical(as.character(mof_file), character())) {
         
-        mof_path <- here("data", "metadata", "mof")
-        cli_alert_info("An MoF base file doesn't exist.")
-        cli_inform("One will be created in {.file {mof_path}} using info from Jan 2023")
+      mof_path <- here("data", "metadata", "mof")
+      cli_alert_info("An MoF base file doesn't exist.")
+      cli_inform("One will be created in {.file {mof_path}} using info from Jan 2023")
+      
+      dir_create(mof_path)
         
-        dir_create(mof_path)
-        
-        mof_base <-
+      mof_base <-
         tibble::tribble(
             ~orig_term,             ~measurementType, ~measurementType_uri, ~measurementAccuracy, ~measurementUnit, ~measurementUnit_uri, ~measurementValue,
             "net_type",                 "bongo nets", "L22/current/NETT0176/",                NA,               NA,                   NA,                NA,
@@ -85,30 +87,33 @@ mof_read <- function() {
             "mesh",     "Sampling net mesh size", "Q01/current/Q0100015/",                NA,         "Micrometres",    "P06/current/UMIC/",              NA,
             "microscopy",           "microscopy",    "S04/current/S0419/",                NA,                    NA,                     NA,              NA
         )  %>%
-         mutate(
-             event_occur = case_when(
-                 str_detect(orig_term, "ind_m3|number_ind_sample") ~ "occur",
-                 .default = "event"
-             ),
-             .after = orig_term
+      mutate(
+        event_occur = case_when(
+          str_detect(orig_term, "ind_m3|number_ind_sample") ~ "occur",
+          .default = "event"
+          ),
+        .after = orig_term
          )
-        # ==================================================================== #
-        # ---- Save Table ----
-        # ==================================================================== #    
-        
-        # file name
-        file_mof <- glue::glue("{here(mof_path,'mof_sheet')}",
-                   "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
-                   ".csv")
-        
-        readr::write_csv(mof_base, 
-                         file_mof)
-        
-        
+      # ==================================================================== #
+      # ---- Save Table ----
+      # ==================================================================== #    
+      
+      # file name
+      file_mof <- 
+        glue::glue(
+          "{here(mof_path,'mof_sheet')}",
+          "{format(Sys.time(), '_%Y%m%d_%H%M%S')}",
+          ".csv"
+          )
+      
+      readr::write_csv(
+        mof_base, 
+        file_mof
+        )
     
     } else {
-        cli_inform("Loading MoF table: {.file {mof_file}}")
-        mof_base <- readr::read_csv(mof_file, show_col_types = FALSE)
+      cli_inform("Loading MoF table: {.file {mof_file}}")
+      mof_base <- readr::read_csv(mof_file, show_col_types = FALSE)
     }
     
     
@@ -117,21 +122,23 @@ mof_read <- function() {
     
     # ---- add mof_info
     mof_base <-
-        mof_base %>%
-        mutate(
-            across(contains("_uri"),
-                   .fns = ~ if_else(
-                       !is.na(.x),
-                       str_c(def_web, .),
-                       NA_character_
-                   )
+      mof_base %>%
+      mutate(
+        across(
+          contains("_uri"),
+          .fns = \(.x) 
+            if_else(
+              !is.na(.x),
+              paste0(def_web, .x),
+              NA_character_
             )
+          )
         ) %>%
-        rename(
-            "measurementTypeID" = measurementType_uri,
-            "measurementUnitID" = measurementUnit_uri
-        ) %>%
-        select(-measurementValue)
+      rename(
+        "measurementTypeID" = measurementType_uri,
+        "measurementUnitID" = measurementUnit_uri
+      ) %>%
+      select(-measurementValue)
     
     
     return(mof_base)
