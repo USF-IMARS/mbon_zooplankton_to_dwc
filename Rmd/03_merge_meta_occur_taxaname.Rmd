@@ -29,23 +29,27 @@ conflicts_prefer(
 ```{r other-vars}
 other_vars <- list()
 
-# ---- recorded by info
+# ---- recorded by info ---- #
 other_vars$identifier       <- "Natalia Lopez Figueroa"
 other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
 
-# ---- max depth per site
+# ---- max depth per site ---- #
 other_vars$max_depth <-
   tribble(
     ~site, ~maximumDepthInMeters,
-     "MR",                  36.5,
-     "LK",                  40.5,
-     "WS",                    23,
-     "54",                     3,
-     "57",                     5,
-     "9B",                    31
+    "MR", 36.5,
+    "LK", 40.5,
+    "WS", 23,
+    "54", 3,
+    "57", 5,
+    "9B", 31
+  ) %>%
+  mutate(
+    minimumDepthInMeters          = 0,
+    coordinateUncertaintyInMeters = 500
   )
 
-# ---- set variables for calculation
+# ---- set variables for calculation ---- #
 other_vars$inpeller <- 26873 / 999999 # starting oct 2022 for 200/500 um
 # net_area <- pi * 0.5^2
 
@@ -88,7 +92,7 @@ rm(func_attach)
 
 Taxonomic information from WoRRMS
 
-```{r load-data}
+```{r load-aphia_info}
 aphia_id <-
   here("data", "metadata") %>%
   dir_ls(
@@ -97,7 +101,8 @@ aphia_id <-
   )
 
 if (is_empty(aphia_id) | FALSE) {
-  cli_alert_info("Creating a additional aphia ID file.")
+  # create extended aphia_id info if does not exist
+  cli_alert_info("Creating an extended aphia ID file.")
 
   # ---- load aphia ID ---- #
   aphia_id <-
@@ -107,6 +112,8 @@ if (is_empty(aphia_id) | FALSE) {
     ) %>%
     last_mod(.) %>%
     read_csv(show_col_types = FALSE) %>%
+    
+    # extract extended info from WoRMS
     mutate(
       aphiaID = str_extract(scientificNameID, "\\d+"),
       aphiaID = as.numeric(aphiaID),
@@ -144,7 +151,8 @@ if (is_empty(aphia_id) | FALSE) {
     read_csv(
       aphia_id,
       show_col_types = FALSE
-    )
+    ) %T>% 
+    print()
 }
 ```
 
@@ -158,24 +166,34 @@ meta_df <-
   last_mod(.) %>%
   read_csv(show_col_types = FALSE) %>%
     
-  # this is when Natalia LF started analysis
-  filter(date >= date("2017-06-18")) %T>% 
+  # filter date for when Natalia LF started analysis
+  filter(date >= date("2017-06-18")) %>%
+    
+  # add max depth
+  left_join(
+    other_vars$max_depth, 
+    by = c("locationID" = "site")
+    ) %>%
+  relocate(
+    coordinateUncertaintyInMeters:maximumDepthInMeters, 
+    .after = lon_in) %T>% 
   print()
 
 # ---- load zooplankton data ---- #
 taxa_files <-
   dir_ls(
-    path = here("data", "processed"),
-    regexp = "all_merged_processed"
+    path = here("data", "processed", "all_merged"),
+    regexp = "all_merged_processed",
+    recurse = 1
   ) %>%
   last_mod(.) %>%
   map(~ read_csv(., show_col_types = FALSE)) %>%
   list_c() %>%
   mutate(
-    site      = str_replace(site, "MK", "MR"),
     cruise_id = str_replace(cruise_id, "WS17275", "WS17282")
   ) %>%
-  select(-mean_ind_dil_factor, -lifestage) %>%
+  # select(-mean_ind_dil_factor, -lifestage) %>%
+  select(-mean_ind_dil_factor) %>%
   rowwise(aliquot_1:aliquot_3) %>%
   mutate(
     individualCount =
@@ -202,31 +220,43 @@ Merge:
 ```{r merge-metadata-microscopy-aphiaid}
 # ---- merge metadata and taxa data ---- #
 taxa_original <-
-  taxa_files %>%
-  left_join(
+  # taxa_files %>%
+  # left_join(
+  #   meta_df,
+  #   by = c(
+  #     "cruise_id",
+  #     "site" = "locationID",
+  #     "mesh" = "mesh_size_um"
+  #   )
+  # ) %>%
+  # 
+  # rename(
+  #   "site" = locationID,
+  #   "mesh" = mesh_size_um,
+  #   "ignore_date_collected" = date_collected,
+  #   # "duplicate_mesh_col" = mesh,
+  #   "ignore_filtered_volume_m3" = filtered_volume_m3,
+  #   "file_metadta" = file
+  # ) %>%
+  right_join(
     meta_df,
+    taxa_files,
     by = c(
       "cruise_id",
-      "site" = "locationID",
-      "mesh" = "mesh_size_um"
+      "locationID"   = "site" ,
+      "mesh_size_um" = "mesh"
     )
-  ) %>%
-  
+  )  %>%
   rename(
+    "site" = locationID,
+    "mesh" = mesh_size_um,
     "ignore_date_collected" = date_collected,
     # "duplicate_mesh_col" = mesh,
     "ignore_filtered_volume_m3" = filtered_volume_m3,
     "file_metadta" = file
-  ) %>%
-      
+  )  %>%
     
-  # add max depth
-  left_join(other_vars$max_depth) %>%
-
   mutate(
-    # add min depth and uncertainty
-    minimumDepthInMeters          = 0,
-    coordinateUncertaintyInMeters = 500,
     
     # calc the amount of splits of a sample as a whole number to multiply
     # with average and dilution factor
@@ -241,27 +271,30 @@ taxa_original <-
     aphiaID = str_extract(scientificNameID, "\\d+"),
     aphiaID = as.numeric(aphiaID)
   ) %>%
-  relocate(
-    .after = 1,
-    site, station:volume_filt_cubic_m, maximumDepthInMeters:total_split_frac) %>%
-  relocate(contains(c("ignore", "duplicate")), .after = last_col()) %T>% 
-  print() %>%
+  # relocate(
+  #   .after = 1,
+  #   site, station:volume_filt_cubic_m, maximumDepthInMeters:total_split_frac
+  #   ) %>%
   left_join(.,
     aphia_id,
     by = c(
       "taxa_orig" = "taxa_orig",
       "aphiaID"   = "aphia_id"
     )
-  ) %T>% 
+  ) %>%
+  # relocate(contains(c("ignore", "duplicate")), .after = last_col()) %>%
+  select(-contains("ignore")) %T>% 
   print()
 ```
 # ---- TODO: relocate metadata to front of data
 
-```{r}
+```{r check-missing-data}
 visdat::vis_miss(taxa_original)
+visdat::vis_miss(taxa_original[,1:20])
+visdat::vis_miss(taxa_original[,21:40])
+visdat::vis_miss(taxa_original[,41:60])
+visdat::vis_miss(taxa_original[,61:ncol(taxa_original)])
 ```
-
-
 
 # Save Merged Data
 ```{r save-data}
@@ -276,7 +309,8 @@ save_csv(
 if (FALSE && exists(cloud_dir)) {
   here("data", "processed", "pre_obis") %>%
   dir_ls() %>%
-  last_mod() %>%
+  last_mod() %T>% 
+  print() %>%
   file_copy(
       path = .,
       new_path  = here(cloud_dir, "processed", "zoo_data_pre_obis_merg.csv"),
@@ -361,6 +395,7 @@ if (FALSE) {
 }
 ```
 
+# not sure what files were supposed to be used in `meta` and `dat`
 ```{r}
 meta <- 
     here(cloud_dir, "cruise_logsheets") %>%
