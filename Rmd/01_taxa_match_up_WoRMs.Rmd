@@ -35,23 +35,26 @@ rm(func_attach)
 - files contain some metadata for each sample processed and taxonomic data
 ```{r load-taxa-data}
 # ---- find all file names and filter ----
-file.taxa <- 
+file_taxa <- 
     fs::dir_ls(path    =  here::here("data", "raw"),
                regexp  = "^[^~]*\\.xlsx$",
                recurse = TRUE) %>%
     skip_file(., check = "ignore")
+    # skip_file(., check = FALSE)
 
 # ---- load all files into one tibble ----
 taxa_data <-
-    file.taxa %>%
-    mutate(
+  file_taxa %>%
+  mutate(
     data = map(files, ~ load_data(.x, verbose = FALSE))
-    ) %>%
-    unnest(data)
+  ) %>%
+  unnest(data)
     
 head(taxa_data)
 distinct(taxa_data, cruise_id, site, mesh)
 ```
+
+
 # Merge taxanomic list and save new data
 1. Loads previous master taxonomic data sheet
 - This will check if it is contained in the cloud service at the root level, or 
@@ -77,15 +80,16 @@ taxa <-
     .file_expr = file_exprs,
     check      = FALSE,
     use_cloud  = TRUE,
+    # use_cloud  = FALSE,
+    file_verbat = dir_ls(cloud_dir, regexp = "aphia_taxa.csv")
     # viewer     = TRUE,
     # .recurse   = TRUE
-  )
-
-taxa
+  ) %T>% 
+  print()
 
 # Check unmatched taxa names
 taxa %>%
-    filter(is.na(scientificName))
+  filter(is.na(scientificName))
 ```
 # Push current master taxonomic sheet to cloud
 1. Load most recent taxa sheet
@@ -94,15 +98,16 @@ taxa %>%
 
 ```{r push-pull-save}
 # current saved
-taxa_list <- 
+taxa_list <-
   load_taxa_list(
-    loc = file_exprs[[3]],
-    check = TRUE)
+    loc   = file_exprs[[3]],
+    check = TRUE
+  )
 
 # join to current taxa list to add new ones
-taxa_list <- 
-    taxa_list %>%
-    full_join(taxa) 
+taxa_list <-
+  taxa_list %>%
+  full_join(taxa)
 
 # check if there are not matches and decide if want to fix
 no_matches <- taxa_list %>%
@@ -139,100 +144,124 @@ if (FALSE) {
 
 3. Save merged data in merged long format and separate samples files in 
 `data/processed/` and `data/processed/ind_file_merg/` 
-- If supplied `file.taxa`, it will append `processed_files.csv` (the list of 
+- If supplied `file_taxa`, it will append `processed_files.csv` (the list of 
   files) to skip in future runs in `data/metadata/`
 ```{r merge-data-aphia-ids}
 taxa_matched_merg <- 
     right_join(taxa, taxa_data, by = c("taxa_orig" = "taxa")) %>%
     relocate(files, cruise_id, date_collected, site, .before = 1) %>%
-    arrange(date_collected, site, taxa)
+    arrange(date_collected, site, taxa) %T>% 
+    print()
 
 # save data and append processed files log
 if (FALSE) {
-    save_merged(taxa_matched_merg = taxa_matched_merg, 
-                .taxa_file        = file.taxa,
-                loc               = here("data", "processed"),
-                ind_file          = TRUE,
-                append            = FALSE # if starting over, create new merged
-                )
+  save_merged(
+    taxa_matched_merg = taxa_matched_merg,
+    .taxa_file        = file_taxa,
+    loc               = here("data", "processed"),
+    ind_file          = TRUE,
+    append            = FALSE # if starting over, create new merged
+  )
 }
 ```
 
 
 # Copy Processed Files to Cloud
-```{r}
+```{r save-processed files}
 # ============================================================================ #
-# ---- Check if Cloud Directory is Set and Exists ----
+# ---- Check if Cloud Directory is Set and Exists ---- #
 # ============================================================================ #    
 if (is.na(cloud_dir) | !dir_exists(cloud_dir)) {
     rlang::abort("Stop! You don't have a cloud directory set!")
+} else {
+    cli::cli_alert_info("Cloud Directory: {.file {cloud_dir}}")
 }
 
 # ============================================================================ #
-# ---- Update Master Taxonomic Sheet ----
+# ---- Update Master Taxonomic Sheet ---- #
 # ============================================================================ #    
 if (FALSE) {
-     update_taxa_list(
-      taxa_list   = taxa_list,
-      .cloud_dir  = here(cloud_dir),
-      save        = FALSE,
-      # overwrite = FALSE,
-      .file_expr  = file_exprs,
-      where_to    = "cloud"
+  update_taxa_list(
+    taxa_list   = taxa_list,
+    .cloud_dir  = here(cloud_dir),
+    save        = FALSE,
+    # overwrite   = TRUE,
+    .file_expr  = file_exprs,
+    where_to    = "local"
+    # where_to    = "cloud"
   )
 }
 
 # ============================================================================ #
-# ---- Copy Individual Files ----
+# ---- Copy Individual Files to Cloud ---- #
 # ============================================================================ #    
 if (FALSE) {
-    copy_loc <- 
-        here(cloud_dir, "processed", "ind_file_merg")
-    
-        dir_create(copy_loc)
-        
-        here("data", "processed", "ind_file_merg") %>%
-        dir_ls() %>%
-        tibble(files = .) %>%
-        
-       # extracting basename to use as name in cloud 
-        mutate(base      = basename(files),
-               base      = str_replace(base, "processed.*", "processed\\.csv"),
-               new_files = here(copy_loc, base), 
-               times     = select(file_info(files), birth_time)
-               ) %>%
-            
-        # get most recent version to send to cloud
-        unnest(times) %>%
-        arrange(desc(birth_time)) %>%
-        distinct(new_files, .keep_all = TRUE) %$%
-    
-        # copying individual files to cloud and overwriting previous one      
-        file_copy(path = files, new_path = new_files, overwrite = TRUE)
+  file_loc <- here("data", "processed", "ind_file_merg")
+  copy_loc <- here(cloud_dir, "processed", "ind_file_merg")
+
+  cli_alert_info("Copying files\nfrom: {.file {file_loc}}\nto: {.file {copy_loc}}")
+  cli_alert_info("Verify location before continuing!\nHit [Enter} to continue")
+  invisible(readline())
+  
+  files_to_copy <- 
+    file_loc %>%
+    dir_ls() %>%
+    tibble(old_file = .) %>%
+    # extracting basename to use as name in cloud
+    mutate(
+      new_files = basename(old_file),
+      new_files = str_replace(new_files, "processed.*", "processed\\.csv"),
+      new_files = here(copy_loc, new_files),
+      times     = select(file_info(old_file), birth_time)
+    ) %>%
+    # get most recent version to send to cloud
+    unnest(times) %>%
+    arrange(desc(birth_time)) %>%
+    distinct(new_files, .keep_all = TRUE) %T>% 
+    print()
+  
+  dir_create(copy_loc)
+  
+  files_to_copy %$%
+    # copying individual files to cloud and overwriting previous one
+    file_copy(path = old_file, new_path = new_files, overwrite = TRUE)
 }
 
 # ============================================================================ #
-# ---- Copy Recent Merged File ----
+# ---- Copy Recent Merged File ---- #
 # ============================================================================ #    
-if (FALSE) {
-   copy_loc <- 
-       here(cloud_dir, "processed")
-       dir_create(copy_loc)
-    
-       here("data", "processed") %>%
-       dir_ls(regexp = "all_merged") %>%
-       last_mod() %>%
-       tibble(files = .) %>%
-         
-       # extracting basename to use as name in cloud 
-       mutate(base      = basename(files),
-              base      = str_replace(base, "processed.*", "processed\\.csv"),
-              new_files = here(copy_loc, base)) %$% 
-       
-       # copying merged file to cloud and overwriting previous one    
-       file_copy(path      = files, 
-                 new_path  = new_files, 
-                 overwrite = TRUE)
+if (!FALSE) {
+  file_loc <- 
+    here("data", "processed", "all_merged") %>%
+    dir_ls(regexp = "all_merged") %>%
+    last_mod()
+  copy_loc <- here(cloud_dir, "processed")
+ 
+  cli_alert_info(c("Merged file: {.file {basename(file_loc)}}\n",
+                 "from: {.file {dirname(file_loc)}}\nto: {.file {copy_loc}}"))
+  cli_alert_info("Verify location before continuing!\nHit [Enter} to continue")
+  invisible(readline())
+  
+  merged_file <- 
+    file_loc %>%
+    tibble(old_file = .) %>%
+    # extracting basename to use as name in cloud
+    mutate(
+      new_files = basename(old_file),
+      new_files = str_replace(new_files, "processed.*", "processed\\.csv"),
+      new_files = here(copy_loc, new_files)
+    ) %T>% 
+    print()
+   
+  dir_create(copy_loc)
+  
+  merged_file %$%
+    # copying merged file to cloud and overwriting previous one
+    file_copy(
+      path      = old_file,
+      new_path  = new_files,
+      overwrite = TRUE
+    )
 }
 ```
 
