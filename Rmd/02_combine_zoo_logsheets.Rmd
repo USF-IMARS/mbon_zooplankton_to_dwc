@@ -523,7 +523,9 @@ meta_calc %>%
 # Save merged metadata
 
 ```{r save}
-meta_final <- select(meta_calc, -file,  "file" = base)
+meta_final <-
+  select(meta_calc, -file, "file" = base) %>%
+  mutate(date = as_date(date))
 
 overwrite <- FALSE
 # overwrite <- TRUE
