@@ -68,13 +68,19 @@ load_data <- function(file_taxa, verbose = TRUE) {
       path         = file_taxa,
       skip         = skips,
       .name_repair = janitor::make_clean_names
-    ) 
-  
+    )
+
   # merge header info with count data
-  merged_dat <- 
+  merged_dat <-
     taxa %>%
     bind_cols(calc, .) %>%
     select("cruise_id" = sample_id, everything()) %>%
+    rowwise() %>%
+    mutate(
+      across(contains("aliquot"), ~ if_else(is.na(.x), 0, .x)),
+      mean = mean(c_across(contains("aliquot")))
+    ) %>%
+    ungroup() %>%
     filter(mean > 0) %>%
     mutate(
       site = as.character(site),
@@ -279,7 +285,9 @@ taxa_list_check <- function(loc             = here::here(),
       expression(
         fs::dir_ls(
           path    = loc,
-          regexp  = glue("{.file_expr[[1]]}.*\\.csv$"),
+          # regexp  = glue("{.file_expr[[1]]}.*\\.csv$"),
+          regexp  = glue("{.file_expr[[1]]}\\.csv$"),
+          # regexp  = glue("{.file_expr[[1]]}"),
           recurse = TRUE
         ) %>%
           last_mod(.)
@@ -373,8 +381,9 @@ taxa_list_check <- function(loc             = here::here(),
     # ---- read taxa file
     cli::cli_alert_info(
       c(
-        "Reading taxa list file: ",
-        "{.file {basename(taxa_file)}}\n"
+        "Reading taxa list file: \n",
+        "Location: {.file {dirname(taxa_file)}}\n",
+        "File: {.file {basename(taxa_file)}}\n"
       )
     )
 
@@ -881,7 +890,7 @@ pull_taxa_from_cloud <- function(
       "Choose one:"
     ))
     file_location <-
-      file_location[menu(basename(file_location))]
+      file_location[menu(file_location)]
   }
 
   assertthat::assert_that(
@@ -926,13 +935,16 @@ pull_taxa_from_cloud <- function(
 #' @return RETURN_DESCRIPTION
 #' @examples
 #' # ADD_EXAMPLES_HERE
-update_taxa_list <- function(taxa_list = NULL,
-                             .cloud_dir,
-                             where_to = c("local", "cloud"),
-                             save = FALSE,
-                             overwrite = save,
-                             .file_expr =  NULL,
-                             sheet_name = "Master Taxa Sheet") {
+update_taxa_list <- function(
+    taxa_list  = NULL,
+    .cloud_dir,
+    where_to   = c("local", "cloud"),
+    save       = FALSE,
+    overwrite  = FALSE,
+    .file_expr =  NULL,
+    sheet_name = "Master Taxa Sheet") {
+
+  # variable checks
   assertthat::assert_that(
     !is.null(taxa_list),
     msg = paste("`taxa_list` needs to contains a `data.frame` or `tibble` with", 
@@ -959,24 +971,21 @@ update_taxa_list <- function(taxa_list = NULL,
   where_to <- match.arg(where_to)  
   
   # ========================================================================== #
-  # ---- update cloud
+  # ---- update cloud ---- #
   # ========================================================================== # 
   if (str_detect(where_to, "cloud")) {
-    here(.cloud_dir, glue("{.file_expr[[1]]}.csv")) #%>%
-      # write_excel_csv(taxa_list, ., na = "")
-
+    
     cli::cli_alert_success(c(
-      "Updating ",
-      "{.strong {col_green(sheet_name)}} ",
+      "Updating {.strong {col_green(sheet_name)}} ",
       "in {.path {cloud_dir}}"
     ))
     
     save_csv(
-        .data         = taxa_list,        
-        save_location = .cloud_dir,
-        save_name     = .file_expr[[1]],
-        overwrite     = overwrite,
-        verbose       = TRUE,
+        .data          = taxa_list,        
+        save_location  = .cloud_dir,
+        save_name      = .file_expr[[1]],
+        overwrite      = overwrite,
+        verbose        = TRUE,
         time_stamp_fmt = NULL,
         utf_8          = TRUE
     )
@@ -985,7 +994,7 @@ update_taxa_list <- function(taxa_list = NULL,
   }
 
   # ========================================================================== #
-  # ---- update local
+  # ---- update local ---- #
   # ========================================================================== #
   if (str_detect(where_to, "local")) {
     file_location <- eval(.file_expr[[2]])
@@ -997,12 +1006,17 @@ update_taxa_list <- function(taxa_list = NULL,
     ))
     
     save_csv(
-        .data = taxa_list,
-        save_location = file_exprs2[[3]],
-        save_name = file_exprs2[[1]],
-        overwrite = overwrite,
-        verbose = TRUE,
-        utf_8 = TRUE
+        .data         = taxa_list,
+        # save_location = file_exprs2[[3]],
+        # save_name     = file_exprs2[[1]],
+        # save_location = .file_expr[[3]],
+        save_location = dirname(file_location),
+        # save_name     = .file_expr[[1]],
+        save_name     = basename(file_location),
+        overwrite     = overwrite,
+        verbose       = TRUE,
+        utf_8         = TRUE,
+        time_stamp_fmt = NULL
     )
     
     return(invisible(NULL))
@@ -1075,43 +1089,40 @@ sep_life <- function(.x, .regex_lifestage = NULL) {
 #'
 #' FUNCTION_DESCRIPTION
 #'
-#' @param .x Aphia ID to search
+#' @param id Aphia ID to search
 #' @param .y The original taxonomic name
-#' @param .z A row number
+#' @param idx A row number
 #'
 #' @return RETURN_DESCRIPTION
 #' @examples
 #' # ADD_EXAMPLES_HERE
-worrms_info_extract <- 
-    function(.x, .y, .z = NULL) {
-    
-    if (is.null(.z)) .z <- 0
-            
-    tryCatch(
-        {
-            if (.z == 1) {
-                cat(sprintf(
-                    "\n%-4s | %-7s | names\n%s",
-                    "Row", "aphia",
-                    stringi::stri_dup("-", 37)
-                ))
-            }  
-            
-            if (.z == 0) {
-            cat(sprintf("\n%6s | %s | ", .x, .y))
-                
-            } else {
-                cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
-            }
-            
-            x <- worrms::wm_record(.x)
-            
-            cat(x$scientificname)
-            
-            return(x)
-        },
-        error = function(e) {
-            return(NULL)
-        }
-    )
+worrms_info_extract <- function(id, verbat, idx = NULL) {
+  if (is.null(idx)) idx <- 0
+
+  tryCatch(
+    {
+      if (idx == 1) {
+        cat(sprintf(
+          "\n%-4s | %-7s | %-22s | %-s\n%s",
+          "Row", "Aphia ID", "Orignal Name", "WoRMS Name",
+          stringi::stri_dup("-", 60)
+        ))
+      }
+
+      if (idx == 0) {
+        cat(sprintf("\n%6s | %22s | ", id, verbat))
+      } else {
+        cat(sprintf("\n%-4d | %8s | %22s | ", idx, id, verbat))
+      }
+
+      x <- worrms::wm_record(id)
+
+      cat(x$scientificname)
+
+      return(x)
+    },
+    error = function(e) {
+      return(NULL)
+    }
+  )
 }
