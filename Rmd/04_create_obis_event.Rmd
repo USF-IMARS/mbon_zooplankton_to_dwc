@@ -13,6 +13,7 @@ TODO:
 
 # 1.0 Load
 ## 1.1 Libraries and Calculations
+
 ```{r setup}
 if (!nzchar(system.file(package = "librarian"))) 
     install.packages("librarian")
@@ -175,7 +176,7 @@ dwc_info <-
   ) %>%
  
 # ============================================================================ #
-# ---- 2.2.1 Record Level ----
+# ---- 2.2.1 Record Level ---- #
 # ============================================================================ #
   mutate(
     type                   = "Event",
@@ -198,13 +199,17 @@ dwc_info <-
   print() %>%
     
 # ============================================================================ #
-# ---- 2.2.2 Event Level ----
+# ---- 2.2.2 Event Level ---- #
 # ============================================================================ #    
   mutate(
     # catalogNumber = # maybe add in the future
     locationID       = site,
     eventDate        = format_ISO8601(date_time, usetz = "Z"),
     eventID          = glue("{cruise_id}:stn{locationID}:{mesh}um:{date}"),
+    # keeping same `eventID` from previous submission
+    # cruise ID was updated afterwards
+    eventID = str_replace(eventID,  "WS17282", "WS17275"),
+    
     fieldNumber      = glue("{cruise_id}-{station}-{mesh}"),
     year             = year(date_time),
     month            = month(date_time),
@@ -229,7 +234,7 @@ dwc_info <-
   print() %>%
 
 # ============================================================================ #
-# ---- 2.2.3 Location Level ----
+# ---- 2.2.3 Location Level ---- #
 # ============================================================================ #        
   mutate(
     decimalLatitude   = lat_in,
@@ -252,7 +257,7 @@ dwc_info <-
   print() %>%
     
 # ============================================================================ #
-# ---- 2.2.4 Occurrence Level ----
+# ---- 2.2.4 Occurrence Level ---- #
 # ============================================================================ #    
   mutate(
     lifestage            = larva_new,
@@ -261,6 +266,9 @@ dwc_info <-
     occurrenceID         = glue("{eventID}:{taxa_orig}:{larva_new}"),
     occurrenceID         = str_replace_all(occurrenceID, "\\s", "_"),
     occurrenceID         = str_replace_all(occurrenceID, "\\.", ""),
+    
+    # keep `occurrenceID`, while lifeStage is larvae
+    occurrenceID         = str_replace(occurrenceID, "Cyphonautes:larvae", "Cyphonautes:unkwn"),
     taxonRank            = rank,
     dateIdentified       = date_analyzed,
      # counts of organisms?
@@ -290,7 +298,7 @@ dwc_info <-
   print() %>%
     
 # ============================================================================ #
-# ---- 2.2.5 Measurement or Fact Additional Terms ----
+# ---- 2.2.5 Measurement or Fact Additional Terms ---- #
 # ============================================================================ #    
   mutate(
     net_type   = "bongo nets",
@@ -308,7 +316,7 @@ dwc_info <-
 ```
 
 ## 2.3 Load Pre-2018 Data 
-```{r}
+```{r load-pre-2018}
 stations <- c("LK", "MR", "WS")
 
 real_loc <- 
@@ -334,6 +342,7 @@ dwc_info <-
         # .keep = "used",
         eventDate        = format_ISO8601(eventDate, usetz = "Z"),
         eventID          = str_remove(eventID, "\\}"),
+        
         occurrenceID     = str_remove_all(occurrenceID, "\\}|\\."),
         occurrenceID     = stringi::stri_trans_general(occurrenceID, "Latin-ASCII"),
         locationID       = case_when(
@@ -377,18 +386,17 @@ dwc_info <-
         across(contains("date") & (is.Date | is.POSIXct), 
                \(x) format_ISO8601(x, usetz = "Z"))
     ) %T>%
-    print()
+  print()
 ```
 ```{r}
 save_csv(
   .data          = dwc_info,
-  save_location  =  here("data", "processed"),
+  save_location  =  here("data", "processed", Sys.Date()),
   save_name      = "zooplankton_erddap",
-  # overwrite      = TRUE,
-  overwrite      = FALSE,
+  # overwrite      = TRUE,           # <-- uncomment to overwrite
   verbose        = TRUE,
   time_stamp_fmt = NULL,
-  utf_8 = TRUE
+  utf_8          = TRUE
     )
 
 if (FALSE && exists("cloud_dir")) {
@@ -456,8 +464,11 @@ event_core <-
     maximumDepthInMeters
   ) %>%
   distinct() %>%
-  fill(1:language, .direction = "up") %>%
-  mutate(eventID = str_replace(eventID,  "WS17282", "WS17275")) %T>% 
+  fill(1:language, .direction = "up") %T>%
+    
+  # keeping same `eventID` from previous submission
+  # cruise ID was updated afterwards
+  # mutate(eventID = str_replace(eventID,  "WS17282", "WS17275")) %T>% 
   print()
 ```
 
@@ -489,6 +500,10 @@ occur_core <-
     disposition
   )  %>%
   fill(collectionCode, .direction = "up") %T>%
+    
+  # # keeping same `eventID` from previous submission
+  # # cruise ID was updated afterwards
+  # mutate(eventID = str_replace(eventID,  "WS17282", "WS17275")) %T>%
   print()
 ```
 
@@ -601,10 +616,10 @@ pwalk(
       .data          = data,
       save_location  = loc,
       save_name      = name_f,
-      overwrite      = FALSE,
+      # overwrite      = TRUE,          # <-- uncomment to overwrite
       verbose        = TRUE,
       time_stamp_fmt = "%Y-%m-%d",
-      utf_8 = TRUE
+      utf_8          = TRUE
     )
 )
 ```
@@ -638,16 +653,17 @@ if (FALSE && exists("cloud_dir")) {
 # if (TRUE && exists("cloud_dir")) {
   obis_files <-
     here("data", "processed", "obis") %>%
-    dir_ls() %>%
-    str_subset("old|ex", negate = TRUE)
+    dir_ls(type = "file", recurse = 1) %>%
+    str_subset("old|ex", negate = TRUE) %>%
+    str_subset("2025-02-11") %T>% 
+    print()
 
   dir_create(here(cloud_dir, "processed", "obis"))
 
   file_copy(
     obis_files,
     here(cloud_dir, "processed", "obis"),
-    FALSE
-    # TRUE
+    overwrite = TRUE                 # <-- uncomment to overwrite
   )
 }
 ```
