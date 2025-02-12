@@ -236,7 +236,7 @@ taxa_original <-
   #   "ignore_date_collected" = date_collected,
   #   # "duplicate_mesh_col" = mesh,
   #   "ignore_filtered_volume_m3" = filtered_volume_m3,
-  #   "file_metadta" = file
+  #   "file_metadata" = file
   # ) %>%
   right_join(
     meta_df,
@@ -253,7 +253,7 @@ taxa_original <-
     "ignore_date_collected" = date_collected,
     # "duplicate_mesh_col" = mesh,
     "ignore_filtered_volume_m3" = filtered_volume_m3,
-    "file_metadta" = file
+    "file_metadata" = file
   )  %>%
     
   mutate(
