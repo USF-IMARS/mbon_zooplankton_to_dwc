@@ -554,11 +554,15 @@ if (FALSE) {
 
 # for NOAA AOML
 if (FALSE) {
+  here("data", "metadata", "to_noaa") %>%
+  dir_create()
+    
   meta_final %>%
+    select(-contains("ignore"), -file) %>%
     relocate(notes, .after = volume_filt_cubic_m) %>%
     openxlsx2::write_xlsx(
       .,
-      here("data", "metadata", "usf_imars_zooplankton_log_sheet.xlsx"),
+      here("data", "metadata", "to_noaa", glue("usf_imars_zooplankton_log_sheet_{Sys.Date()}.xlsx")),
       na.strings = "",
       overwrite = overwrite
     )
