@@ -481,7 +481,7 @@ meta_calc <-
     ),
      flowmeter_out = case_when(
       str_detect(cruise_id, "WS18008") ~ flowmeter_out,
-      inpeller_constant == 0.245 ~ flowmeter_out / 10,
+      inpeller_constant == 0.245 & date_time < ym("2025-06") ~ flowmeter_out / 10,
       .default = flowmeter_out
     ),
     net_size = # diameter in m
