@@ -5,6 +5,13 @@ author: "Sebastian Di Geronimo"
 format: html
 ---
 
+
+# ---- Summary of Document ---- #
+
+This creates an image of cruises where zooplankton was collected in years and
+months. 
+
+
 # 1.0 Load Libraries
 ```{r setup}
 
@@ -216,6 +223,7 @@ plt_heat_main <-
     meta_df
     ) %>%
     filter(!str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
+    filter(str_detect(locationID, "LK|MR|WS") & !is.na(mesh) & mesh > 100) %>%
     complete(year, month, locationID, mesh) %>%
     ggplot(aes(y = year, x = month)) +
     geom_tile(aes(
@@ -223,8 +231,10 @@ plt_heat_main <-
         ),
         color = "gray",
         show.legend = FALSE) +
-    geom_tile(data = dat_heat3, fill = "transparent", color = "black") +
-    geom_text(data = dat_heat3, aes(label = present), family = "serif") +
+    # geom_tile(data = dat_heat3, fill = "transparent", color = "black") +
+    # geom_text(data = dat_heat3, aes(label = present), family = "serif") +
+    geom_tile(fill = "transparent", color = "black") +
+    geom_text(aes(label = present), family = "serif") +
     labs(
         title = "Zooplankton Collected and Analyzed",
         subtitle = "(J: Jaimie, N: Natalia; yellow: analyzed, blue: collected)",
@@ -232,6 +242,8 @@ plt_heat_main <-
         y = NULL
     ) +
     theme
+
+plt_heat_main
 ```
 
 ## 3.3 Plot Heat Map for Other Samples Not Taken Frequently
@@ -243,6 +255,7 @@ plt_heat_other <-
     ) %>%
     filter(str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
     complete(year, month, locationID, mesh) %>%
+    filter(eventDate < ym("2020-01")) %>%
     ggplot(aes(y = year, x = month)) +
     geom_tile(aes(
         fill = present,
@@ -256,6 +269,7 @@ plt_heat_other <-
         y = NULL
     ) +
     theme
+plt_heat_other
 ```
 
 ## 3.4 Plot Heat Map for Overall
