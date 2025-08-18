@@ -32,6 +32,9 @@ rm(func_attach)
 ```{r read-sheets, include=FALSE}
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
+# add additional ship acronyms to search for 
+ship_acronym <- "(WS|SV|HG|H|WB)\\d{4,5}"
+
 # select all cruise files
 metadata_paths <-
   main_cloud_dir %>%
@@ -67,7 +70,7 @@ meta_skips <-
   tibble(file = .) %>%
   mutate(
     base      = basename(file),
-    cruise_id = str_extract(file, "(WS|SV|HG|H|WB)\\d{4,5}"),
+    cruise_id = str_extract(file, ship_acronym),
     sheets =
     # read all files for sheet names that match `zooplankton`
       map_chr(
@@ -75,7 +78,7 @@ meta_skips <-
         \(.x) {
           cli_alert_info("Reading file: {basename(.x)}")
           sht_all <- readxl::excel_sheets(.x) 
-          sht <- str_subset(sht_all, "(?i)zooplankton", negate = FALSE)
+          sht     <- str_subset(sht_all, "(?i)zooplankton", negate = FALSE)
 
           if (is_empty(sht)) sht <- NA_character_
 
@@ -135,6 +138,8 @@ meta_skips <-
 ```{r load-logsheets}
 meta <-
   meta_skips %>%
+    # filter(str_detect(cruise_id, "WS16319")) %>%
+    
   # slice(1) %>%
   filter(!is.na(skips)) %>%
   mutate(
@@ -150,7 +155,7 @@ meta <-
             sheet = .z,
             skip = .y,
             .name_repair = janitor::make_clean_names,
-            na = c("skip", "Did not collect", "not recorded", "na")
+            na = c("skip", "Did not collect", "not recorded", "na", "Did Not Collect")
           ) %>%
           # remove rows that are fully empty
           janitor::remove_empty(which = "rows") %>%
@@ -158,10 +163,17 @@ meta <-
           select(-contains("formalin_vol_ml")) %>%
           
           # fill down if lat, lon, date, or time is not there
-          tidyr::fill(contains(c("station", "lat", "lon", "date", "time"))) %>%
+          tidyr::fill(contains(c("station", "lat", "lon", "date", "time"))) 
+        
+        # browser()
+        if (!str_detect(.c, "WS16319")) {
+        temp <- temp %>%
 
           # drop rows when flowmeter_out = NA
-          drop_na(flowmeter_out) %>%
+          drop_na(flowmeter_out)
+          # filter(!(is.na(flowmeter_out) & is.na(date))) 
+        }
+        temp <- temp %>%
           mutate(
             across(
               contains("local_time_est"),
@@ -255,7 +267,9 @@ meta <-
 
         # change name of x to notes if exists
         if (!is.null(temp)) temp <- rename(temp, any_of(c(notes = "x")))
-
+        if (any(str_detect(colnames(temp), "notes"))) {
+            temp <- mutate(temp, notes = as.character(notes))
+        }
         # check if can retype columns to chr, num, or date
         temp <- tryCatch(
           {
@@ -315,6 +329,7 @@ no_data <- filter(meta, data_exists == 0)
 cli::cli_alert_danger("Cruise(s) with no data:")
 cat_bullet(no_data$cruise_id)
 
+cli::cli_text("----Shows no data----")
 no_data %>%
   pull(data)
 
@@ -334,10 +349,23 @@ Merge all metadata sheets across all cruises when samples are taken
 ```{r merge-metadata}
 meta_merg <- 
   meta %>%
+    filter(!str_detect(base, "WS25221")) %>%
   filter(data_exists > 0) %>%
   select(-data_exists) %>%
   unnest(data) %T>% 
   print()
+```
+```{r}
+meta_merg %>%
+
+  filter(str_detect(cruise_id, "WS16319"))
+
+meta %>%
+  filter(data_exists > 0) %>%
+  select(-data_exists) %>%
+    slice(29) %>%
+    
+  unnest(data) 
 ```
 
 
@@ -361,10 +389,10 @@ meta_fix <-
     "ignore_tow_speed"  = tow_speed
     ) %>%
   relocate(flowmeter_in, .before = flowmeter_out) %>%
-  separate_rows(mesh_size_um, sep = "/") %>%
+  # separate_rows(mesh_size_um, sep = "/") %>%
   mutate(
-    mesh_size_um     = str_trim(mesh_size_um),
-    mesh_size_um     = retype(mesh_size_um),
+    # mesh_size_um     = str_trim(mesh_size_um),
+    # mesh_size_um     = retype(mesh_size_um),
     ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
     file             = tools::file_path_sans_ext(file),
     split_size       = map_dbl(split_size, 
@@ -420,7 +448,7 @@ meta_fix <-
       .default = lat_in
     )
   ) %T>% 
- print()
+  print()
 ```
 
 # Calculations
@@ -432,10 +460,30 @@ meta_fix <-
 - volume filtered (m^3)
 
 ```{r calculations}
-meta_calc <- 
+meta_calc <-
   meta_fix %>%
+  # separate 200 and 500 mesh into separate rows
+  separate_rows(mesh_size_um, sep = "/") %>%
   mutate(
-    # Note: flowmeter is MF315
+    mesh_size_um     = str_trim(mesh_size_um),
+    mesh_size_um     = retype(mesh_size_um),
+  ) %T>% 
+  print() %>%
+  
+  mutate(
+    # Note: Sea Gear MF315 flowmeter correction
+    # this correction is needed because flowmeter readings should have a tenths
+    # place 
+     flowmeter_in = case_when(
+      str_detect(cruise_id, "WS18008") ~ flowmeter_in,
+      inpeller_constant == 0.245 ~ flowmeter_in / 10,
+      .default = flowmeter_in
+    ),
+     flowmeter_out = case_when(
+      str_detect(cruise_id, "WS18008") ~ flowmeter_out,
+      inpeller_constant == 0.245 ~ flowmeter_out / 10,
+      .default = flowmeter_out
+    ),
     net_size = # diameter in m
       case_when(
         mesh_size_um == 64 ~ 0.6,
@@ -467,8 +515,13 @@ meta_calc %>%
   select(
     -c(file, net_size:tow_speed_m_sec, ship_speed_knots, inpeller_constant, 
        split_size, contains("ignore"))
-    )
+    ) %>%
+  arrange(volume_filt_cubic_m) %>%
+  mutate(volume_filt_cubic_m = round(volume_filt_cubic_m, 2))
+
+
 ```
+
 
 
 ## Plot Volume Filtered
@@ -476,45 +529,105 @@ meta_calc %>%
 Plot data to find erroneous entries
 
 ```{r plots}
-meta_calc %>% 
-  filter(str_detect(locationID, "MR|LK|WS")) %>%
-  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
-  geom_point() +
-  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")
-
+vol_fil_expr <- expression("Volume filtered ("*m^3*")")
 
 meta_calc %>% 
-  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
   ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
-  geom_point() +
+  geom_point(na.rm = TRUE) +
   facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
-  scale_y_continuous(limits = c(-100, 1200), expand = expansion())
+  labs(title = "All" , x = NULL, color = "Site",
+       y = vol_fil_expr) +
+    ggthemes::theme_calc()
+
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point(na.rm = TRUE) +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-100, 1200), expand = expansion()) +
+  labs(title = "Limit -100 - 1200 m^3", x = NULL, , color = "Site",
+       y = vol_fil_expr) +
+    ggthemes::theme_calc()
+
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
+  ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
+  geom_point(na.rm = TRUE) +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-10, 105), expand = expansion()) +
+  labs(title = "Limit -10 - 100 m^3", x = NULL, , color = "Site",
+       y = vol_fil_expr) +
+    ggthemes::theme_calc()
     
 # volume filt <= 0 or > 500   
 meta_calc %>%
   filter(volume_filt_cubic_m <= 0 | volume_filt_cubic_m > 500) %T>%
   print() %>%
   ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
-  geom_point() +
-  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free")  
+  geom_point(na.rm = TRUE) +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  labs(title = "Limit <0 and >500 m^3", x = NULL, , color = "Site",
+       y = vol_fil_expr) +
+  ggthemes::theme_calc() +
+  coord_cartesian(ylim = c(-100, 9000))
 
 # tow time vs vol filt
 meta_calc %>% 
-  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
   ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
-  geom_point() +
+  geom_point(na.rm = TRUE) +
   facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
   # scale_y_continuous(limits = c(-100, 1200), expand = expansion()) +
-  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1))) 
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1))) +
+  labs(title = "Time Tow vs  Vol", color = "Year", 
+       x = "Time Towed (min)",
+       y = vol_fil_expr) +
+  ggthemes::theme_calc()
 
 meta_calc %>% 
-  filter(str_detect(locationID, "MR|LK|WS")) %>%
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
   ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
-  geom_point() +
+  geom_point(na.rm = TRUE) +
   facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
-  scale_y_continuous(limits = c(-100, 1000), expand = expansion(0, c(0, 100))) +
+  scale_y_continuous(limits = c(-100, 1000), expand = expansion(0, c(0, 100)),
+                     oob = scales::oob_squish) +
   scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1)), 
-                     breaks = seq(0, 8)) 
+                     breaks = seq(0, 8)) +
+  labs(title = "Time Tow vs  Vol Limit -100 to 1000", color = "Year", 
+       x = "Time Towed (min)",
+       y = vol_fil_expr) +
+  ggthemes::theme_calc()
+
+meta_calc %>% 
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%
+  ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
+  geom_point(na.rm = TRUE) +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  scale_y_continuous(limits = c(-10, 105), expand = expansion(0, c(0, 10)),
+                     oob = scales::oob_squish) +
+  scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1)), 
+                     breaks = seq(0, 8)) +
+  labs(title = "Time Tow vs  Vol Limit -10 to 105", color = "Year", 
+       x = "Time Towed (min)",
+       y = vol_fil_expr) +
+  ggthemes::theme_calc()
+
+
+
+meta_calc %>%
+  filter(str_detect(locationID, "MR|LK|WS") & mesh_size_um != 100) %>%  print() %>%
+  ggplot(aes(x = date, y = flowmeter_diff, color = locationID)) +
+  geom_point(na.rm = TRUE) +
+  facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
+  labs(title = "Flow Diff", x = NULL, color = "Site",
+       y = vol_fil_expr) +
+  ggthemes::theme_calc() +
+  coord_cartesian(ylim = c(-100, 2000))
+
+
+
+    
 
 ```
 
@@ -528,7 +641,7 @@ meta_final <-
   mutate(date = as_date(date))
 
 overwrite <- FALSE
-# overwrite <- TRUE
+overwrite <- TRUE
 
 # ---- write metadata to file ----
 save_csv(
