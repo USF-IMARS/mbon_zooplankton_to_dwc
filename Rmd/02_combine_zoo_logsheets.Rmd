@@ -688,7 +688,7 @@ if (FALSE) {
 # # -------- #
 
 
-# NOAA Written Logs Digitized Zooplankton Net Tows
+# NOAA Written Logs Digitized Zooplankton Net Tows from 2015 - March 2017
 
 File: `zooplankton_net_tows.xlsx`
 
@@ -711,7 +711,7 @@ This file contains:
 
 
 
-```{r}
+```{r load-noaa-digitized}
 noaa_zoo_pdf <-
   here(cloud_dir, "../miscellaneous_tasks") %>%
   dir_ls(regexp = "zooplankton_net_tows.xlsx") %>%
@@ -798,8 +798,11 @@ noaa_zoo_metadata <-
     "lat_in"       = latitude
   ) %>%
   mutate(
+    # Note: flowmeter is MF315, assume reading in tenths so need to divide by 10
+    # WS18008 is not included so no issues with dividing by 10
+    flowmeter_in = flowmeter_in / 10,
+    flowmeter_out = flowmeter_out / 10, 
     inpeller_constant = 0.245,
-    # Note: flowmeter is MF315
     net_size = # diameter in m
       case_when(
         mesh_size_um == 64 ~ 0.6,
@@ -850,7 +853,7 @@ noaa_zoo_metadata <-
 
 ```
 
-```{r}
+```{r check}
 noaa_zoo_metadata %>% 
   filter(str_detect(locationID, "MR|LK|WS")) %>%
   mutate(
