@@ -161,9 +161,11 @@ if (is_empty(aphia_id) | FALSE) {
 ```{r load-data}
 # ---- load metadata ---- #
 meta_df <-
-  here(cloud_dir, "cruise_logsheets") %>%
+  # here(cloud_dir, "cruise_logsheets") %>% # cloud
+  here("data", "metadata", "cruise_logsheets") %>% # local
   dir_ls(regexp = "^[^~]*(meta_)+.*\\.csv$") %>%
-  last_mod(.) %>%
+  last_mod(.)  %T>% 
+  print() %>%
   read_csv(show_col_types = FALSE) %>%
     
   # filter date for when Natalia LF started analysis
@@ -186,7 +188,8 @@ taxa_files <-
     regexp = "all_merged_processed",
     recurse = 1
   ) %>%
-  last_mod(.) %>%
+  last_mod(.) %T>%
+  print() %>%
   map(~ read_csv(., show_col_types = FALSE)) %>%
   list_c() %>%
   mutate(
@@ -207,6 +210,10 @@ taxa_files <-
   ) %>%
   ungroup() %T>%
   print()
+
+distinct(meta_df, cruise_id)
+distinct(meta_df, cruise_id, mesh_size_um)
+distinct(meta_df, cruise_id, station, mesh_size_um)
 ```
 
 
