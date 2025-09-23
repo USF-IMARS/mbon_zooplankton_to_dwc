@@ -46,7 +46,7 @@ D = \frac {(N \times V_S)}{N_A  \times P_s} \times V^{-1} = \mu_{ind} \times \te
 \end{align} \\
 $$
 
-```{r}
+```{r ex-calc}
 # === examples
 n_ali = 74 # sum of counts for all aliquots
 folson = 1 # mL of the pipette
@@ -79,3 +79,45 @@ lab_splt = 2 # number of splits in the lab, 2 splits = 1/2^2 sample
 
 
 ```
+
+
+# Estimated Volumes based on Speed and Time
+
+$$
+\begin{align}
+& 1~knot = 0.514~m~s^{-1} \\
+& m~s^{-1} = knots \times0.514 \\
+& time~(min) = min * \frac{60~sec}{1~min} \\
+& mouth~area = \pi \times r^2 \\
+& radius (r) = \frac{diameter}{2} \\
+& \hat{vol} = knots * 0.514~m~s^{-1} * tow~time~min * 60~\frac{sec}{min} *  
+  \pi * (\frac{diameter}{2})^2
+\end{align} 
+$$
+```{r}
+library(dplyr)
+vol_theoretical <- function(kts, time, diam) {
+  kts * 0.514 * time * 60 * pi * (diam/2)^2
+}
+
+tow_time <- c(1, 2, 5, 10)
+knots    <- seq(0.25, 2.5, 0.25)
+diameter <- c(0.5, 0.6)
+
+vol_calc <- 
+  expand.grid("kts" = knots, "time" = tow_time, "diam" = diameter) %>%
+  mutate(
+    vol_theoretical = vol_theoretical(kts, time, diam)
+    ) %>%
+  ungroup()
+vol_calc
+
+library(ggplot2)
+ggplot(vol_calc) +
+  geom_line(aes(x = kts, y = vol_theoretical, color = as.factor(diam))) +
+  facet_grid(~time) +
+  labs(color = "Diameter (m)",
+       x = "Knots (kts)",
+       y = expression("Volume Filtered (m "*s^-1*")"))
+```
+
