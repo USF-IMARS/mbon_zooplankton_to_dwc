@@ -30,12 +30,14 @@ rm(func_attach)
 
 
 ```{r read-sheets, include=FALSE}
+# select location where metadata is stored
+# default: cloud 
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
-# add additional ship acronyms to search for 
+# add additional ship acronyms to search 
 ship_acronym <- "(WS|SV|HG|H|WB)\\d{4,5}"
 
-# select all cruise files
+# select all cruise metadata files
 metadata_paths <-
   main_cloud_dir %>%
   dir_ls(type = "directory") %>%
@@ -151,14 +153,16 @@ meta <-
         # read sheets
         temp <-
           readxl::read_xlsx(
-            .x,
+            path  = .x,
             sheet = .z,
-            skip = .y,
+            skip  = .y,
             .name_repair = janitor::make_clean_names,
             na = c("skip", "Did not collect", "not recorded", "na", "Did Not Collect")
           ) %>%
+          
           # remove rows that are fully empty
           janitor::remove_empty(which = "rows") %>%
+          
           # remove formalin_vol_ml column
           select(-contains("formalin_vol_ml")) %>%
           
@@ -166,10 +170,11 @@ meta <-
           tidyr::fill(contains(c("station", "lat", "lon", "date", "time"))) 
         
         if (!str_detect(.c, "WS16319")) {
-        temp <- temp %>%
+          temp <- temp %>%
 
           # drop rows when flowmeter_out = NA
           drop_na(flowmeter_out)
+        
           # filter(!(is.na(flowmeter_out) & is.na(date))) 
         }
         temp <- temp %>%
@@ -203,7 +208,7 @@ meta <-
           mutate(
             # convert time if labeled as time_gmt if needed
             across(
-              contains(c("time_gmt")),
+              contains("time_gmt"),
               \(.x) {
                 x <-
                   tryCatch(
@@ -248,8 +253,8 @@ meta <-
             .after = 4
           )
 
-        # convert lat_in and/or lon_in from deg minutes to decimal
-        # degrees if type is str
+        # convert lat_in/lon_in from deg minutes to decimal degrees if class of
+        # is of type string
         if (is.character(temp$lat_in) | is.character(temp$lon_in)) {
           message("Converting lat and lon into decimal degrees.\n")
           temp %<>%
@@ -269,6 +274,7 @@ meta <-
         if (any(str_detect(colnames(temp), "notes"))) {
             temp <- mutate(temp, notes = as.character(notes))
         }
+        
         # check if can retype columns to chr, num, or date
         temp <- tryCatch(
           {
@@ -379,16 +385,21 @@ Remove:
 - local_time_est
 
 Modify:
-- 
+- distance_m: rename
+- tow_speed: rename
+- flowmeter_in: relocate
 
 ```{r filter-no-data}
 meta_fix <-
   meta_merg %>%
   select(-sheets, -skips, -contains("local_time_est")) %>%
+  
+  # recalculated columns lower
   rename(
     "ignore_distance_m" = distance_m, 
     "ignore_tow_speed"  = tow_speed
     ) %>%
+  
   relocate(flowmeter_in, .before = flowmeter_out) %>%
   # separate_rows(mesh_size_um, sep = "/") %>%
   mutate(
@@ -396,7 +407,8 @@ meta_fix <-
     # mesh_size_um     = retype(mesh_size_um),
     ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
     file             = tools::file_path_sans_ext(file),
-    split_size       = map_dbl(split_size, 
+    split_size       = map_dbl(
+      split_size, 
       function(x) {
         out <- tryCatch(
           {
@@ -497,6 +509,14 @@ meta_calc <-
     tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
     volume_filt_cubic_m = net_area * distance_m, # m^3
 
+    # add notes about questionable volume
+    vol_notes = case_when(
+      volume_filt_cubic_m < 0 ~ "volume filtered unusable, volume negative",
+      volume_filt_cubic_m <= 10 ~ "volume filtered questionable, volume lower than expected",
+      volume_filt_cubic_m > 100 ~ "volume filtered questionable, volume higher than expected",
+      is.na(volume_filt_cubic_m) ~ "volume not recorded",
+      .default = NA
+    )
   ) %>%
   relocate(flowmeter_diff, .after = flowmeter_out) %>%
   relocate(contains("ignore"), .after = last_col()) %>%
@@ -680,7 +700,7 @@ meta_final <-
 overwrite <- FALSE
 overwrite <- TRUE
 
-# ---- write metadata to file ----
+# ---- write metadata to file ---- #
 save_csv(
   .data          = meta_final,        
   save_location  = here("data", "metadata", "cruise_logsheets"),
@@ -709,7 +729,7 @@ if (FALSE) {
     
   meta_final %>%
     select(-contains("ignore"), -file) %>%
-    relocate(notes, .after = volume_filt_cubic_m) %>%
+    relocate(contains("notes"), .after = volume_filt_cubic_m) %>%
     openxlsx2::write_xlsx(
       .,
       here("data", "metadata", "to_noaa", glue("usf_imars_zooplankton_log_sheet_{Sys.Date()}.xlsx")),
@@ -852,6 +872,15 @@ noaa_zoo_metadata <-
     tow_speed_m_sec     = distance_m / (tow_time_min * 60), # m s^-1
     volume_filt_cubic_m = net_area * distance_m, # m^3
 
+    # add notes about questionable volume
+    vol_notes = case_when(
+      volume_filt_cubic_m < 0 ~ "volume filtered unusable, volume negative",
+      volume_filt_cubic_m <= 10 ~ "volume filtered questionable, volume lower than expected",
+      volume_filt_cubic_m > 100 ~ "volume filtered questionable, volume higher than expected",
+      is.na(volume_filt_cubic_m) ~ "volume not recorded",
+      .default = NA
+    ),
+    
     # Fix Latitude and Longitude
     # Some files had mixed up lat and lon and some have lon at a positive
     # decimal degree and should only be negative.
@@ -916,12 +945,12 @@ noaa_zoo_metadata %>%
   ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
   geom_point() +
   facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
-  scale_y_continuous(limits = c(-100, 1200), expand = expansion())
+  scale_y_continuous(limits = c(-10, 700), expand = expansion())
     
 # volume filt <= 0 or > 500   
 noaa_zoo_metadata %>%
   filter(str_detect(locationID, "MR|LK|WS")) %>%
-  filter(volume_filt_cubic_m <= 0 | volume_filt_cubic_m > 500) %T>%
+  filter(volume_filt_cubic_m <= 0 | volume_filt_cubic_m > 100) %T>%
   print() %>%
   ggplot(aes(x = date, y = volume_filt_cubic_m, color = locationID)) +
   geom_point() +
@@ -941,7 +970,7 @@ noaa_zoo_metadata %>%
   ggplot(aes(x = tow_time_min, y = volume_filt_cubic_m, color = as.factor(year(date)))) +
   geom_point() +
   facet_grid(cols = vars(locationID), rows = vars(mesh_size_um), scales = "free") +
-  scale_y_continuous(limits = c(-100, 1000), expand = expansion(0, c(0, 100))) +
+  scale_y_continuous(limits = c(-10, 1000), expand = expansion(0, c(0, 100))) +
   scale_x_continuous(limits = c(0, NA), expand = expansion(0, c(0, 1)), 
                      breaks = seq(0, 8)) 
 
@@ -955,7 +984,7 @@ noaa_zoo_metadata %>%
 overwrite <- FALSE
 # overwrite <- TRUE
 
-# ---- write metadata to file ----
+# ---- write metadata to file ---- #
 save_csv(
   .data          = noaa_zoo_metadata,        
   save_location  = here("data", "metadata", "cruise_logsheets"),
@@ -979,4 +1008,82 @@ if (FALSE) {
 
 ```
 
+
+
+
+# ============================================================================ #
+# Merge IMaRS Logs with NOAA written logs
+```{r}
+# sheet from IMaRS
+meta_df_imars <-
+  # here(cloud_dir, "cruise_logsheets") %>%          # cloud
+  here("data", "metadata", "cruise_logsheets") %>% # local
+  dir_ls(regexp = "^[^~]*(meta_combined)+.*\\.csv$") %>%
+  last_mod(.) %>%
+  read_csv(show_col_types = FALSE) %>%
+  # filter(date < as_date("2017-04-01")) %>%
+  mutate(from = "imars", .before = 1) %T>% 
+  print()
+
+# sheet from NOAA
+meta_noaa_zoo <- 
+  # here(cloud_dir, "cruise_logsheets") %>%
+  here("data", "metadata", "cruise_logsheets") %>%
+  dir_ls(regexp = "zoo_noaa_meta") %>%
+  str_subset("~\\$", negate = TRUE) %>%
+  last_mod(.) %>%
+  read_csv(show_col_types = FALSE) %>%
+  filter(
+    year(date_time) == 2015 
+    & between(month(date_time), 4, 6)
+    & str_detect(locationID, "WS|MR|LK")
+  ) %>%
+  mutate(from = "noaa", .before = 1) %T>% 
+  print()
+
+# merged
+meta_df <- 
+  bind_rows(
+    meta_df_imars,
+    meta_noaa_zoo
+  ) %>%
+  select(names(meta_df_imars), everything()) %>%
+  mutate(
+    month   = format(date, "%m"),
+    year    = format(date, "%Y"),
+    day     = format(date, "%d"),
+    .before = date_time
+  )  %>%
+  hablar::retype() %>%
+  distinct() %T>% 
+  print() 
+
+```
+
+```{r}
+overwrite <- FALSE
+# overwrite <- TRUE
+
+# ---- write metadata to file ---- #
+save_csv(
+  .data          = meta_df,        
+  save_location  = here("data", "metadata", "cruise_logsheets"),
+  save_name      = "meta_combined_with_noaa",
+  overwrite      = overwrite,
+  verbose        = TRUE,
+  time_stamp_fmt = "%Y%m%d_%H%M%S",
+  utf_8          = FALSE
+)
+
+# copy to cloud
+if (FALSE) {
+  here("data", "metadata", "cruise_logsheets") %>%
+  dir_ls(regexp = "meta_combined_with_noaa") %>%
+  last_mod() %>% 
+  file_copy(
+      here(cloud_dir, "cruise_logsheets", "meta_combined_with_noaa.csv"),
+      overwrite = TRUE
+  )
+}
+```
 
