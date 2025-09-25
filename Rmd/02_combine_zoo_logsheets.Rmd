@@ -698,7 +698,7 @@ meta_final <-
   mutate(date = as_date(date))
 
 overwrite <- FALSE
-overwrite <- TRUE
+# overwrite <- TRUE
 
 # ---- write metadata to file ---- #
 save_csv(
@@ -874,7 +874,7 @@ noaa_zoo_metadata <-
 
     # add notes about questionable volume
     vol_notes = case_when(
-      volume_filt_cubic_m < 0 ~ "volume filtered unusable, volume negative",
+      volume_filt_cubic_m <= 0 ~ "volume filtered unusable, volume negative or 0",
       volume_filt_cubic_m <= 10 ~ "volume filtered questionable, volume lower than expected",
       volume_filt_cubic_m > 100 ~ "volume filtered questionable, volume higher than expected",
       is.na(volume_filt_cubic_m) ~ "volume not recorded",
@@ -1055,7 +1055,17 @@ meta_df <-
     .before = date_time
   )  %>%
   hablar::retype() %>%
-  distinct() %T>% 
+  distinct() %>%
+  mutate(
+    # add notes about questionable volume
+    vol_notes = case_when(
+      volume_filt_cubic_m <= 0 ~ "volume filtered unusable, volume negative or 0",
+      volume_filt_cubic_m <= 10 ~ "volume filtered questionable, volume lower than expected",
+      volume_filt_cubic_m > 100 ~ "volume filtered questionable, volume higher than expected",
+      is.na(volume_filt_cubic_m) ~ "volume not recorded",
+      .default = NA
+    )
+  ) %T>% 
   print() 
 
 ```
