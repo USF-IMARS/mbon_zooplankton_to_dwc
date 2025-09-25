@@ -51,11 +51,13 @@ put in "~/data/zoo_pre_2018"
 file_path <-
   here::here(base_dir, "processed") %>%
   fs::dir_ls(
-    regexp  = "zoo_compiled_with_meta",
+    # regexp  = "zoo_compiled_with_meta",
+    regexp  = "zoo_compiled_with_meta_essentials",
     recurse = TRUE
   ) %>%
   # function to check more recent made file to use
-  last_mod() 
+  last_mod() %T>% 
+  print()
 
 # read `.csv` file created by `fix_prev_zoo_data.Rmd`
 dat <-
@@ -67,11 +69,13 @@ dat <-
     show_col_types = FALSE,
     guess_max   = 10000,
     name_repair = janitor::make_clean_names
-  )
+  ) %T>% 
+  print()
 
 species_path <-
     here::here(base_dir) %>%
-    fs::dir_ls(regexp = "sp\\.csv")
+    fs::dir_ls(regexp = "sp\\.csv") %T>%
+    print()
 
 # read manually created verbatim name map `sp.csv`
 species_map <-
@@ -83,18 +87,22 @@ species_map <-
     show_col_types = FALSE,
     name_repair = janitor::make_clean_names,
     na = c("", "NA", stringi::stri_dup("?", 1:5)) # ignore `?` 1 to 5 times
-  ) %>%
+  ) %T>% 
+  print() %>%
 
   # select only necessary columns
   dplyr::select(
     jaimes_taxa_info,
     contains("sci_name"),
     lifestage
-  )
+  ) %T>% 
+  print()
 ```
 
 # 2.0 ---- Merge Taxa Info ----
+
 ## 2.1 Merge Species Info with Raw Data
+
 ```{r load-csv-data}
 # map Jaime's species names to WoRMS-readable using `sp.csv`
 dat_merg <-
@@ -112,7 +120,7 @@ dat_merg <-
     orig_data_row_ID = glue("{sheet_nm}:{clasification}:{lifestage}"),
     .before = 1
   ) %>%
-  distinct()  %>%
+  distinct() %>%
     
   mutate(
     taxa_to_search =
@@ -121,7 +129,8 @@ dat_merg <-
         clasification,
         sci_name_guessed_by_tylar
       )
-  ) 
+  ) %T>% 
+  print()
 ```
 
 
@@ -147,155 +156,177 @@ if (nrow(dupes) > 0) {
 ```
 
 # 3.0 ---- Get AphiaID from WoRMS ----
+
 Using `merge_taxa()` 
 check = if want to check unmatched names
 viewer = if want to see unmatched taxa using View()
+
+If using full taxonomic that exists, will skip the taxa merge processing
+
 ```{r aphia-id}
-# set location for aphiaID list and the base of the file name
-file_exprs <- 
+taxa_full_path <-
+  here(base_dir) %>%
+  dir_ls(regexp = "taxa_worms_info") %>%
+  last_mod() %T>%
+  print()
+
+if (length(taxa_full_path) > 0) {
+  # read already completed full extended taxa list
+  taxa_full <-
+    taxa_full_path %>%
+    read_csv(show_col_types = FALSE)
+} else {
+  # will create full extended taxa list
+  
+  # set location for aphiaID list and the base of the file name
+  file_exprs <-
     file_expr(
-    loc       = here::here(base_dir), 
-    file_base = "aphia_taxa_jaime"
+      loc       = here::here(base_dir),
+      file_base = "aphia_taxa_jaime"
     )
 
-# if need to check updates to taxa sheet
-# check_taxa <- 
-#     here::here(cloud_dir, "old_jaime_data") %>%
-#     # dir_ls(regexp = glue("{file_exprs[1]}.*\\.csv$"))
-# load_taxa_list(
-#     .,
-#     file_exprs
-#     ) %>%
-#     filter(!is.na(notes) & str_detect(notes, "added sp")) %T>% 
-#     print()
-# check_taxa %$% 
-#     merge_taxa(taxa,
-#                .file_expr =  file_expr(
-#     loc       = here::here(base_dir), 
-#     file_base = "aphia_taxa_jaime_test2"
-#     ), .recurse = FALSE)     
+  # if need to check updates to taxa sheet
+  # check_taxa <-
+  #     here::here(cloud_dir, "old_jaime_data") %>%
+  #     # dir_ls(regexp = glue("{file_exprs[1]}.*\\.csv$"))
+  # load_taxa_list(
+  #     .,
+  #     file_exprs
+  #     ) %>%
+  #     filter(!is.na(notes) & str_detect(notes, "added sp")) %T>%
+  #     print()
+  # check_taxa %$%
+  #     merge_taxa(taxa,
+  #                .file_expr =  file_expr(
+  #     loc       = here::here(base_dir),
+  #     file_base = "aphia_taxa_jaime_test2"
+  #     ), .recurse = FALSE)
 
-# update local master taxa sheet
-if (FALSE) {
+  # update local master taxa sheet
+  if (FALSE) {
     master_taxa_list(
-        taxa_list  = NULL,
-        .cloud_dir = here(cloud_dir, "old_jaime_data"),
-        # file_base  = "aphia_taxa",
-        where_to   = "local",
-        save       = FALSE,
-        .file_expr = file_exprs)
-}
-
-max_depth <-
-  list(
-    MR = 36.5,
-    LK = 40.5,
-    WS = 23
-  )
-
-taxa_base <-
-  dat_merg %>%
-  select(taxa_to_search) %>%
-  distinct() %>%
-  merge_taxa(.,
-    .file_expr = file_exprs,
-    check = FALSE,
-    # check      = TRUE,
-    use_cloud = FALSE,
-    viewer = TRUE,
-    file_verbat = here(base_dir, "aphia_taxa_jaime_20230504_154723.csv")
-  )
+      taxa_list  = NULL,
+      .cloud_dir = here(cloud_dir, "old_jaime_data"),
+      # file_base  = "aphia_taxa",
+      where_to   = "local",
+      save       = FALSE,
+      .file_expr = file_exprs
+    )
+  }
 
 
-taxa_full <-
-  taxa_base %>%
-  mutate(
-    aphia_id = if_else(!is.na(scientificNameID),
-      str_split(scientificNameID, ":",
-        simplify = TRUE
-      )[, 5],
-      NA_character_
-    ) %>%
-      as.numeric(.),
-    row = row_number(),
-    info = pmap(
-      list(
-        aphia_id,
-        taxa_orig,
-        row
-      ),
-      # .progress = TRUE,
-      .f =
-        (\(.x, .y, .z)
-        tryCatch(
-          {
-            if (.z == 1) {
-              cat(sprintf(
-                "\n%-4s | %-6s | names\n%s",
-                "Row", "aphia",
-                stringi::stri_dup("-", 37)
-              ))
+
+  file_verbat <-
+    here(base_dir) %>%
+    dir_ls(regexp = "aphia_taxa_jaime") %>%
+    last_mod()
+
+  taxa_base <-
+    dat_merg %>%
+    # select(taxa_to_search) %>%
+    select(clasification) %>%
+    distinct() %>%
+    merge_taxa(.,
+      .file_expr = file_exprs,
+      check = FALSE,
+      # check      = TRUE,
+      use_cloud = FALSE,
+      viewer = TRUE,
+      file_verbat = file_verbat
+    )
+
+  # extended taxa information from WoRRMS
+  taxa_full <-
+    taxa_base %>%
+    mutate(
+      aphia_id = if_else(!is.na(scientificNameID),
+        str_split(scientificNameID, ":",
+          simplify = TRUE
+        )[, 5],
+        NA_character_
+      ) %>%
+        as.numeric(.),
+      row = row_number(),
+      info = pmap(
+        list(
+          aphia_id,
+          taxa_orig,
+          row
+        ),
+        # .progress = TRUE,
+        .f =
+          (\(.x, .y, .z)
+          tryCatch(
+            {
+              if (.z == 1) {
+                cat(sprintf(
+                  "\n%-4s | %-6s | names\n%s",
+                  "Row", "aphia",
+                  stringi::stri_dup("-", 37)
+                ))
+              }
+              cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
+              x <- worrms::wm_record(.x)
+              cat(x$scientificname)
+              return(x)
+            },
+            error = function(e) {
+              return(NULL)
             }
-            cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
-            x <- worrms::wm_record(.x)
-            cat(x$scientificname)
-            return(x)
-          },
-          error = function(e) {
-            return(NULL)
-          }
-        ))
-    )
-  ) %>%
-  unnest(info,
-    names_repair = janitor::make_clean_names,
-    keep_empty = TRUE
-  ) %>%
-  rename(
-    # might be need to go back to old way
-    # "scientificName"   = scientific_name
-    # "scientificNameID" = scientific_name_id
-    "scientificName"   = valid_name,
-    "scientificNameID" = lsid
-  ) %>%
-  mutate(
-    scientificNameID = str_replace(
-      scientificNameID, ":(\\d+)",
-      glue(":{valid_aphia_id}")
-    )
-  ) %>%
-  relocate(scientificName, scientificNameID, valid_aphia_id, .after = lifestage)
+          ))
+      )
+    ) %>%
+    unnest(info,
+      names_repair = janitor::make_clean_names,
+      keep_empty = TRUE
+    ) %>%
+    rename(
+      # might be need to go back to old way
+      # "scientificName"   = scientific_name
+      # "scientificNameID" = scientific_name_id
+      "scientificName"   = valid_name,
+      "scientificNameID" = lsid
+    ) %>%
+    mutate(
+      scientificNameID = str_replace(
+        scientificNameID, ":(\\d+)",
+        glue(":{valid_aphia_id}")
+      )
+    ) %>%
+    relocate(scientificName, scientificNameID, valid_aphia_id, .after = lifestage)
 
-
-taxa_full 
-
-# save updated version of base taxa and full taxa as .csv
-# loc       = here::here(base_dir), 
-# file_base = "aphia_taxa_jaime"
-# 
-save_csv(
+  # save updated version of base taxa and full taxa as .csv
+  # loc       = here::here(base_dir),
+  # file_base = "aphia_taxa_jaime"
+  #
+  save_csv(
     .data          = taxa_base,
     save_location  = file_exprs$file_loc,
     save_name      = file_exprs$file_base,
-    overwrite      = FALSE,
-    # overwrite      = TRUE,
+    # overwrite      = TRUE, # <-- uncomment to overwrite
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d",
     utf_8          = TRUE
-)
+  )
 
-save_csv(
+  save_csv(
     .data          = taxa_full,
     save_location  = here(base_dir),
     save_name      = "taxa_worms_info",
-    overwrite      = FALSE,
-    # overwrite      = TRUE,
+    # overwrite      = TRUE, # <-- uncomment to overwrite
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d",
     utf_8          = TRUE
-)
+  )
+}
 
- 
+taxa_full
+```
+
+
+```{r aphia-id}
+
+
 # if (FALSE) {
 #   write_excel_csv(
 #     x = taxa_base,
@@ -337,27 +368,47 @@ if (FALSE && exists("cloud_dir") && !is.na(cloud_dir)) {
 ```
 
 
+
+
 ```{r aphia-id-merge}
+# station max depths
+max_depth <-
+  list(
+    MR = 36.5,
+    LK = 40.5,
+    WS = 23
+  )
+
+max_depth <-
+  list(
+    MR = c(36.5, -81.41464542, 24.53862793),
+    LK = c(40.5, -81.71532752, 24.47605506),
+    WS = c(23,   -80.37953386, 25.00607727)
+  )
+
 # filter out taxa names not needed
 taxa_full_filt <- 
     taxa_full %>%
      filter(
          (str_detect(notes, "remove", negate = TRUE) | is.na(notes)) 
-         & !is.na(scientificNameID))  
+         & !is.na(scientificNameID)
+         ) %>%
+      select(-aphia_id_2)  
   
 
-dat_merg_tx <- 
+dat_merg_tx <-
   # join on classification columns. `.` is where it gets piped into
-    left_join(
-      dat_merg,
-      taxa_full_filt,
-      by = c("taxa_to_search" = "taxa_orig")
-  )  %>%
-   mutate(
-        .keep = "unused",
-        .after = scientificName,
-        lifestage = if_else(!is.na(lifestage.x), lifestage.x, lifestage.y)
-        ) 
+  left_join(
+    dat_merg,
+    taxa_full_filt,
+    by = c("taxa_to_search" = "taxa_orig")
+  ) %>%
+  mutate(
+    .keep     = "unused",
+    .after    = scientificName,
+    lifestage = if_else(!is.na(lifestage.x), lifestage.x, lifestage.y)
+  ) %T>% 
+  print()
 
 # round individual count. we don't know why there are fractional counts. 
 dat_merg_tx <- 
@@ -365,36 +416,36 @@ dat_merg_tx <-
     
     mutate(
     
-    ind_count = round(ind_count),
+    # ind_count = round(ind_count),
     # hardcode missing lat lon using averages in water-samples
     lon_in = case_when(
-        is.na(lon_in) & str_detect(stn, "LK") ~ -81.41464542,
-        is.na(lon_in) & str_detect(stn, "WS") ~ -81.71532752,
-        is.na(lon_in) & str_detect(stn, "MR") ~ -80.37953386,
-        TRUE ~ lon_in
+        is.na(lon_in) & str_detect(stn, "LK") ~ max_depth$MR[2],
+        is.na(lon_in) & str_detect(stn, "WS") ~ max_depth$LK[2],
+        is.na(lon_in) & str_detect(stn, "MR") ~ max_depth$WS[2],
+        .default = lon_in
     ),
     lat_in = case_when(
-        is.na(lat_in) & str_detect(stn, "LK") ~ 24.53862793,
-        is.na(lat_in) & str_detect(stn, "WS") ~ 24.47605506,
-        is.na(lat_in) & str_detect(stn, "MR") ~ 25.00607727,
-        TRUE ~ lat_in
+        is.na(lat_in) & str_detect(stn, "LK") ~ max_depth$MR[3],
+        is.na(lat_in) & str_detect(stn, "WS") ~ max_depth$LK[3],
+        is.na(lat_in) & str_detect(stn, "MR") ~ max_depth$WS[3],
+        .default = lat_in
     ),
     maximumDepthInMeters = case_when(
-        str_detect(stn, "MR") ~ max_depth$MR,
-        str_detect(stn, "LK") ~ max_depth$LK,
-        str_detect(stn, "WS") ~ max_depth$WS
+        str_detect(stn, "MR") ~ max_depth$MR[1],
+        str_detect(stn, "LK") ~ max_depth$LK[1],
+        str_detect(stn, "WS") ~ max_depth$WS[1]
     )
 ) %>%
   
   # === set up to align with next chunk var names
   rename(
-    
     "taxa_orig"        = sci_name_guessed_by_tylar,
     "individualCount"  = ind_count,
     "lifeStage"        = lifestage,
     "decimalLatitude"  = lat_in,
     "decimalLongitude" = lon_in,
-  )
+  ) %T>% 
+  print()
 
 # eventID   <- "jaime_protocol_observation"
 datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
@@ -402,62 +453,69 @@ datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 ```
 
 # 4.0 ---- Construct Occurence ID ----
+
 ```{r construct-occurrence-table}
 # map col names into dwc
 occur <-
   dat_merg_tx %>%
-  # left_join(event,
-  #           by = c("cruise_id",
-  #                  "site" = "locationID",
-  #                  "mesh" #,
-  #                  # "recordedBy",
-  #                  #"recordedByID", "basisOfRecord"
-  #                  )
-  #           ) %>%
-  # dplyr::transmute(
-  # this method is prefered to maintainers instead of transmute
   dplyr::mutate(
-    .keep = "none",
-    # ---
-
-    decimalLatitude,
-    decimalLongitude,
-    # eventID,
-    # eventDate                = glue("{date}T{local_time_est}ET"),
-    # make datetime and convert to utc
-    eventDate = lubridate::ymd_hms(
-      glue::glue("{date} {local_time_est}",
-        .na = ""
-      ),
-      tz = "EST",
-      truncated = 3
+    datasetID      = datasetID,
+    parentEventID  = "IMaRS_MBON_zooplankton",
+    datasetName    = paste(
+      "MBON/USF-IMaRS/NOAA AOML Florida Keys National",
+      "Marine Sanctuary Zooplankton Net Tows"
     ),
-    eventDate = lubridate::format_ISO8601(eventDate, usetz = "Z"),
-    # eventDate = if_else(is.na(eventDate), as.character(date), eventDate),
-
-    # occurrenceID             = glue("{eventID}:{aphiaID}:{lifeStage}"),
-    # changed to taxa_orig to make sure occur ID is unique
-    # occurrenceID             = glue("{eventDate}:{eventID}:{taxa_orig}:{lifeStage}"),
+    collectionCode = "SEUS-MBON-Zooplankton",
+    # make datetime and convert to utc
+    eventDate    = lubridate::format_ISO8601(date_time, usetz = "Z"),
     eventID      = glue("{datasetID}:{sheet_nm}"),
     occurrenceID = glue("{eventID}:{clasification}"),
     occurrenceID = str_replace_all(occurrenceID, " ", "_"),
+    occurrenceID = str_replace_all(occurrenceID, "\\.", ""),
+    fieldNumber  = glue("{cruise_id}-{station}-{mesh}"),
+    institutionCode = "USF | NOAA", # include NOAA
+    
+    type     = "Event",
+    modified = format(Sys.Date(), "%Y-%m-%d"),
+    language = "en",
+    license  = "http://creativecommons.org/publicdomain/zero/1.0/legalcode",
+    
+    locationID   = stn,
+    decimalLatitude,
+    decimalLongitude,
+    georeferenceVerificationStatus = "verified by contributor",
+    higherGeography                = "North America | United States | Florida",
+    continent                      = "North America",
+    country                        = "United States",
+    countryCode                    = "US",
+    stateProvince                  = "Florida",
+    geodeticDatum                  = "EPSG:4326",
+    georeferencedBy                = "NOAA AOML | USF IMaRS | RSMAS R/V Walton Smith",
+    recordedBy                     = "NOAA AOML | USF IMaRS",  
+    higherGeographyID = case_when(
+      str_detect(stn, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
+      str_detect(stn, "5") ~ "http://vocab.getty.edu/tgn/1101513",
+      .default = "Not Found"
+    ),
+    coordinateUncertaintyInMeters  = 500,
+    minimumDepthInMeters           = 0,
+    maximumDepthInMeters,
+    habitat            = "near coral reef",
+    
+
     # taxa names
     scientificName,
-    # across(kingdom:genus),
-    # taxonRank = rank,
-    # taxonID = taxon_rank_id,
-
-    # recorded by
-    # recordedBy,
-    # recordedByID,
+    scientificNameID, # like urn:lsid:ipni.org:names:37829-1:1.3
+    identificationReferences = "WoRMS",
+    verbatimIdentification   = clasification,    # organismQuantity         = ind_m3,
+    taxonRank = rank,
     # dateIdentified           = date_analyzed,
-
+    lifeStage,
     # counts of organisms?
     # IDk which of these is accurate
     # individualCount          = number_ind_sample,
     # add each aliquot as a total count per sample event
     individualCount,
-    # organismQuantity         = ind_m3,
     # organismQuantityType     = "Individuals per cubic metre",
     # or
     # measurementType          = "Number per cubic metre",
@@ -467,51 +525,92 @@ occur <-
     # MOF?
 
     # TODO: check this information ----
-    lifeStage,
-    # establishmentMeans       = "native | uncertain",
+    
     occurrenceStatus = "present",
-    preparations = "formalin before analysis | ethanol after analysis",
-    scientificNameID,
-    # like urn:lsid:ipni.org:names:37829-1:1.3
-    basisOfRecord = "PreservedSpecimen", # "humanObservation",
-    datasetID = {
-      datasetID
-    },
-    identificationReferences = "WoRMS",
-    verbatimIdentification = clasification,
-    # georeferenceVerificationStatusProperty = "verified by contributor",
-    georeferenceVerificationStatus = "verified by contributor",
-    dispostion = "in collection",
-    coordinateUncertaintyInMeters = 500,
-    minimumDepthInMeters = 0,
-    maximumDepthInMeters,
-    # identifiedBy = "Jamie"
-  )
+    preparations     = "formalin before analysis | ethanol after analysis",
+    basisOfRecord    = "PreservedSpecimen", # "humanObservation",
+    disposition      = "in collection",
+    identifiedBy     = "Jaimie Rojas-Marquez",
+    identifiedByID   = "https://orcid.org/0009-0009-7318-7180",
+    samplingProtocol = glue(
+      "{mesh} mesh size (um) - ",
+      "bongo nets | folson splitter | http://drs.nio.org/drs/handle/2264/95"
+    ),
+    net_type   = "bongo nets",
+    microscopy = "microscopy",
+    
+    ind_m3               = total_ind_correct / volume_filt_cubic_m,
+    ind_m3               = if_else(is.infinite(ind_m3), NA, ind_m3),
+    organismQuantity     = ind_m3,
+    organismQuantityType = "individuals per cubic metre",
+    sampleSizeValue      = volume_filt_cubic_m,
+    sampleSizeUnit       = "Volume per cubic metre of filtered seawater",
+    samplingEffort       = str_c(tow_time_min, "minutes", sep = " "),
+  ) %T>%
+  print() 
+
+```
 
 
+```{r construct-occurrence-table}
 filter(occur, is.na(scientificName)) %>%
  count(verbatimIdentification) 
 
 occur <- filter(occur, !is.na(scientificName))
 naniar::vis_miss(occur)
+naniar::vis_miss(occur[,c(1:50)])
+naniar::vis_miss(occur[,c(51:100)])
+naniar::vis_miss(occur[,c(101:ncol(occur))])
 # naniar::vis_miss(dat_merg_tx)
 # naniar::vis_miss(dat_merg)
-Hmisc::describe(occur)
+# Hmisc::describe(occur)
 ```
+```{r}
+na_rows <- occur[,c(101:ncol(occur))] %>%
+  mutate(rows = row_number(), .before = 1) %>%
+  
+  filter(if_any(everything(), is.na)) %>%
+  pull(rows)
+
+occur[na_rows,]
+
+# na_rows <- 
+  occur[,c(51:100)] %>%
+  mutate(rows = row_number(), .before = 1) %>%
+    filter(not_used == "not used")
+  janitor::remove_empty("cols")
+  filter(if_any(everything(), is.na)) %>%
+  pull(rows)
+  
+occur %>%
+  mutate(
+    .keep = "used",
+    diff = scientific_name == scientificName
+  ) %>%
+    filter(diff == FALSE)
+
+taxa_full %>%
+  mutate(
+    # .keep = "used",
+    diff = scientific_name == scientificName
+  ) %>%
+    filter(diff == FALSE) %>%
+  relocate(.after = taxa, scientific_name, scientificName)
+```
+
 
 
 ```{r check-dupes}
 janitor::get_dupes(occur, occurrenceID)
 ```
 
-```{r construct-occurrence-table}
+```{r save-occurrence-table}
 # save locally
 save_csv(
     .data          = occur,
     save_location  = here(base_dir, "processed"),
     save_name      = "occurrences",
-    # overwrite      = FALSE,
-    overwrite      = TRUE,
+    # overwrite      = TRUE, # <-- uncomment to overwrite
     verbose        = TRUE,
     time_stamp_fmt = "%Y%m%d_%H%M%S",
     utf_8          = TRUE
@@ -566,18 +665,16 @@ taxa_matched_merg <-
       "Zooplankton Net Tows (2015 - 2017)"
     ),
     basisOfRecord = "PreservedSpecimen", # "HumanObservation",
-    # informationWithheld = "collector identities withheld because changed frequently",
-    # recordedBy          = nlf,
-    recordedBy = "NOAA AOML",
-    # recordedByID        = orcid_nat,
-    # Abbey B. recommends this change, updated March 21, 2023
-    identifiedBy = "Jamie <TODO>",
-    tow_time = case_when(
-      str_detect(tow_time_min, ":") ~ str_extract(tow_time_min, "(\\d+):", 1),
-      .default = tow_time_min
-    ),
-    tow_time = parse_number(tow_time),
-    tow_time = round(tow_time, 2)
+    recordedBy = "NOAA AOML | USF IMaRS",
+    identifiedBy   = "Jaimie Rojas-Marquez",
+    identifiedByID = "https://orcid.org/0009-0009-7318-7180",
+    # tow_time = case_when(
+    #   str_detect(tow_time_min, ":") ~ str_extract(tow_time_min, "(\\d+):", 1),
+    #   .default = tow_time_min
+    # ),
+    # tow_time = parse_number(tow_time),
+    # tow_time = round(tow_time, 2)
+    tow_time = round(tow_time_min, 2)
   )
 
 rcd_lvl <- taxa_matched_merg %>%
@@ -596,10 +693,11 @@ event <-
         institutionCode, datasetName, 
         language,
         locationID         = station,
-        eventDate          = lubridate::ymd_hms(
-            stringr::str_c(date, local_time_est),
-            tz = "EST"),
-        eventDate          = lubridate::format_ISO8601(eventDate, usetz = "Z"),
+        # eventDate          = lubridate::ymd_hms(
+        #     stringr::str_c(date, local_time_est),
+        #     tz = "EST"),
+        # eventDate          = lubridate::format_ISO8601(eventDate, usetz = "Z"),
+        eventDate          = lubridate::format_ISO8601(date_time, usetz = "Z"),
         eventDate          = if_else(is.na(eventDate), as.character(date), eventDate),
         eventID            = glue("{datasetID}:{sheet_nm}"),
         year               = year(date),
@@ -612,7 +710,8 @@ event <-
         
         # TODO: habitat NERC vocab
         habitat            = "near reef",
-        sampleSizeValue    = vol_filtered_m_3,
+        # sampleSizeValue    = vol_filtered_m_3,
+        sampleSizeValue    = volume_filt_cubic_m,
         sampleSizeUnit     = "Volume per cubic metre of filtered seawater",
         samplingEffort     = str_c(tow_time, "minutes", sep = " ")
     ) %>%
@@ -621,7 +720,8 @@ event <-
         # TODO: save for the end when combining all same sizes together
         catalogNumber   = row_number(),
         .before = everything()
-     ) 
+     ) %T>% 
+  print()
 ```
 
 ## 5.3 Location Level Info:
@@ -638,7 +738,7 @@ location <-
         higherGeographyID = case_when(
             str_detect(stn, "MR|LK|WS|9B") ~ "http://vocab.getty.edu/tgn/7030258",
             str_detect(stn, "5") ~ "http://vocab.getty.edu/tgn/1101513",
-            TRUE ~ "Not Found"
+            .default = "Not Found"
         ),
         higherGeography   = "North America | United States | Florida",
         continent         = "North America",
@@ -669,35 +769,34 @@ occur <-
       "mesh"
     )
   ) %>%
-    dplyr::mutate(
-        .keep = "none",
-        eventID, 
-        occurrenceID             = glue("{eventID}:{clasification}"),
-        occurrenceID             = str_replace_all(occurrenceID, " ", "_"),
-        
-        # taxa names
-        scientificName,
-        across(kingdom:genus), # TODO: check if species column exists
-        taxonRank = rank,
-        organismQuantity         = individualCount,
-        organismQuantityType     = "Summation of 1 mL Aliquots",
-        
+  dplyr::mutate(
+    .keep = "none",
+    eventID,
+    occurrenceID = glue("{eventID}:{clasification}"),
+    occurrenceID = str_replace_all(occurrenceID, " ", "_"),
 
-        lifeStage,
-        occurrenceStatus         = "present",
-        preparations             = "formalin before analysis | ethanol after analysis",
-        scientificNameID,
-        basisOfRecord,
-        identificationReferences = "WoRMS",
-        verbatimIdentification   = clasification,
-        georeferenceVerificationStatus = "verified by contributor",
-        dispostion = "in collection"
-    ) %>%
-      relocate(eventID, occurrenceID, 
-               .before = 1) %>%
-    
-    # removes row where couldn't get accurate aphia ID
-    filter(!is.na(scientificNameID))
+    # taxa names
+    scientificName,
+    across(kingdom:genus), # TODO: check if species column exists
+    taxonRank = rank,
+    organismQuantity = individualCount,
+    organismQuantityType = "Summation of 1 mL Aliquots",
+    lifeStage,
+    occurrenceStatus = "present",
+    preparations = "formalin before analysis | ethanol after analysis",
+    scientificNameID,
+    basisOfRecord,
+    identificationReferences = "WoRMS",
+    verbatimIdentification = clasification,
+    georeferenceVerificationStatus = "verified by contributor",
+    dispostion = "in collection"
+  ) %>%
+  relocate(eventID, occurrenceID,
+    .before = 1
+  ) %>%
+  # removes row where couldn't get accurate aphia ID
+  filter(!is.na(scientificNameID)) %T>%
+  print()
 
 
 ```
@@ -740,8 +839,8 @@ pwalk(
       .data          = data,
       save_location  = loc,
       save_name      = name_f,
-      overwrite      = FALSE,
-      # overwrite      = TRUE,
+      # overwrite      = FALSE,
+      overwrite      = TRUE,
       verbose        = TRUE,
       time_stamp_fmt = "%Y-%m-%d",
       utf_8          = TRUE
