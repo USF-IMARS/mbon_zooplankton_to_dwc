@@ -32,29 +32,13 @@ conflicts_prefer(
   dplyr::select()
   )
 
-# library("readxl")
-# library("hablar") # might be useful when needing to fix names
-# library("worrms")
-# library("geosphere")
-
-
-# obistools::event_fields()
-# source(here::here("scripts","log_file_changes.R"))
-# startup("log_edits")
-# log_add()
 ```
 
-## 1.2 Other Variables Needed
-Only needed identifier. This may be updated for future samples and can filter 
-for specific samples.
+## 1.2 Larval Stages: Accepted Version
+
+
 ```{r other-vars}
-other_vars <- list()
-
-# ---- recorded by info
-other_vars$identifier       <- "Natalia Lopez Figueroa"
-other_vars$identifier_orcid <- "https://orcid.org/0000-0002-7527-0481"
-
-other_vars$larval_stage <- 
+larval_stage <- 
     tribble(
         # original name  # DwC versions
         ~larva_orig,     ~larva_new,
@@ -111,14 +95,15 @@ dwc_info_path <-
   print()
 
 # ---- load file ---- #
-dwc_info <-
+dwc_info_raw <-
   dwc_info_path %>%
   read_csv(
     show_col_types = FALSE,
     guess_max      = 4000
   ) %>%
   left_join(
-    other_vars$larval_stage,
+    # other_vars$larval_stage,
+    larval_stage,
     by = c("lifeStage" = "larva_orig")
   ) %>%
   print()
@@ -168,8 +153,8 @@ Later the columns will be extracted for each `core`.
 
 Spelling matters and can be check here: <https://dwc.tdwg.org/terms/>
 ```{r dwc-cols}
-dwc_info <-
-  dwc_info %>% 
+dwc_info_raw <-
+  dwc_info_raw %>% 
   mutate(
     rowNumber = row_number(),
     .before   = 1
@@ -193,8 +178,8 @@ dwc_info <-
     ),
     basisOfRecord          = "PreservedSpecimen", # "HumanObservation",
     recordedBy             = "NOAA AOML | USF IMaRS",
-    identifiedBy           = other_vars$identifier  ,
-    identifiedByID         = other_vars$identifier_orcid,
+    identifiedBy           = "Natalia Lopez Figueroa",
+    identifiedByID         = "https://orcid.org/0000-0002-7527-0481",
   ) %T>%
   print() %>%
     
@@ -271,14 +256,6 @@ dwc_info <-
     occurrenceID         = str_replace(occurrenceID, "Cyphonautes:larvae", "Cyphonautes:unkwn"),
     taxonRank            = rank,
     dateIdentified       = date_analyzed,
-     # counts of organisms?
-    # IDk which of these is accurate
-    # individualCount          = number_ind_sample,
-    # add each aliquot as a total count per sample event
-    # update on April 17, 2023
-    # organismQuantity
-    # organismQuantity         = ind_m3,
-    # organismQuantityType     = "Individuals per cubic metre",
     # update June 26, 2023
     # change organismQuantity to a density of individuals per cubic meter
     # organismQuantity     = individualCount,
@@ -304,90 +281,280 @@ dwc_info <-
     net_type   = "bongo nets",
     microscopy = "microscopy"
   )
-
-   
-    # 
-    #     # or
-    # measurementType          = "Number per cubic metre",
-    # MOF? should also include ind/sample?
-    # measurementUnitID        =
-    # "http://vocab.nerc.ac.uk/collection/P06/current/UPMM/",
-    # MOF?
 ```
 
 ## 2.3 Load Pre-2018 Data 
+
+### 2.3.1 Load Extended Aphia ID Information for Pre-2018 Data
+
+```{r}
+# aphia_id <-
+#   # here("data", "metadata") %>%
+#   here("data", "zoo_pre_2018") %>%
+#   dir_ls(
+#     # regexp = "aphia_extended_info",
+#     # regexp = "taxa_worms_info",
+#     regexp = "aphia_taxa_jaime",
+#     recurse = 1
+#   ) %>%
+#   last_mod() %T>% 
+#   print()
+# 
+# if (is_empty(aphia_id) | FALSE) {
+#   # create extended aphia_id info if does not exist
+#   cli_alert_info("Creating an extended aphia ID file.")
+# 
+#   # ---- load aphia ID ---- #
+#   aphia_id <-
+#     dir_ls(
+#       # path = here("data", "metadata", "aphia_id"),
+#       path = here("data", "zoo_pre_2018"),
+#       regexp = "^[^~]*(aphia)+.*\\.csv$"
+#     ) %>%
+#     last_mod(.) %>%
+#     read_csv(show_col_types = FALSE) %>%
+#     
+#     # extract extended info from WoRMS
+#     mutate(
+#       aphiaID = str_extract(scientificNameID, "\\d+"),
+#       aphiaID = as.numeric(aphiaID),
+#       info = pmap(
+#         list(
+#           aphiaID,
+#           taxa_orig,
+#           row_number()
+#         ),
+#         .f = worrms_info_extract # function in taxa_list_check.R
+#       )
+#     ) %>%
+#     unnest(info, names_repair = janitor::make_clean_names) %>%
+#     select(!contains("_2"), -c(2:6))
+# 
+#   cli_alert_info("\n\nSaving another `Aphia Extended` file!\n}")
+#   save_csv(
+#     .data         = aphia_id,
+#     # save_location = here("data", "metadata", "aphia_extended"),
+#     save_location = here("data", "zoo_pre_2018"),
+#     save_name     = "taxa_worms_info",
+#     overwrite     = TRUE,
+#     verbose       = TRUE,
+#     utf_8         = TRUE
+#   )
+# 
+# } else {
+#   aphia_id <-
+#     aphia_id %>%
+#     last_mod()
+# 
+#   cli_alert_info("Loading file: {.file {basename(aphia_id)}}")
+# 
+#   aphia_id <-
+#     read_csv(
+#       aphia_id,
+#       show_col_types = FALSE
+#     ) %T>% 
+#     print()
+# }
+```
+
+```{r}
+# # TODO: add cloud dir
+# old_data <- 
+#     here("data", "zoo_pre_2018", "processed") %>%
+#     dir_ls(regexp = "occurrences") %>%
+#     last_mod() %>%
+#     read_csv(show_col_types = FALSE) %T>% print() 
+# 
+# aphia_extended <-
+#   old_data %>%
+#   select(
+#     verbatimIdentification, scientificNameID,
+#   ) %>%
+#   distinct() %>%
+#   mutate(
+#     aphia_id = if_else(!is.na(scientificNameID),
+#       str_split(scientificNameID, ":",
+#         simplify = TRUE
+#       )[, 5],
+#       NA_character_
+#     ) %>%
+#       as.numeric(.),
+#     row = row_number(),
+#     info = pmap(
+#       list(
+#         aphia_id,
+#         # taxa_orig,
+#         verbatimIdentification,
+#         row
+#       ),
+#       # .progress = TRUE,
+#       .f =
+#         (\(.x, .y, .z)
+#         tryCatch(
+#           {
+#             if (.z == 1) {
+#               cat(sprintf(
+#                 "\n%-4s | %-6s | names\n%s",
+#                 "Row", "aphia",
+#                 stringi::stri_dup("-", 37)
+#               ))
+#             }
+#             cat(sprintf("\n%-4d | %6s | %s | ", .z, .x, .y))
+#             x <- worrms::wm_record(.x)
+#             cat(x$scientificname)
+#             return(x)
+#           },
+#           error = function(e) {
+#             return(NULL)
+#           }
+#         ))
+#     )
+#   ) %>%
+#   unnest(info,
+#     names_repair = janitor::make_clean_names,
+#     keep_empty = TRUE
+#   ) %>%
+#   rename(
+#     # might be need to go back to old way
+#     # "scientificName"   = scientific_name
+#     # "scientificNameID" = scientific_name_id
+#     "scientificName"   = valid_name,
+#     "scientificNameID" = lsid
+#   ) %>%
+#   mutate(
+#     scientificNameID = str_replace(
+#       scientificNameID, ":(\\d+)",
+#       glue(":{valid_aphia_id}")
+#     )
+#   ) %T>% 
+#   print()
+# 
+# old_data <- 
+#   old_data %>%
+#   select(-scientificName) %>%
+#   left_join(.,
+#     aphia_extended,
+#     by = c(
+#       "verbatimIdentification" = "verbatim_identification",
+#       "scientificNameID"   = "scientific_name_id"
+#     )
+#   ) %T>% 
+#   print()
+
+
+```
+
 ```{r load-pre-2018}
-stations <- c("LK", "MR", "WS")
+old_data <-
+  here("data", "zoo_pre_2018", "processed") %>%
+  dir_ls(regexp = "occurrences") %>%
+  last_mod() %>%
+  read_csv(show_col_types = FALSE) %>%
+  mutate(
+    ind_m3 = if_else(is.infinite(ind_m3), NA, ind_m3),
+    organismQuantity = if_else(is.infinite(organismQuantity), NA, organismQuantity),
 
-real_loc <- 
-tribble(
- ~locationID, ~lon,  ~lat, ~labs,        
- "MR",        -80.4, 25.0, "64, 200, 500",
- "LK",        -81.4, 24.5, "64, 200, 500",
- "WS",        -81.7, 24.5, "64, 200, 500",
- "54",        -81.2, 25.3, "64 (only)",
- "57",        -81.3, 25.4, "64 (only)")
-
-# TODO: add cloud dir
-old_data <- 
-    here("data", "zoo_pre_2018", "processed") %>%
-    dir_ls(regexp = "occurrences") %>%
-    last_mod() %>%
-    read_csv(show_col_types = FALSE) %T>% print()
-
-dwc_info <-
-    old_data %>%
-    select(any_of(names(dwc_info))) %>% 
-    mutate(
-        # .keep = "used",
-        eventDate        = format_ISO8601(eventDate, usetz = "Z"),
-        eventID          = str_remove(eventID, "\\}"),
-        
-        occurrenceID     = str_remove_all(occurrenceID, "\\}|\\."),
-        occurrenceID     = stringi::stri_trans_general(occurrenceID, "Latin-ASCII"),
-        locationID       = case_when(
-            str_detect(eventID, stations[1]) ~ stations[1],
-            str_detect(eventID, stations[2]) ~ stations[2],
-            str_detect(eventID, stations[3]) ~ stations[3],
-            .default = NA
-        ),
-        decimalLatitude = case_when(
-            str_detect(locationID, real_loc$locationID[1]) ~ real_loc$lat[1],
-            str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lat[2],
-            str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lat[3],
-        ),
-        decimalLongitude = case_when(
-            str_detect(locationID, real_loc$locationID[1]) ~ real_loc$lon[1],
-            str_detect(locationID, real_loc$locationID[2]) ~ real_loc$lon[2],
-            str_detect(locationID, real_loc$locationID[3]) ~ real_loc$lon[3],
-        ),
-        identifiedBy = "Jaimie Rojas-Marquez",
-        identifiedByID = "https://orcid.org/0009-0009-7318-7180"
-    )  %>% 
-    
-    # TODO: figure out what to do with these duplicates?
-    filter(!str_detect(eventID, "2$")) %>%
-    bind_rows(., dwc_info) %>%
-     mutate(
-        # .keep = "used",
-        year,
-        eventDate1 = as_date(eventDate),
-        year = if_else(is.na(year),
-                        year(eventDate1),
-                        year),
-        month = if_else(is.na(month),
-                        month(eventDate1),
-                        month),
-        day = if_else(is.na(day),
-                        day(eventDate1),
-                        day),
-    )  %>%
-     mutate(
-        across(contains("date") & (is.Date | is.POSIXct), 
-               \(x) format_ISO8601(x, usetz = "Z"))
+    ) %>%
+  rename(
+    "disposition" = any_of("dispostion"),
+    "number_ind_sample" = total_ind_correct
     ) %T>%
   print()
+
+dwc_info <-
+  old_data %>%
+  select(any_of(names(dwc_info_raw))) %>%
+  mutate(
+    date_time    = ymd_hms(date_time),
+    eventDate    = format_ISO8601(eventDate, usetz = "Z"),
+    occurrenceID = stringi::stri_trans_general(occurrenceID, "Latin-ASCII"),
+    occurrenceID = str_replace_all(occurrenceID, "\\s", "_"),
+    occurrenceID = str_replace_all(occurrenceID, "\\.", ""),
+    modified     = format(Sys.Date(), "%Y-%m-%d"),
+  ) %>%
+  # TODO: figure out what to do with these duplicates?
+  filter(!str_detect(eventID, "2$")) %>%
+  bind_rows(., dwc_info_raw) %>%
+  mutate(
+    modified = format(Sys.Date(), "%Y-%m-%d"),
+    year,
+    eventDate1 = as_date(eventDate),
+    year       = if_else(
+      is.na(year),
+      year(eventDate1),
+      year
+    ),
+    month = if_else(
+      is.na(month),
+      month(eventDate1),
+      month
+    ),
+    day = if_else(
+      is.na(day),
+      day(eventDate1),
+      day
+    ),
+  ) %>%
+  mutate(
+    across(
+      contains("date") & where(is.Date) | where(is.POSIXct),
+      \(x) format_ISO8601(x, usetz = "Z")
+    )
+  ) %T>%
+  print()
+
+dwc_info <- 
+  dwc_info %>%
+  mutate(
+    eventID,
+    sampleSizeValue,
+    # replace org quantity when NA or <=0 with counts
+    organismQuantity = if_else(
+      is.na(volume_filt_cubic_m) | volume_filt_cubic_m <= 0, 
+      number_ind_sample, 
+      organismQuantity
+    ),
+    # replace org quantitytype when NA or <=0 with "count"
+    organismQuantityType = if_else(
+      is.na(volume_filt_cubic_m) | volume_filt_cubic_m <= 0, 
+     "Count (in assayed sample) of biological entity specified elsewhere",
+      organismQuantityType
+    ),
+    organismRemarks = if_else(
+      is.na(volume_filt_cubic_m) | volume_filt_cubic_m <= 0, 
+     "Counts of biological entity were used because volume filtered was not recorded, 0 m^3 or less than 0 m^3",
+      NA
+    ),
+    # replace samplesizevalue when vol filt is NA or <= 0 to NA
+    sampleSizeValue = if_else(
+      is.na(volume_filt_cubic_m) | volume_filt_cubic_m <= 0, 
+      NA, 
+      sampleSizeValue
+    ),
+    eventRemarks = vol_notes
+  ) 
 ```
+
+
+```{r}
+filter(old_data, 
+       str_detect(eventID, "2$"))
+old_data %>%
+  # select(any_of(names(dwc_info_raw))) %>%
+  mutate(
+    date_time    = ymd_hms(date_time),
+    eventDate    = format_ISO8601(eventDate, usetz = "Z"),
+    occurrenceID2 = stringi::stri_trans_general(occurrenceID, "Latin-ASCII"),
+    occurrenceID2        = str_replace_all(occurrenceID, "\\s", "_"),
+    occurrenceID2        = str_replace_all(occurrenceID2, "\\.", ""),
+    modified     = format(Sys.Date(), "%Y-%m-%d"),
+  )  %>%
+    select(occurrenceID, occurrenceID2) %>%
+    filter(occurrenceID != occurrenceID2)
+```
+
+
+
 ```{r}
 save_csv(
   .data          = dwc_info,
@@ -397,7 +564,7 @@ save_csv(
   verbose        = TRUE,
   time_stamp_fmt = NULL,
   utf_8          = TRUE
-    )
+  )
 
 if (FALSE && exists("cloud_dir")) {
 # if (TRUE && exists("cloud_dir")) {
@@ -461,7 +628,8 @@ event_core <-
     georeferencedBy,
     coordinateUncertaintyInMeters,
     minimumDepthInMeters,
-    maximumDepthInMeters
+    maximumDepthInMeters,
+    eventRemarks
   ) %>%
   distinct() %>%
   fill(1:language, .direction = "up") %T>%
@@ -470,6 +638,13 @@ event_core <-
   # cruise ID was updated afterwards
   # mutate(eventID = str_replace(eventID,  "WS17282", "WS17275")) %T>% 
   print()
+
+naniar::vis_miss(event_core)
+event_core %>%
+  select(eventRemarks, sampleSizeValue:samplingEffort)
+  filter(sampleSizeValue <= 0 | is.na(sampleSizeValue))
+
+janitor::get_dupes(event_core, fieldNumber)
 ```
 
 ## 3.2 Occurrence Core
@@ -497,14 +672,23 @@ occur_core <-
     identificationReferences,
     verbatimIdentification,
     georeferenceVerificationStatus,
-    disposition
+    disposition,
+    organismRemarks
   )  %>%
-  fill(collectionCode, .direction = "up") %T>%
+  fill(collectionCode, .direction = "up") %>%
+  filter(!is.na(scientificName)) %T>% 
     
   # # keeping same `eventID` from previous submission
   # # cruise ID was updated afterwards
   # mutate(eventID = str_replace(eventID,  "WS17282", "WS17275")) %T>%
   print()
+
+naniar::vis_miss(occur_core)
+occur_core %>%
+  # select(dateIdentified:lifeStage) %>%
+  # filter(str_detect(organismQuantityType, "Count"))
+  filter(!is.na(organismRemarks))
+
 ```
 
 ## 3.3 Measurement or Fact Core (MoF)
@@ -566,20 +750,44 @@ mof_core <-
     mof_info$mof_occur,
     mof_info$mof_event
   ) %>%
- left_join(mof_info$mof_base, by = "orig_term") %>%
- arrange(eventID, event_occur) %>%
- select(
-     -orig_term,
-     -event_occur,
-     -measurementAccuracy # maybe will update later
-     ) %T>% print()
+  left_join(mof_info$mof_base, by = "orig_term") %>%
+  arrange(eventID, event_occur) %>%
+  select(
+    -orig_term,
+    -event_occur,
+    -measurementAccuracy # maybe will update later
+  ) %T>% 
+  print()
 
+mof_core <- 
+  dwc_info %>%
+  select(eventID, "measurementRemarks" = vol_notes) %>%
+  mutate(
+   measurementType = "Sample volume (filtration) by measuring cylinder"
+  ) %>%
+  left_join(
+    mof_core, 
+    .
+  ) %>%
+  distinct() %T>% 
+  print()
 
 slice_sample(mof_core, n = 1, by = eventID)
 cli::cli_alert_info("Dimensions: {dim(mof_core)}")
+
+naniar::vis_miss(mof_core)
+
+mof_core %>%
+  filter(is.na(measurementValue)) %>%
+  arrange(measurementType)
+
+mof_core %>%
+  distinct(measurementType)
 ```
 
-    # 4.0 Examples to save
+
+# 4.0 Examples to save
+
 ```{r dup-check}
 janitor::get_dupes(event_core)
 janitor::get_dupes(event_core, eventID)
@@ -632,7 +840,7 @@ pwalk(
       event_core,
       occur_core,
       # mof_core
-      filter(mof_core, !(is.na(measurementValue)))
+      filter(mof_core, !is.na(measurementValue))
     ),
     here("data", "processed", "obis", Sys.Date()),
     glue("{c(\"event\", \"occur\", \"mof\")}")
@@ -655,9 +863,9 @@ if (FALSE && exists("cloud_dir")) {
     here("data", "processed", "obis") %>%
     dir_ls(type = "file", recurse = 1) %>%
     str_subset("old|ex", negate = TRUE) %>%
-    str_subset("2025-02-11") %T>% 
+    str_subset("2025-09-24") %T>% 
     print()
-
+  stop("check date to be sure using the correct file")
   dir_create(here(cloud_dir, "processed", "obis"))
 
   file_copy(
@@ -672,7 +880,7 @@ if (FALSE && exists("cloud_dir")) {
 # ---- TEST ----
 ```{r test}
 str_count(occur_core$occurrenceID, "\\.") %>%
-    sort(decreasing = T)
+    sort(decreasing = TRUE)
 occur_core %>%
     filter(str_detect(occurrenceID, "\\.")) %>%
     select(occurrenceID) %>%
@@ -699,11 +907,12 @@ obistools::report() %>%
 ```
 
 ```{r}
-check_extension_eventids(event_core, mof_core, field = "eventID")
+obistools::check_extension_eventids(event_core, mof_core, field = "eventID")
 
 
 str_subset(obistools::occurrence_fields(), "verbatim")
-str_subset(obistools::event_fields(), "")
+str_subset(obistools::occurrence_fields(), "(?i)remark")
+str_subset(obistools::event_fields(), "(?i)remark")
 
 str_sort(obistools::occurrence_fields())
 str_sort(obistools::event_fields())
@@ -718,9 +927,9 @@ names(rename(occur_core, "disposition" = dispostion)) %in% obistools::occurrence
 
 
 str_subset(names(occur_core), str_c(obistools::occurrence_fields(), collapse = "|"),
-           negate = T)
+           negate = TRUE)
 str_subset(names(event_core), str_c(obistools::event_fields(), collapse = "|"),
-           negate = T)
+           negate = TRUE)
 ```
 
 ```{r}
