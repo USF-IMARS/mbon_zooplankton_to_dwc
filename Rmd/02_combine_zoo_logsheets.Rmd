@@ -356,7 +356,7 @@ Merge all metadata sheets across all cruises when samples are taken
 ```{r merge-metadata}
 meta_merg <- 
   meta %>%
-    filter(!str_detect(base, "WS25221")) %>%
+    # filter(str_detect(base, "WS25221")) %>%
   filter(data_exists > 0) %>%
   select(-data_exists) %>%
   unnest(data) %T>% 
@@ -489,14 +489,19 @@ meta_calc <-
     # place 
      flowmeter_in = case_when(
       str_detect(cruise_id, "WS18008") ~ flowmeter_in,
-      inpeller_constant == 0.245 ~ flowmeter_in / 10,
-      .default = flowmeter_in
+      inpeller_constant == 0.245  & date_time < ym("2025-06") ~ flowmeter_in / 10,
+      .default = flowmeter_in / 10
     ),
      flowmeter_out = case_when(
       str_detect(cruise_id, "WS18008") ~ flowmeter_out,
       inpeller_constant == 0.245 & date_time < ym("2025-06") ~ flowmeter_out / 10,
-      .default = flowmeter_out
+      .default = flowmeter_out / 10
     ),
+    inpeller_constant = if_else(
+      inpeller_constant < 0.1,
+      inpeller_constant * 10,
+      inpeller_constant
+      ),
     net_size = # diameter in m
       case_when(
         mesh_size_um == 64 ~ 0.6,
