@@ -169,7 +169,7 @@ meta <-
           # fill down if lat, lon, date, or time is not there
           tidyr::fill(contains(c("station", "lat", "lon", "date", "time"))) 
         
-        if (!str_detect(.c, "WS16319")) {
+        if (!str_detect(.c, "WS16319|HG26137")) {
           temp <- temp %>%
 
           # drop rows when flowmeter_out = NA
@@ -364,8 +364,11 @@ meta_merg <-
 ```
 ```{r}
 meta_merg %>%
-
   filter(str_detect(cruise_id, "WS16319"))
+
+meta %>%
+  filter(str_detect(cruise_id, "HG26137")) %>%
+  pull(data)
 
 meta %>%
   filter(data_exists > 0) %>%
@@ -703,7 +706,7 @@ meta_final <-
   mutate(date = as_date(date))
 
 overwrite <- FALSE
-# overwrite <- TRUE
+overwrite <- TRUE
 
 # ---- write metadata to file ---- #
 save_csv(
