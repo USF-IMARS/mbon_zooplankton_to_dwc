@@ -5,6 +5,10 @@ date: '2022-07-08'
 output: html_document
 ---
 
+
+TODO: need to read old meta_combined and add to the end instead of recreating 
+every time
+
 # Load Packages
 This loads any packages that are not contained in the .Rprofile.
 ```{r setup}
@@ -34,6 +38,17 @@ rm(func_attach)
 # default: cloud 
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
+meta_prev_full <- here(cloud_dir, "cruise_logsheets") %>%
+  dir_ls(regexp = "meta_combined.csv") %>%
+  print() %>%
+  read_csv(show_col_types = FALSE) 
+
+meta_prev <-meta_prev_full %>%
+  distinct(cruise_id) %>%
+  pull(cruise_id) 
+
+message(glue("Previous cruises: ", paste(meta_prev, collapse = ", ")))
+
 # add additional ship acronyms to search 
 ship_acronym <- "(WS|SV|HG|H|WB)\\d{4,5}"
 
@@ -42,6 +57,7 @@ metadata_paths <-
   main_cloud_dir %>%
   dir_ls(type = "directory") %>%
   dir_ls(regexp = "metadata", recurse = 1) %>%
+  str_subset(paste(c(meta_prev, "FK"), collapse = "|"), negate = TRUE) %>%
   dir_ls(regexp = "\\.xlsx$") %T>% 
   {
     cat("All `xlsx` files\n---\n\n")
@@ -361,7 +377,9 @@ meta_merg <-
   select(-data_exists) %>%
   unnest(data) %T>% 
   print()
+
 ```
+
 ```{r}
 meta_merg %>%
   filter(str_detect(cruise_id, "WS16319"))
@@ -409,6 +427,7 @@ meta_fix <-
     # mesh_size_um     = str_trim(mesh_size_um),
     # mesh_size_um     = retype(mesh_size_um),
     ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
+    ship_speed_knots = hablar::retype(ship_speed_knots),
     file             = tools::file_path_sans_ext(file),
     split_size       = map_dbl(
       split_size, 
@@ -465,6 +484,8 @@ meta_fix <-
     )
   ) %T>% 
   print()
+
+meta_fix
 ```
 
 # Calculations
@@ -530,6 +551,8 @@ meta_calc <-
   relocate(contains("ignore"), .after = last_col()) %>%
   relocate(date_time, date, time_gmt, .after = mesh_size_um) %T>% 
   print()
+
+meta_calc
 ```
 
 
@@ -703,10 +726,16 @@ meta_calc %>%
 ```{r save}
 meta_final <-
   select(meta_calc, -file, "file" = base) %>%
-  mutate(date = as_date(date))
+  mutate(date = as_date(date)) %>%
+  # bind with rest of data
+  bind_rows(
+    mutate(meta_prev_full, date = as_date(date, format = "%m/%d/%Y")),
+    .
+  ) %>%
+  select(!contains("ignore"))
 
 overwrite <- FALSE
-overwrite <- TRUE
+# overwrite <- TRUE
 
 # ---- write metadata to file ---- #
 save_csv(
@@ -748,6 +777,58 @@ if (FALSE) {
 ```
 
 
+# Add Volume Filtered Check
+
+```{r}
+vol_filt_speeds <- 
+  meta_final %>%
+  mutate(
+    .keep = "used",
+    cruise_id, 
+    station, 
+    locationID, 
+    mesh_size_um,
+    date_time,
+    lat_in, lon_in,
+    volume_filt_cubic_m,
+    net_area,
+    tow_time_min,
+    distance_m,
+    ship_speed_knots,
+    ship_speed_m_s = ship_speed_knots * 0.514444,
+    tow_time_sec = tow_time_min * 60,
+    tow_dist = ship_speed_m_s * tow_time_sec,
+    tow_dist_1kt = 0.514444 * tow_time_sec,
+    tow_dist_2kt = 0.514444 * 2 * tow_time_sec,
+    volume_filt_cubic_m,
+    vol_filt_time = net_area * tow_dist,
+    vol_filt_time_1kt = net_area * tow_dist_1kt,
+    vol_filt_time_2kt = net_area * tow_dist_2kt,
+    check_out_flow = case_when(
+      between(volume_filt_cubic_m, vol_filt_time_1kt, vol_filt_time_2kt) ~ "within range",
+      volume_filt_cubic_m < vol_filt_time_1kt ~ "low",
+      volume_filt_cubic_m > vol_filt_time_2kt ~ "high",
+    ),
+    check_out_time = case_when(
+      between(vol_filt_time, vol_filt_time_1kt, vol_filt_time_2kt) ~ "within range",
+      vol_filt_time < vol_filt_time_1kt ~ "low",
+      vol_filt_time < vol_filt_time_2kt ~ "high",
+    ),
+    diff_flow_time = volume_filt_cubic_m - vol_filt_time
+  ) %>%
+  relocate(volume_filt_cubic_m, .before = vol_filt_time)
+
+vol_filt_speeds
+
+if (FALSE) {
+  file_path_speeds <- rstudioapi::selectDirectory()
+  write_csv(
+    vol_filt_speeds,
+    here(file_path_speeds, "sfer_mbon_vol_filt_speeds.csv")
+  )
+}
+
+```
 
 
 # # -------- #
