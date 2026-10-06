@@ -207,11 +207,13 @@ dwc_info_raw <-
     ),
 
     # TODO: habitat NERC vocab
-    habitat          = case_match(
+    # habitat          = case_match(
+    habitat          = recode_values(
         locationID,
         c("MR", "LK", "WS", "9B") ~ "near coral reef",
         c("57", "54") ~ "near river mouth", 
-        .default = NA),
+        # .default = NA),
+      ),
     sampleSizeValue  = volume_filt_cubic_m,
     sampleSizeUnit   = "Volume per cubic metre of filtered seawater",
     samplingEffort   = str_c(tow_time_min, "minutes", sep = " "),
@@ -443,6 +445,11 @@ dwc_info_raw <-
 
 
 ```
+
+pre-2018 data comes from:
+
+Step 1: fix_prev_zoo
+Step 2: fix_prev_zoo_data_to_DwC -> generates `occurrences.csv`
 
 ```{r load-pre-2018}
 old_data <-
@@ -782,6 +789,7 @@ mof_core %>%
   arrange(measurementType)
 
 mof_core %>%
+  # distinct(eventID)
   distinct(measurementType)
 ```
 
@@ -863,7 +871,7 @@ if (FALSE && exists("cloud_dir")) {
     here("data", "processed", "obis") %>%
     dir_ls(type = "file", recurse = 1) %>%
     str_subset("old|ex", negate = TRUE) %>%
-    str_subset("2025-09-24") %T>% 
+    str_subset("2026-10-06") %T>% 
     print()
   stop("check date to be sure using the correct file")
   dir_create(here(cloud_dir, "processed", "obis"))
