@@ -40,8 +40,9 @@ conflicts_prefer(
 # ---- Load Final OBIS Converted Data
 dat_event <- 
     here("data", "processed", "obis") %>%
-    dir_ls(regexp = "event")  %>% 
+    dir_ls(regexp = "event", recurse = 1)  %>% 
     str_subset("example|old", negate = TRUE) %>%
+    last_mod() %>%
     read_csv(show_col_types = FALSE) %>%
      mutate(
         # .keep = "used",
@@ -66,9 +67,10 @@ dat_event <-
         loc = str_c(locationID, loc, sep = " ")
     )
 
-dat_heat <- 
+# dat_heat <- 
+dat_heat3 <- 
     dat_event %>%
-    select(locationID, mesh, eventDate) %>%
+    select(eventID, locationID, mesh, eventDate) %>%
     mutate(
         year = year(eventDate),
         year = as.character(year),
@@ -77,7 +79,8 @@ dat_heat <-
                            new_levels = as.character(2015:year(Sys.Date()))),
         year = fct_rev(year),
         month = month(eventDate, label = TRUE, abbr = FALSE),
-        present = "N"
+        # present = "N"
+        present = if_else(str_detect(eventID, "(?i)jaimie"), "J", "N")
     )
 
 # ---- Load Jamie Data
@@ -106,11 +109,12 @@ dat_heat2 <-
 
 # ---- Merge Analyzed Data
 dat_heat3 <- 
-    full_join(
-        dat_heat,
-        dat_heat2,
-        # by = join_by(locationID, mesh, year, month)
-    ) %>%
+  dat_heat3 %>%
+    # full_join(
+    #     dat_heat,
+    #     dat_heat2,
+    #     # by = join_by(locationID, mesh, year, month)
+    # ) %>%
     distinct(locationID, mesh, year, month, .keep_all = TRUE)
 
 
@@ -223,7 +227,7 @@ plt_heat_main <-
     meta_df
     ) %>%
     filter(!str_detect(locationID, "55|56|57\\.|58|59|62|64")) %>%
-    filter(str_detect(locationID, "LK|MR|WS") & !is.na(mesh) & mesh > 100) %>%
+    filter(str_detect(locationID, "LK|MR|WS|54|57") & !is.na(mesh) & mesh > 100) %>%
     complete(year, month, locationID, mesh) %>%
     ggplot(aes(y = year, x = month)) +
     geom_tile(aes(
