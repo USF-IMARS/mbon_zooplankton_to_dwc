@@ -1,4 +1,4 @@
----
+96---
 title: "Combine Zooplankton Logsheet"
 author: "Sebastian DiGeronimo"
 date: '2022-07-08'
@@ -38,12 +38,14 @@ rm(func_attach)
 # default: cloud 
 if (!exists("main_cloud_dir")) main_cloud_dir <- rstudioapi::selectDirectory()
 
-meta_prev_full <- here(cloud_dir, "cruise_logsheets") %>%
+meta_prev_full <- 
+  here(cloud_dir, "cruise_logsheets") %>%
   dir_ls(regexp = "meta_combined.csv") %>%
   print() %>%
-  read_csv(show_col_types = FALSE) 
+  read_csv(show_col_types = FALSE) %>%
+  mutate(ship_speed_knots = if_else(ship_speed_knots == 1.5, 2, ship_speed_knots))
 
-meta_prev <-meta_prev_full %>%
+meta_prev <- meta_prev_full %>%
   distinct(cruise_id) %>%
   pull(cruise_id) 
 
@@ -428,6 +430,8 @@ meta_fix <-
     # mesh_size_um     = retype(mesh_size_um),
     ship_speed_knots = str_remove_all(ship_speed_knots, "~"),
     ship_speed_knots = hablar::retype(ship_speed_knots),
+    # what had been written down has been wrong and needs to be 2 kts
+    ship_speed_knots = if_else(ship_speed_knots == 1.5, 2, ship_speed_knots),
     file             = tools::file_path_sans_ext(file),
     split_size       = map_dbl(
       split_size, 
@@ -512,11 +516,13 @@ meta_calc <-
     # this correction is needed because flowmeter readings should have a tenths
     # place 
      flowmeter_in = case_when(
+      mesh_size_um == 50 ~ flowmeter_in,
       str_detect(cruise_id, "WS18008") ~ flowmeter_in,
       inpeller_constant == 0.245  & date_time < ym("2025-06") ~ flowmeter_in / 10,
       .default = flowmeter_in / 10
     ),
      flowmeter_out = case_when(
+      mesh_size_um == 50 ~ flowmeter_out,
       str_detect(cruise_id, "WS18008") ~ flowmeter_out,
       inpeller_constant == 0.245 & date_time < ym("2025-06") ~ flowmeter_out / 10,
       .default = flowmeter_out / 10
@@ -530,7 +536,8 @@ meta_calc <-
       case_when(
         mesh_size_um == 64 ~ 0.6,
         mesh_size_um == 200 ~ 0.5,
-        mesh_size_um == 500 ~ 0.5
+        mesh_size_um == 500 ~ 0.5,
+        mesh_size_um == 50  ~ 0.5
       ),
     net_area            = pi * (net_size / 2)^2, # m^2
     flowmeter_diff      = flowmeter_out - flowmeter_in,
@@ -779,55 +786,285 @@ if (FALSE) {
 
 # Add Volume Filtered Check
 
+uses ±0.5 knots to test if above or below "reasonable" range
+
 ```{r}
-vol_filt_speeds <- 
+vol_filt_speed <- 
   meta_final %>%
   mutate(
-    .keep = "used",
-    cruise_id, 
-    station, 
-    locationID, 
-    mesh_size_um,
-    date_time,
-    lat_in, lon_in,
-    volume_filt_cubic_m,
-    net_area,
-    tow_time_min,
-    distance_m,
-    ship_speed_knots,
-    ship_speed_m_s = ship_speed_knots * 0.514444,
     tow_time_sec = tow_time_min * 60,
-    tow_dist = ship_speed_m_s * tow_time_sec,
-    tow_dist_1kt = 0.514444 * tow_time_sec,
-    tow_dist_2kt = 0.514444 * 2 * tow_time_sec,
+    
+    ship_speed_knots,
+    ship_speed_knots_low = ship_speed_knots - 0.5,
+    ship_speed_knots_hi  = ship_speed_knots + 0.5,
+    
+    ship_speed_m_s     = 0.514444 * ship_speed_knots,
+    ship_speed_low_m_s = 0.514444 * ship_speed_knots_low,
+    ship_speed_hi_m_s  = 0.514444 * ship_speed_knots_hi,
+    
+    tow_dist     = tow_time_sec * ship_speed_m_s,
+    tow_dist_low = tow_time_sec * ship_speed_low_m_s,
+    tow_dist_hi  = tow_time_sec * ship_speed_hi_m_s,
+    
     volume_filt_cubic_m,
-    vol_filt_time = net_area * tow_dist,
-    vol_filt_time_1kt = net_area * tow_dist_1kt,
-    vol_filt_time_2kt = net_area * tow_dist_2kt,
-    check_out_flow = case_when(
-      between(volume_filt_cubic_m, vol_filt_time_1kt, vol_filt_time_2kt) ~ "within range",
-      volume_filt_cubic_m < vol_filt_time_1kt ~ "low",
-      volume_filt_cubic_m > vol_filt_time_2kt ~ "high",
+    vol_filt_time     = net_area * tow_dist,
+    vol_filt_time_low = net_area * tow_dist_low,
+    vol_filt_time_hi  = net_area * tow_dist_hi,
+    
+    check_out_flow    = case_when(
+      between(volume_filt_cubic_m, vol_filt_time_low, vol_filt_time_hi) ~ "within range",
+      volume_filt_cubic_m < vol_filt_time_low ~ "low",
+      volume_filt_cubic_m > vol_filt_time_hi ~ "high",
     ),
-    check_out_time = case_when(
-      between(vol_filt_time, vol_filt_time_1kt, vol_filt_time_2kt) ~ "within range",
-      vol_filt_time < vol_filt_time_1kt ~ "low",
-      vol_filt_time < vol_filt_time_2kt ~ "high",
-    ),
-    diff_flow_time = volume_filt_cubic_m - vol_filt_time
-  ) %>%
-  relocate(volume_filt_cubic_m, .before = vol_filt_time)
-
-vol_filt_speeds
+    
+    diff_flow_time      = round(volume_filt_cubic_m - vol_filt_time, 4),
+  )
 
 if (FALSE) {
   file_path_speeds <- rstudioapi::selectDirectory()
   write_csv(
     vol_filt_speeds,
-    here(file_path_speeds, "sfer_mbon_vol_filt_speeds.csv")
+    here(file_path_speeds, "sfer_mbon_vol_filt_speeds.csv"),
+    na = ""
+  )
+}
+```
+
+## Plot Ranges of Volumes 
+
+```{r}
+# 200 um mesh
+(vol_filt_speed %>%
+  filter(str_detect(locationID, "MR|WS|LK")) %>%
+  filter(mesh_size_um == 200) %>%
+  filter_out(mesh_size_um == 50 | is.na(check_out_flow)) %>%
+  
+  ggplot() +
+  geom_linerange(aes(y = cruise_id, xmin = vol_filt_time_low, xmax = vol_filt_time_hi),
+                 color = "red") +
+  geom_point(aes(y = cruise_id, x = vol_filt_time), color = "blue") +
+  geom_point(aes(y = cruise_id, x = volume_filt_cubic_m, color = check_out_flow)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL,
+    title = "200 μm Mesh"
+  ) +
+  facet_wrap(~station) +
+  theme(legend.position = "bottom")) %>%
+  ggplotly()
+
+# 500 um mesh
+(vol_filt_speed %>%
+  filter(str_detect(locationID, "MR|WS|LK")) %>%
+  filter(mesh_size_um == 500) %>%
+  filter_out(mesh_size_um == 50 | is.na(check_out_flow)) %>%
+  
+  ggplot() +
+  geom_linerange(aes(y = cruise_id, xmin = vol_filt_time_low, xmax = vol_filt_time_hi),
+                 color = "red") +
+  geom_point(aes(y = cruise_id, x = vol_filt_time), color = "blue") +
+  geom_point(aes(y = cruise_id, x = volume_filt_cubic_m, color = check_out_flow)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL,
+    title = "500 μm Mesh"
+  ) +
+  facet_wrap(~station) +
+  theme(legend.position = "bottom")) %>%
+  ggplotly()
+
+# 64 um mesh
+(vol_filt_speed %>%
+  filter(str_detect(locationID, "MR|WS|LK")) %>%
+  filter(mesh_size_um == 64) %>%
+  filter_out(mesh_size_um == 50 | is.na(check_out_flow)) %>%
+  
+  ggplot() +
+  geom_linerange(aes(y = cruise_id, xmin = vol_filt_time_low, xmax = vol_filt_time_hi),
+                 color = "red") +
+  geom_point(aes(y = cruise_id, x = vol_filt_time), color = "blue") +
+  geom_point(aes(y = cruise_id, x = volume_filt_cubic_m, color = check_out_flow)) +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL,
+    title = "64 μm Mesh"
+  ) +
+  facet_wrap(~station) +
+  theme(legend.position = "bottom")) %>%
+  ggplotly()
+
+```
+
+## Calculate Average m^3 per minute
+
+```{r}
+average_vol_min <- 
+  vol_filt_speed %>%
+  filter(str_detect(check_out_flow, "within")) %>%
+  mutate(vol_per_min = volume_filt_cubic_m / tow_time_min) %>%
+  
+  summarise(
+    .by = mesh_size_um,
+    mean = mean(vol_per_min, na.rm = TRUE),
+    count = n()
+  )
+
+average_vol_min
+
+# meta_final
+
+vol_filt_speed3 <- 
+  vol_filt_speed %>%
+  mutate(
+    .after = volume_filt_cubic_m,
+    volume_filt_cubic_m_2 = case_when(
+     str_detect(check_out_flow, "within") ~ volume_filt_cubic_m,
+     mesh_size_um == 200 ~ tow_time_min * average_vol_min$mean[2], 
+     mesh_size_um == 500 ~ tow_time_min * average_vol_min$mean[1], 
+     mesh_size_um == 64 ~ tow_time_min * average_vol_min$mean[3], 
+     )
+  ) 
+  
+  (vol_filt_speed3 %>%
+  filter(str_detect(locationID, "MR|WS|LK")) %>%
+  filter(mesh_size_um == 200) %>%
+  filter_out(mesh_size_um == 50 | is.na(check_out_flow)) %>%
+  ggplot() +
+  geom_linerange(aes(y = cruise_id, xmin = vol_filt_time_low, xmax = vol_filt_time_hi), color = "red") +
+  geom_point(aes(y = cruise_id, x = vol_filt_time), color = "blue") +
+  geom_point(aes(y = cruise_id, x = volume_filt_cubic_m, color = check_out_flow)) +
+  geom_point(aes(y = cruise_id, x = vol_f), color = "purple") +
+  labs(
+    x = NULL,
+    y = NULL,
+    color = NULL,
+    title = "200 μm Mesh"
+  ) +
+  facet_wrap(~station) +
+  theme(legend.position = "bottom")) %>%
+  ggplotly()
+
+```
+
+```{r}
+meta_full_join <-
+  full_join(
+    meta_final,
+    vol_filt_speed3
+  )
+
+meta_full_join
+
+if (FALSE) {
+  file_path_speeds <- rstudioapi::selectDirectory()
+  write_csv(
+    meta_full_join,
+    here(file_path_speeds, "sfer_mbon_vol_filt_full_speeds.csv"),
+    na = ""
   )
 }
 
+```
+
+
+```{r}
+overwrite <- FALSE
+# overwrite <- TRUE
+
+# ---- write metadata to file ---- #
+meta_full_join %>%
+  mutate(volume_filt_cubic_m = volume_filt_cubic_m_2) %>%
+  select(-c(volume_filt_cubic_m_2:vol_filt_time_hi, last_col())) %>%
+  save_csv(
+  .data          = .,        
+  save_location  = here("data", "metadata", "cruise_logsheets"),
+  save_name      = "meta_combined",
+  overwrite      = overwrite,
+  verbose        = TRUE,
+  time_stamp_fmt = "%Y%m%d_%H%M%S",
+  utf_8          = FALSE
+)
+
+# copy to cloud
+if (FALSE) {
+  here("data", "metadata", "cruise_logsheets") %>%
+  dir_ls(regexp = "meta_combined") %>%
+  last_mod() %>% 
+  file_copy(
+      here(cloud_dir, "cruise_logsheets", "meta_combined.csv"),
+      overwrite = TRUE
+  )
+}
+
+# for NOAA AOML
+if (FALSE) {
+  here("data", "metadata", "to_noaa") %>%
+  dir_create()
+    
+  meta_final %>%
+    select(-contains("ignore"), -file) %>%
+    relocate(contains("notes"), .after = volume_filt_cubic_m) %>%
+    openxlsx2::write_xlsx(
+      .,
+      here("data", "metadata", "to_noaa", glue("usf_imars_zooplankton_log_sheet_{Sys.Date()}.xlsx")),
+      na.strings = "",
+      overwrite = overwrite
+    )
+}
+```
+
+
+# for Lilly to edit taxa list to include full tree
+Oct 6, 2026
+
+```{r}
+taxa_list <- rstudioapi::selectFile()
+
+taxa2 <- read_csv(taxa_list)
+
+# taxa2 %$%
+#     obistools::match_taxa(scientificName) %T>%
+#     print() 
+
+taxa_list2 <-
+  taxa2 %>%
+  mutate(
+    aphiaid = str_extract(scientificNameID, "\\d.*"),
+    aphiaid = as.numeric(aphiaid),
+    worrms_extd = map(
+      aphiaid,
+      \(.x) {
+        if (is.na(.x)) {
+          return()
+        }
+
+        .x %>%
+          worrms::wm_record() %>%
+          select(kingdom:genus)
+      }
+    )
+  ) %>%
+  unnest(worrms_extd, keep_empty = TRUE)
+
+taxa_final2 <- 
+  taxa_list2 %>%
+  distinct(
+    scientificName, lifestage, scientificNameID, kingdom, phylum,
+    class, order, family, genus) %>%
+  mutate(
+    .before = 1,
+    microscopist = str_extract(taxa_list, "(?=taxa_).*(?=\\.csv)"),
+    microscopist = str_remove(microscopist, "taxa_"),
+  )
+
+write_csv(
+  taxa_final,
+  glue("{path_ext_remove(taxa_list)}_extended.csv"),
+  na = ""
+)
 ```
 
 
