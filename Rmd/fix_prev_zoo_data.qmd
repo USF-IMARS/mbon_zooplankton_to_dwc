@@ -186,116 +186,113 @@ arrange(sheets, sheet_nm) %>%
 
 ```{r}
 if (FALSE) {
-shelf(openxlsx2)
-test <-
-  sheets %>%
-  # slice(c(1, 5, 34)) %>%
-  mutate(
-    # metadata
-    meta = imap(
-      sheet_nm,
-      \(.x, idx, paths) {
-        print(paste(idx, sheet_nm))
-        dat <- openxlsx2::read_xlsx(
-          file = paths,
-          # sheet = idx + 2,
-          sheet = sheet_nm,
-          start_row = 8,
-          cols = c(4, 6),
-          show_formula = TRUE
-        )
-        # dat <- xlsx::read.xlsx(
-        #   file         = paths,
-        #   sheetIndex   = idx + 2,
-        #   startRow     = 8,
-        #   colIndex     = c(4, 6),
-        #   keepFormulas = TRUE
-        # )
-        dat <- dat %>%
-          janitor::remove_empty("rows")
-
-        dat <- dat %>%
-            rename("Total.Ind..Sample" = `Total Ind. Sample` ) %>%
-            
-          mutate(
-            # `Total.Ind..Sample` = as.character(`Total.Ind..Sample`)
-            `Total.Ind..Sample` = as.character(`Total.Ind..Sample`)
+  shelf(openxlsx2)
+  test <-
+    sheets %>%
+    # slice(c(1, 5, 34)) %>%
+    mutate(
+      # metadata
+      meta = imap(
+        sheet_nm,
+        \(.x, idx, paths) {
+          print(paste(idx, sheet_nm))
+          dat <- openxlsx2::read_xlsx(
+            file = paths,
+            # sheet = idx + 2,
+            sheet = sheet_nm,
+            start_row = 8,
+            cols = c(4, 6),
+            show_formula = TRUE
           )
-        return(dat)
-      },
-      paths = file_location
+          # dat <- xlsx::read.xlsx(
+          #   file         = paths,
+          #   sheetIndex   = idx + 2,
+          #   startRow     = 8,
+          #   colIndex     = c(4, 6),
+          #   keepFormulas = TRUE
+          # )
+          dat <- dat %>%
+            janitor::remove_empty("rows")
+  
+          dat <- dat %>%
+            rename("Total.Ind..Sample" = `Total Ind. Sample`) %>%
+            mutate(
+              # `Total.Ind..Sample` = as.character(`Total.Ind..Sample`)
+              `Total.Ind..Sample` = as.character(`Total.Ind..Sample`)
+            )
+          return(dat)
+        },
+        paths = file_location
+      )
     )
-  ) 
-unshelf(openxlsx2)
+    unshelf(openxlsx2)
 
 
-
-test2 <- 
-  test %>%
-  # extract the data within the list
-  unnest(meta)  %>%
-  rename("D" = Total.Ind..Sample) %T>%
-  print()
-
-test2 
-
-test_calc <-
-  test2 %>%
-  mutate(
-    .before = 1,
-    .by = sheet_nm,
-    row = row_number()
-  ) %>%
-  mutate(
-    calc =
-      case_when(
-        str_detect(`D`, "\\$C\\$7") ~ "correct",
-        str_detect(`D`, "^\\d.*\\d$") ~ "no calc, only number",
-        is.na(`D`) ~ "summation of individuals", 
-        .default = "no split size"
-      ),
-    .after = `D`
-  )
-
-
-test_calc %>%
-  arrange(calc) %T>%
-  print() %T>%
-  {
-    filter(., str_detect(calc, "summation of individuals"))  %>%
+  test2 <-
+    test %>%
+    # extract the data within the list
+    unnest(meta) %>%
+    rename("D" = Total.Ind..Sample) %T>%
     print()
-  } %T>%
-  {
-    filter(., str_detect(calc, "correct"))  %>%
-    print()
-  } %T>%
-  {
-    filter(., str_detect(calc, "only number"))  %>%
-    print()
-  } %T>%
-  {
-    filter(., str_detect(calc, "no split size"))  %>%
-    print()
-  } 
 
-calc_percent <- 
+  test2
+  
+  test_calc <-
+    test2 %>%
+    mutate(
+      .before = 1,
+      .by = sheet_nm,
+      row = row_number()
+    ) %>%
+    mutate(
+      calc =
+        case_when(
+          str_detect(`D`, "\\$C\\$7") ~ "correct",
+          str_detect(`D`, "^\\d.*\\d$") ~ "no calc, only number",
+          is.na(`D`) ~ "summation of individuals",
+          .default = "no split size"
+        ),
+      .after = `D`
+    )
+  
+  
   test_calc %>%
-  filter(!str_detect(calc, "summation of individuals")) %>%
-  count(calc) %>%
-  mutate(
-    frac = n / sum(n) * 100,
-    frac = round(frac, 2)
-  ) %T>% 
-  print()
+    arrange(calc) %T>%
+    print() %T>%
+    {
+      filter(., str_detect(calc, "summation of individuals")) %>%
+        print()
+    } %T>%
+    {
+      filter(., str_detect(calc, "correct")) %>%
+        print()
+    } %T>%
+    {
+      filter(., str_detect(calc, "only number")) %>%
+        print()
+    } %T>% {
+      filter(., str_detect(calc, "no split size")) %>%
+        print()
+    }
+  
+  calc_percent <-
+    test_calc %>%
+    filter(!str_detect(calc, "summation of individuals")) %>%
+    count(calc) %>%
+    mutate(
+      frac = n / sum(n) * 100,
+      frac = round(frac, 2)
+    ) %T>%
+    print()
 
 
-# list(
-#   "calculations" = test_calc,
-#   "percents" = calc_percent
-# ) %>%
-#   writexl::write_xlsx(
-#     path = here(base_dir, "formula_issues.xlsx")
-#   )
+  # list(
+  #   "calculations" = test_calc,
+  #   "percents" = calc_percent
+  # ) %>%
+  #   writexl::write_xlsx(
+  #     path = here(base_dir, "formula_issues.xlsx")
+  #   )
 }
 ```
 
@@ -635,22 +632,38 @@ species_unnest %>%
 #   print() 
 # } 
 
+# # created in 02_combined_zoo_logsheets to include both missing written logs from
+# # NOAA and logs written by IMaRS
+# meta_df <- 
+#   here("data", "metadata", "cruise_logsheets") %>%
+#   dir_ls(regexp = "meta_combined_with_noaa") %>%
+#   last_mod() %>% 
+#   read_csv(show_col_types = FALSE) %T>% 
+#   print()
+
 # created in 02_combined_zoo_logsheets to include both missing written logs from
 # NOAA and logs written by IMaRS
 meta_df <- 
   here("data", "metadata", "cruise_logsheets") %>%
-  dir_ls(regexp = "meta_combined_with_noaa") %>%
+  dir_ls(regexp = "meta_combined") %>%
   last_mod() %>% 
-  read_csv(show_col_types = FALSE) %T>% 
+  read_csv(show_col_types = FALSE) %>%
+  mutate(
+    .after = date,
+    year = year(date),
+    month = month(date),
+    day = day(date)
+    ) %T>% 
   print()
 
 meta_df %>%
   filter(year != 2016 & month != 3) %>%
-  
-  janitor::get_dupes(year,
-      month,
+  janitor::get_dupes(
+    year,
+    month,
     locationID,
-      mesh_size_um)
+    mesh_size_um
+    )
 ```
 
 ## Merge Metadata with Meta
@@ -664,7 +677,11 @@ notes:
 missing two cruise: 
 ok - 2016-11 LK 64 - because no record out volume, had MR here originally
 
-issue - 2016-03 all stations and mesh have duplicate matches from meta to one micro sheet
+issue - 2016-03 all stations and mesh have duplicate matches from metadata to 
+                one microscopy sheet
+                effects all samples from this cruise since there is not way to
+                tell which metadata row goes to the corresponding microscopy 
+                data
 
 ok - 2017-01 WS 64 - has a duplicate samples for some reason
 ok - 2015-04 WS 500 - has a duplicate samples for some reason
@@ -749,10 +766,11 @@ species_merged_filt %>%
   distinct(sheet_nm, .keep_all = TRUE) %>%
   select(1:6, "old_vol" = vol_filtered_m3, "new_vol" = volume_filt_cubic_m) %>%
   mutate(
+    .keep = "used",
     diff = new_vol - old_vol, 
     matters = if_else(abs(diff) < 1, "no", "yesssssss"),
     diff = format(diff, scientific = FALSE)
-  )  %T>% 
+  ) %T>% 
   print() %>%
   count(matters)
 
@@ -815,6 +833,14 @@ if (FALSE) {
   last_mod() %>%
   file_copy(
     here(cloud_dir, "old_jaime_data", "zoo_compiled_with_meta.csv"),
+    overwrite = TRUE
+    )
+  
+  here(base_dir, "processed") %>%
+  dir_ls(regexp = "zoo_compiled_with_meta_essentials") %>%
+  last_mod() %>%
+  file_copy(
+    here(cloud_dir, "old_jaime_data", "zoo_compiled_with_meta_essentials.csv"),
     overwrite = TRUE
     )
 }
