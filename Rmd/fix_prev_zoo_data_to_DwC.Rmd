@@ -452,7 +452,7 @@ datasetID <- "USF_IMaRS_MBON_compiled_zoo_taxonomy_jaimie_2018"
 
 ```
 
-# 4.0 ---- Construct Occurence ID ----
+# 4.0 ---- Construct Occurrence ID ----
 
 ```{r construct-occurrence-table}
 # map col names into dwc
@@ -594,7 +594,7 @@ taxa_full %>%
     # .keep = "used",
     diff = scientific_name == scientificName
   ) %>%
-    filter(diff == FALSE) %>%
+  filter(diff == FALSE) %>%
   relocate(.after = taxa, scientific_name, scientificName)
 ```
 
@@ -603,6 +603,8 @@ taxa_full %>%
 ```{r check-dupes}
 janitor::get_dupes(occur, occurrenceID)
 ```
+
+## 4.1 Save Occurrences Table
 
 ```{r save-occurrence-table}
 # save locally
@@ -758,7 +760,7 @@ left_join(
 ) 
 ```
 
-## 5.4 Ocurrence Level Info:
+## 5.4 Occurrence Level Info:
 ```{r occurence}
 occur <-
   taxa_matched_merg %>%
