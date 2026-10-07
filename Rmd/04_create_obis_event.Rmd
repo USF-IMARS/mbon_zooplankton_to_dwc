@@ -577,8 +577,9 @@ if (FALSE && exists("cloud_dir")) {
 # if (TRUE && exists("cloud_dir")) {
   copy_file_name <-
     here("data", "processed") %>%
-    dir_ls() %>%
-    str_subset("zooplankton_erddap\\.csv")
+    dir_ls(recurse = 1) %>%
+    str_subset("zooplankton_erddap\\.csv") %>%
+    last_mod()
 
   dir_create(here(cloud_dir, "processed"))
 
